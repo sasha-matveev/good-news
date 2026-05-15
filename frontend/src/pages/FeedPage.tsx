@@ -36,7 +36,7 @@ export function FeedPage() {
   const [readLaterBusy, setReadLaterBusy] = useState<number | null>(null);
   const [filters, setFilters] = useState<FeedFilterState>({
     feedbackState: "",
-    window: "last_month"
+    window: "all"
   });
   const [sort, setSort] = useState<PostSortMode>("match");
 

@@ -148,7 +148,8 @@ export function PostCard({
           {/* Like button */}
           {onFeedbackSelect ? (
             <button
-              aria-label="Like"
+              aria-label="Interesting"
+              title="Interesting — boost similar posts"
               aria-pressed={post.feedback_state === "interesting"}
               disabled={busy}
               onClick={() => {
@@ -179,7 +180,8 @@ export function PostCard({
           {/* Norm button */}
           {onFeedbackSelect ? (
             <button
-              aria-label="Norm"
+              aria-label="OK / Neutral"
+              title="OK — seen it, no strong opinion"
               aria-pressed={post.feedback_state === "norm"}
               disabled={busy}
               onClick={() => { onFeedbackSelect(post.id, "norm"); }}
@@ -208,7 +210,8 @@ export function PostCard({
           {/* Dislike button */}
           {onFeedbackSelect ? (
             <button
-              aria-label="Dislike"
+              aria-label="Not interesting"
+              title="Not interesting — suppress similar posts"
               aria-pressed={post.feedback_state === "not_interesting"}
               disabled={busy}
               onClick={() => {
@@ -239,7 +242,8 @@ export function PostCard({
           {/* Read later bookmark button */}
           {onReadLaterToggle ? (
             <button
-              aria-label={post.read_later ? "Remove from Read Later" : "Add to Read Later"}
+              aria-label={post.read_later ? "Remove from Read Later" : "Save to Read Later"}
+              title={post.read_later ? "Remove from Read Later" : "Save to Read Later"}
               aria-pressed={post.read_later}
               disabled={busy}
               onClick={() => {

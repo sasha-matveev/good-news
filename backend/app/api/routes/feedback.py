@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from collections.abc import Generator
+from enum import Enum
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
-from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Settings
@@ -16,7 +17,12 @@ from app.schemas.feedback import FeedbackResponse, FeedbackUpdateRequest
 
 router = APIRouter(tags=["feedback"])
 
-VALID_STATES = {"interesting", "not_interesting", "want_to_read", "norm"}
+
+class FeedbackState(str, Enum):
+    interesting = "interesting"
+    not_interesting = "not_interesting"
+    want_to_read = "want_to_read"
+    norm = "norm"
 
 
 def get_session_factory(request: Request) -> sessionmaker[Session]:
@@ -35,13 +41,13 @@ def upsert_feedback_state(session: Session, post_id: int, state: str) -> Feedbac
     if post is None:
         raise HTTPException(status_code=404, detail="Post not found")
 
-    feedback = session.scalar(select(Feedback).where(Feedback.post_id == post_id))
-    if feedback is None:
-        feedback = Feedback(post_id=post_id, state=state)
-        session.add(feedback)
-    else:
-        feedback.state = state
-
+    stmt = (
+        pg_insert(Feedback)
+        .values(post_id=post_id, state=state)
+        .on_conflict_do_update(index_elements=["post_id"], set_={"state": state})
+        .returning(Feedback)
+    )
+    feedback = session.scalar(stmt)
     session.flush()
     return feedback
 
@@ -60,13 +66,10 @@ def update_feedback(
 @router.get("/feedback/{post_id}/{state}")
 def save_feedback(
     post_id: int,
-    state: str,
+    state: FeedbackState,
     request: Request,
     session: Session = Depends(get_session),
 ) -> RedirectResponse:
-    if state not in VALID_STATES:
-        raise HTTPException(status_code=404, detail="Unknown feedback state")
-
     feedback = upsert_feedback_state(session, post_id, state)
     session.commit()
 

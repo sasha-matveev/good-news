@@ -31,8 +31,13 @@ const tabPaths: Record<(typeof tabs)[number], string> = {
   Monitoring: "/monitoring"
 };
 
+const pathAliases: Record<string, string> = {
+  "/": "/feed",
+  "/preferences": "/preference-profile",
+};
+
 function tabFromPath(pathname: string): (typeof tabs)[number] {
-  const normalizedPath = pathname.trim().toLowerCase();
+  const normalizedPath = pathAliases[pathname.trim().toLowerCase()] ?? pathname.trim().toLowerCase();
   return (
     (Object.entries(tabPaths).find(([, path]) => path === normalizedPath)?.[0] as
       | (typeof tabs)[number]

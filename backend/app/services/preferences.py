@@ -82,8 +82,9 @@ def build_preference_profile(session: Session) -> PreferenceProfileView:
                 topic_counts[topic] = topic_counts.get(topic, 0) + 1
             if metadata.get("format"):
                 format_counts[metadata["format"]] = format_counts.get(metadata["format"], 0) + 1
-            if metadata.get("technical_depth"):
-                depth_counts[metadata["technical_depth"]] = depth_counts.get(metadata["technical_depth"], 0) + 1
+            depth_val = metadata.get("technical_depth")
+            if depth_val and depth_val != "null":
+                depth_counts[depth_val] = depth_counts.get(depth_val, 0) + 1
         if feedback_state == "not_interesting":
             for topic in metadata.get("topics", []):
                 negative_topic_counts[topic] = negative_topic_counts.get(topic, 0) + 1
