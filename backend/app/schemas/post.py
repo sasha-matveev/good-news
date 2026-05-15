@@ -1,0 +1,47 @@
+from __future__ import annotations
+
+from datetime import UTC, datetime
+
+from pydantic import BaseModel
+
+
+def _serialize_datetime(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=UTC)
+    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+class PostResponse(BaseModel):
+    id: int
+    source_id: int
+    source_name: str | None
+    canonical_url: str
+    title: str
+    published_at: str | None
+    raw_content: str
+    feedback_state: str | None
+    read_later: bool
+    summary_ru: str | None
+    verdict: str | None
+    verdict_reason: str | None
+    ranking_explanation: str | None
+
+    @classmethod
+    def from_row(cls, row: object) -> "PostResponse":
+        return cls(
+            id=row.id,
+            source_id=row.source_id,
+            source_name=row.source_name,
+            canonical_url=row.canonical_url,
+            title=row.title,
+            published_at=_serialize_datetime(row.published_at),
+            raw_content=row.raw_content,
+            feedback_state=row.feedback_state,
+            read_later=getattr(row, "read_later", False) or False,
+            summary_ru=row.summary_ru,
+            verdict=row.verdict or None,
+            verdict_reason=row.verdict_reason or None,
+            ranking_explanation=row.ranking_explanation,
+        )

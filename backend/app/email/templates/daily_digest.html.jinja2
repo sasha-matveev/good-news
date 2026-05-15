@@ -1,0 +1,21 @@
+<html>
+  <body>
+    <h1>{{ digest_title }}</h1>
+    {% for post in posts %}
+    <article>
+      <h2>{{ post.title }}</h2>
+      <p>Source: {{ post.source_name or "Unknown" }}</p>
+      <p><a href="{{ post.canonical_url }}">Open original</a></p>
+      <p>{{ post.summary_ru or "" }}</p>
+      <p>Verdict: {{ post.verdict or "" }}</p>
+      <p>Reason: {{ post.verdict_reason or "" }}</p>
+      <p><a href="{{ feedback_base_url }}/{{ post.post_id }}/interesting">interesting</a></p>
+      <p><a href="{{ feedback_base_url }}/{{ post.post_id }}/not_interesting">not_interesting</a></p>
+      <p><a href="{{ feedback_base_url }}/{{ post.post_id }}/want_to_read">want_to_read</a></p>
+    </article>
+    {% endfor %}
+    {% if more_count > 0 %}
+    <p>more {{ more_count }} less interesting posts</p>
+    {% endif %}
+  </body>
+</html>
