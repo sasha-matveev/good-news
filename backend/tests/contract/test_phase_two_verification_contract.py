@@ -72,9 +72,6 @@ def test_phase_two_isolated_acceptance_compose_ports_exist() -> None:
 
     assert '${GOOD_NEWS_CONTENT_API_SERVICE_HOST_PORT:-8000}:8000' in compose_text
     assert '${GOOD_NEWS_FRONTEND_HOST_PORT:-5173}:5173' in compose_text
-    assert '${GOOD_NEWS_ANALYSIS_SERVICE_HOST_PORT:-8100}:8100' in compose_text
-    assert '${GOOD_NEWS_SOURCE_INGESTION_SERVICE_HOST_PORT:-8200}:8200' in compose_text
-    assert '${GOOD_NEWS_DELIVERY_SERVICE_HOST_PORT:-8300}:8300' in compose_text
 
 
 def test_deploy_script_sequences_postgres_migration_and_app_services() -> None:

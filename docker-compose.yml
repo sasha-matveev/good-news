@@ -47,7 +47,7 @@ services:
     mem_limit: 256m
     command: python -m app.core.migration_runner
 
-  content-api-service:
+  app:
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -62,86 +62,6 @@ services:
       GOOD_NEWS_FRONTEND_PORT: ${GOOD_NEWS_FRONTEND_HOST_PORT:-5173}
       GOOD_NEWS_PUBLIC_CONTENT_API_ORIGIN: ${GOOD_NEWS_PUBLIC_CONTENT_API_ORIGIN:?GOOD_NEWS_PUBLIC_CONTENT_API_ORIGIN must be set}
       GOOD_NEWS_PUBLIC_FRONTEND_ORIGIN: ${GOOD_NEWS_PUBLIC_FRONTEND_ORIGIN:?GOOD_NEWS_PUBLIC_FRONTEND_ORIGIN must be set}
-      GOOD_NEWS_ANALYSIS_SERVICE_HOST: analysis-llm-service
-      GOOD_NEWS_ANALYSIS_SERVICE_PORT: ${GOOD_NEWS_ANALYSIS_SERVICE_PORT:-8100}
-      GOOD_NEWS_SOURCE_INGESTION_SERVICE_HOST: source-ingestion-service
-      GOOD_NEWS_SOURCE_INGESTION_SERVICE_PORT: ${GOOD_NEWS_SOURCE_INGESTION_SERVICE_PORT:-8200}
-      GOOD_NEWS_DELIVERY_SERVICE_HOST: delivery-service
-      GOOD_NEWS_DELIVERY_SERVICE_PORT: ${GOOD_NEWS_DELIVERY_SERVICE_PORT:-8300}
-      GOOD_NEWS_POSTGRES_HOST: postgres
-      GOOD_NEWS_POSTGRES_PORT: 5432
-      GOOD_NEWS_POSTGRES_DATABASE: ${GOOD_NEWS_POSTGRES_DATABASE:-good_news}
-      GOOD_NEWS_POSTGRES_USER: ${GOOD_NEWS_POSTGRES_USER:-good_news}
-      GOOD_NEWS_POSTGRES_PASSWORD: ${GOOD_NEWS_POSTGRES_PASSWORD:?GOOD_NEWS_POSTGRES_PASSWORD must be set}
-      GOOD_NEWS_APP_MASTER_KEY: ${GOOD_NEWS_APP_MASTER_KEY:?GOOD_NEWS_APP_MASTER_KEY must be set}
-      GOOD_NEWS_OLLAMA_HOST: ollama
-      GOOD_NEWS_OLLAMA_PORT: 11434
-      GOOD_NEWS_OLLAMA_MODEL: ${GOOD_NEWS_OLLAMA_MODEL:-llama3.2:3b-instruct-q4_K_M}
-    logging:
-      driver: json-file
-      options:
-        max-file: "3"
-        max-size: "10m"
-    mem_limit: 512m
-    ports:
-      - "${GOOD_NEWS_CONTENT_API_SERVICE_HOST_PORT:-8000}:8000"
-    command: sh /app/backend/scripts/start-content-api-service.sh
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/api/health >/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 15s
-
-  source-ingestion-service:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-    cpus: 1.0
-    depends_on:
-      postgres:
-        condition: service_healthy
-      analysis-llm-service:
-        condition: service_healthy
-    environment:
-      GOOD_NEWS_ENV: ${GOOD_NEWS_ENV:-dev}
-      GOOD_NEWS_SOURCE_INGESTION_SERVICE_PORT: ${GOOD_NEWS_SOURCE_INGESTION_SERVICE_PORT:-8200}
-      GOOD_NEWS_ANALYSIS_SERVICE_HOST: analysis-llm-service
-      GOOD_NEWS_ANALYSIS_SERVICE_PORT: ${GOOD_NEWS_ANALYSIS_SERVICE_PORT:-8100}
-      GOOD_NEWS_INGESTION_RESPONSES_JSON: ${GOOD_NEWS_INGESTION_RESPONSES_JSON:-}
-      GOOD_NEWS_POSTGRES_HOST: postgres
-      GOOD_NEWS_POSTGRES_PORT: 5432
-      GOOD_NEWS_POSTGRES_DATABASE: ${GOOD_NEWS_POSTGRES_DATABASE:-good_news}
-      GOOD_NEWS_POSTGRES_USER: ${GOOD_NEWS_POSTGRES_USER:-good_news}
-      GOOD_NEWS_POSTGRES_PASSWORD: ${GOOD_NEWS_POSTGRES_PASSWORD:?GOOD_NEWS_POSTGRES_PASSWORD must be set}
-      GOOD_NEWS_APP_MASTER_KEY: ${GOOD_NEWS_APP_MASTER_KEY:?GOOD_NEWS_APP_MASTER_KEY must be set}
-    logging:
-      driver: json-file
-      options:
-        max-file: "3"
-        max-size: "10m"
-    mem_limit: 512m
-    ports:
-      - "${GOOD_NEWS_SOURCE_INGESTION_SERVICE_HOST_PORT:-8200}:8200"
-    command: sh /app/backend/scripts/start-ingestion-service.sh
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8200/health >/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 15s
-
-  analysis-llm-service:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-    cpus: 1.0
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      GOOD_NEWS_ENV: ${GOOD_NEWS_ENV:-dev}
-      GOOD_NEWS_ANALYSIS_SERVICE_PORT: ${GOOD_NEWS_ANALYSIS_SERVICE_PORT:-8100}
       GOOD_NEWS_POSTGRES_HOST: postgres
       GOOD_NEWS_POSTGRES_PORT: 5432
       GOOD_NEWS_POSTGRES_DATABASE: ${GOOD_NEWS_POSTGRES_DATABASE:-good_news}
@@ -152,6 +72,7 @@ services:
       GOOD_NEWS_OLLAMA_PORT: 11434
       GOOD_NEWS_OLLAMA_MODEL: ${GOOD_NEWS_OLLAMA_MODEL:-llama3.2:3b-instruct-q4_K_M}
       GOOD_NEWS_ANALYSIS_STUB_RESPONSE_JSON: ${GOOD_NEWS_ANALYSIS_STUB_RESPONSE_JSON:-}
+      GOOD_NEWS_INGESTION_RESPONSES_JSON: ${GOOD_NEWS_INGESTION_RESPONSES_JSON:-}
     logging:
       driver: json-file
       options:
@@ -159,47 +80,10 @@ services:
         max-size: "10m"
     mem_limit: 512m
     ports:
-      - "${GOOD_NEWS_ANALYSIS_SERVICE_HOST_PORT:-8100}:8100"
-    command: sh /app/backend/scripts/start-analysis-service.sh
+      - "${GOOD_NEWS_CONTENT_API_SERVICE_HOST_PORT:-8000}:8000"
+    command: sh /app/backend/scripts/start-app.sh
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8100/health >/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 15s
-
-  delivery-service:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-    cpus: 1.0
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      GOOD_NEWS_ENV: ${GOOD_NEWS_ENV:-dev}
-      GOOD_NEWS_DELIVERY_SERVICE_PORT: ${GOOD_NEWS_DELIVERY_SERVICE_PORT:-8300}
-      GOOD_NEWS_CONTENT_API_SERVICE_PORT: ${GOOD_NEWS_CONTENT_API_SERVICE_HOST_PORT:-8000}
-      GOOD_NEWS_FRONTEND_PORT: ${GOOD_NEWS_FRONTEND_HOST_PORT:-5173}
-      GOOD_NEWS_PUBLIC_CONTENT_API_ORIGIN: ${GOOD_NEWS_PUBLIC_CONTENT_API_ORIGIN:?GOOD_NEWS_PUBLIC_CONTENT_API_ORIGIN must be set}
-      GOOD_NEWS_PUBLIC_FRONTEND_ORIGIN: ${GOOD_NEWS_PUBLIC_FRONTEND_ORIGIN:?GOOD_NEWS_PUBLIC_FRONTEND_ORIGIN must be set}
-      GOOD_NEWS_POSTGRES_HOST: postgres
-      GOOD_NEWS_POSTGRES_PORT: 5432
-      GOOD_NEWS_POSTGRES_DATABASE: ${GOOD_NEWS_POSTGRES_DATABASE:-good_news}
-      GOOD_NEWS_POSTGRES_USER: ${GOOD_NEWS_POSTGRES_USER:-good_news}
-      GOOD_NEWS_POSTGRES_PASSWORD: ${GOOD_NEWS_POSTGRES_PASSWORD:?GOOD_NEWS_POSTGRES_PASSWORD must be set}
-      GOOD_NEWS_APP_MASTER_KEY: ${GOOD_NEWS_APP_MASTER_KEY:?GOOD_NEWS_APP_MASTER_KEY must be set}
-    logging:
-      driver: json-file
-      options:
-        max-file: "3"
-        max-size: "10m"
-    mem_limit: 512m
-    ports:
-      - "${GOOD_NEWS_DELIVERY_SERVICE_HOST_PORT:-8300}:8300"
-    command: sh /app/backend/scripts/start-delivery-service.sh
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8300/health >/dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/api/health >/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -211,10 +95,10 @@ services:
       dockerfile: frontend/Dockerfile
     cpus: 0.5
     depends_on:
-      content-api-service:
+      app:
         condition: service_healthy
     environment:
-      VITE_CONTENT_API_ORIGIN: http://content-api-service:8000
+      VITE_CONTENT_API_ORIGIN: http://app:8000
     logging:
       driver: json-file
       options:
@@ -275,66 +159,11 @@ services:
     mem_limit: 512m
     ports:
       - "${GOOD_NEWS_OBSERVABILITY_PROMETHEUS_HOST_PORT:-9090}:9090"
-    profiles: ["observability", "ui"]
+    profiles: ["observability"]
     volumes:
       - prometheus-data:/prometheus
       - ./infra/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./infra/observability/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
-
-  loki:
-    image: grafana/loki:3.1.1
-    command:
-      - "-config.file=/etc/loki/config.yml"
-    cpus: 0.5
-    logging:
-      driver: json-file
-      options:
-        max-file: "3"
-        max-size: "10m"
-    mem_limit: 512m
-    ports:
-      - "${GOOD_NEWS_OBSERVABILITY_LOKI_HOST_PORT:-3100}:3100"
-    profiles: ["observability", "ui"]
-    volumes:
-      - loki-data:/loki
-      - ./infra/observability/loki/config.yml:/etc/loki/config.yml:ro
-
-  otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.108.0
-    command:
-      - "--config=/etc/otelcol-contrib/config.yaml"
-    cpus: 0.5
-    logging:
-      driver: json-file
-      options:
-        max-file: "3"
-        max-size: "10m"
-    mem_limit: 256m
-    ports:
-      - "${GOOD_NEWS_OBSERVABILITY_OTEL_GRPC_HOST_PORT:-4317}:4317"
-      - "${GOOD_NEWS_OBSERVABILITY_OTEL_HTTP_HOST_PORT:-4318}:4318"
-      - "${GOOD_NEWS_OBSERVABILITY_OTEL_HEALTH_HOST_PORT:-13133}:13133"
-      - "${GOOD_NEWS_OBSERVABILITY_OTEL_METRICS_HOST_PORT:-8888}:8888"
-    profiles: ["observability", "ui"]
-    volumes:
-      - ./infra/observability/otel/collector-config.yml:/etc/otelcol-contrib/config.yaml:ro
-
-  grafana-image-renderer:
-    image: grafana/grafana-image-renderer:3.11.6
-    cpus: 0.5
-    environment:
-      ENABLE_METRICS: "true"
-      AUTH_TOKEN: "-"
-      HTTP_HOST: 0.0.0.0
-    logging:
-      driver: json-file
-      options:
-        max-file: "3"
-        max-size: "10m"
-    mem_limit: 512m
-    ports:
-      - "${GOOD_NEWS_OBSERVABILITY_RENDERER_HOST_PORT:-8081}:8081"
-    profiles: ["observability", "ui"]
 
   grafana:
     image: grafana/grafana-oss:11.2.0
@@ -342,18 +171,11 @@ services:
     depends_on:
       prometheus:
         condition: service_started
-      loki:
-        condition: service_started
-      grafana-image-renderer:
-        condition: service_started
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
-      GF_RENDERING_SERVER_URL: http://grafana-image-renderer:8081/render
-      GF_RENDERING_CALLBACK_URL: http://grafana:3000/
-      GF_RENDERING_RENDERER_TOKEN: "-"
     logging:
       driver: json-file
       options:
@@ -362,7 +184,7 @@ services:
     mem_limit: 512m
     ports:
       - "${GOOD_NEWS_OBSERVABILITY_GRAFANA_HOST_PORT:-3000}:3000"
-    profiles: ["observability", "ui"]
+    profiles: ["observability"]
     volumes:
       - grafana-data:/var/lib/grafana
       - ./infra/observability/grafana/provisioning:/etc/grafana/provisioning:ro
@@ -370,7 +192,6 @@ services:
 
 volumes:
   grafana-data:
-  loki-data:
   ollama-data:
   postgres-data:
   prometheus-data:

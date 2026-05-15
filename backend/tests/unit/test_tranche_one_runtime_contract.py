@@ -25,7 +25,7 @@ def test_frontend_container_serves_built_assets_instead_of_vite_dev_runtime() ->
     assert "npm run build" in dockerfile_text
     assert "nginx:1.27-alpine" in dockerfile_text
     assert 'CMD ["npm", "run", "dev"' not in dockerfile_text
-    assert "proxy_pass http://content-api-service:8000;" in nginx_config
+    assert "proxy_pass http://app:8000;" in nginx_config
     assert "location = /api/sources/sync {" in nginx_config
     assert "proxy_read_timeout 930s;" in nginx_config
     assert 'wget -qO- http://127.0.0.1:5173 >/dev/null || exit 1' in compose_text

@@ -10,37 +10,7 @@ scrape_configs:
     static_configs:
       - targets: ["prometheus:9090"]
 
-  - job_name: content-api-service
+  - job_name: app
     metrics_path: /metrics
     static_configs:
-      - targets: ["content-api-service:8000"]
-
-  - job_name: source-ingestion-service
-    metrics_path: /metrics
-    static_configs:
-      - targets: ["source-ingestion-service:8200"]
-
-  - job_name: analysis-llm-service
-    metrics_path: /metrics
-    static_configs:
-      - targets: ["analysis-llm-service:8100"]
-
-  - job_name: delivery-service
-    metrics_path: /metrics
-    static_configs:
-      - targets: ["delivery-service:8300"]
-
-  - job_name: loki
-    metrics_path: /metrics
-    static_configs:
-      - targets: ["loki:3100"]
-
-  - job_name: otel-collector
-    metrics_path: /metrics
-    static_configs:
-      - targets: ["otel-collector:8888"]
-
-  - job_name: grafana-image-renderer
-    metrics_path: /metrics
-    static_configs:
-      - targets: ["grafana-image-renderer:8081"]
+      - targets: ["app:8000"]

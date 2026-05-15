@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.core.config import Settings
 from app.core.db import session_scope
 from app.schemas.setting import SettingsResponse, SettingsUpdateRequest
-from app.services.delivery_boundary import DELIVERY_OWNED_SETTING_KEYS
+from app.services.delivery_boundary import DELIVERY_OWNED_SETTING_KEYS, send_test_email_command
 from app.services.delivery_service_client import DeliveryServiceClient
 from app.services.settings_service import AppSettingsUpdate, load_settings, save_settings
 
@@ -27,12 +27,9 @@ def get_session(
         yield session
 
 
-def get_delivery_service_client(request: Request) -> DeliveryServiceClient:
-    factory = getattr(request.app.state, "delivery_service_client_factory", None)
-    if factory is None:
-        settings = request.app.state.settings
-        return DeliveryServiceClient(settings=settings)
-    return factory()
+def _is_monolith(request: Request) -> bool:
+    """Return True when running in the merged monolith (no delivery service HTTP hop)."""
+    return getattr(request.app.state, "analysis_client_factory", None) is not None
 
 
 @router.get("/settings", response_model=SettingsResponse)
@@ -85,10 +82,26 @@ def update_settings(
 def test_email(
     request: Request,
     session: Session = Depends(get_session),
-    delivery_service_client: DeliveryServiceClient = Depends(get_delivery_service_client),
 ) -> dict[str, str]:
+    # Monolith path: call delivery boundary directly.
+    if _is_monolith(request):
+        factory = getattr(request.app.state, "email_transport_factory", None)
+        transport = factory(session) if factory is not None else None
+        send_test_email_command(
+            session=session,
+            runtime_settings=request.app.state.settings,
+            email_transport=transport,
+            app_master_key=getattr(request.app.state, "app_master_key", None),
+        )
+        return {"status": "sent"}
+
+    # Legacy microservice path: delegate via HTTP client.
+    factory = getattr(request.app.state, "delivery_service_client_factory", None)
+    if factory is None:
+        client: DeliveryServiceClient = DeliveryServiceClient(settings=request.app.state.settings)
+    else:
+        client = factory()
     try:
-        _ = session
-        return delivery_service_client.send_test_email()
+        return client.send_test_email()
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail="Delivery service is unavailable.") from exc

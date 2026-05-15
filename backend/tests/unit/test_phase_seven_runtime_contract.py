@@ -17,11 +17,9 @@ def test_phase_seven_removes_legacy_backend_runtime_shims_and_names() -> None:
     assert "Proxy and backend" not in task_six_script
 
 
-def test_phase_seven_uses_content_api_entrypoint_without_backend_shim() -> None:
+def test_phase_seven_uses_monolith_entrypoint() -> None:
     app_main = Path("backend/app/main.py")
-    legacy_startup = Path("backend/scripts/start-backend.sh")
-    content_api_startup = Path("backend/scripts/start-content-api-service.sh").read_text(encoding="utf-8")
+    app_startup = Path("backend/scripts/start-app.sh").read_text(encoding="utf-8")
 
-    assert not app_main.exists()
-    assert not legacy_startup.exists()
-    assert "uvicorn app.content_api_service.main:app" in content_api_startup
+    assert app_main.exists(), "backend/app/main.py must exist as the monolith entrypoint"
+    assert "uvicorn app.main:app" in app_startup
