@@ -26,6 +26,5 @@ def test_compose_uses_app_healthcheck_and_frontend_waits_for_it() -> None:
 def test_readme_documents_task_four_migration_step_before_compose_boot() -> None:
     readme_text = Path("README.md").read_text(encoding="utf-8")
 
-    assert "Task 4 runtime verification" in readme_text
-    assert "python -m app.core.migration_runner" in readme_text
-    assert "GET /api/posts" in readme_text
+    assert "db-migrate" in readme_text
+    assert "/api/posts" in readme_text

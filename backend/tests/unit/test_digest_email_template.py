@@ -27,7 +27,7 @@ def test_daily_digest_template_includes_feedback_links_and_exact_remainder_line(
     assert "Русское summary." in html
     assert "interesting" in html
     assert "Dense practical details." in html
-    assert "more 3 less interesting posts" in html
+    assert "3 more posts in the collection" in html
     assert 'href="https://api.good-news.example/api/feedback/1/interesting?digest_id=21"' in html
     assert 'href="https://api.good-news.example/api/feedback/1/not_interesting?digest_id=21"' in html
     assert 'href="https://api.good-news.example/api/feedback/1/want_to_read?digest_id=21"' in html

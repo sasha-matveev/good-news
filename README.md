@@ -105,7 +105,7 @@ Supported sources (tried in this order):
 
 1. Pre-set shell environment variables
 2. External `.env`-style file at `$HOME/.good-news/dev-secrets.env` (or the path in `GOOD_NEWS_LOCAL_SECRETS_FILE`)
-3. Windows Credential Manager (optional convenience fallback)
+3. Windows Credential Manager is per-user (optional convenience fallback)
 4. Recovery from an existing running container environment
 
 Example secrets file:

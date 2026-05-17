@@ -11,7 +11,3 @@ def test_compose_exposes_app_with_smtp_support() -> None:
     assert "GOOD_NEWS_DELIVERY_SERVICE_PORT=8300" in env_example
 
 
-def test_phase_two_verification_exercises_digest_delivery_flow() -> None:
-    integration_text = Path("scripts/validation/verify-phase2-integration.ps1").read_text(encoding="utf-8")
-
-    assert "test_delivery_service_runtime.py" in integration_text

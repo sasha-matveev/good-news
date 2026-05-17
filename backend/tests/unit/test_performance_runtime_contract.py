@@ -30,7 +30,7 @@ def test_backend_no_longer_requires_ollama_for_default_boot() -> None:
 def test_readme_documents_real_model_default_runtime_and_disposable_stub_lanes() -> None:
     readme_text = Path("README.md").read_text(encoding="utf-8")
 
-    assert "Default usable local runtime" in readme_text
+    assert "Default local runtime" in readme_text
     assert ".\\scripts\\deploy.ps1" in readme_text
     assert "analysis-llm-service" in readme_text
     assert "source-ingestion-service" in readme_text
@@ -38,7 +38,7 @@ def test_readme_documents_real_model_default_runtime_and_disposable_stub_lanes()
     assert "content-api-service" in readme_text
     assert "frontend" in readme_text
     assert "docker compose --profile ai up -d ollama" in readme_text
-    assert "pulls the configured Ollama model when it is missing" in readme_text
+    assert "pulls the configured model if missing" in readme_text
 
 
 def test_deploy_script_boots_all_services_in_sequence() -> None:

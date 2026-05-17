@@ -36,6 +36,7 @@ from app.jobs.digest_jobs import (
     run_weekly_digest,
 )
 from app.parsing.discovery import DocumentLoader
+from app.core.config import MissingPublicOriginError
 from app.services.email_service import EmailSendError
 from app.services.analysis import AnalysisResult
 
@@ -264,7 +265,7 @@ def create_app(
                         runtime_settings=resolved_settings,
                     ),
                 )
-            except EmailSendError as exc:
+            except (EmailSendError, MissingPublicOriginError) as exc:
                 logger.warning("Startup daily digest catch-up failed (will retry on next schedule): %s", exc)
             try:
                 catch_up_daily_observability_report_if_needed(

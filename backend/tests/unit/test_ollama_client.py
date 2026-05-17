@@ -19,10 +19,10 @@ def test_ollama_client_accepts_summary_alias_when_summary_ru_missing() -> None:
             json={
                 "response": json.dumps(
                     {
-                        "summary": "Short Russian summary.",
+                        "summary": "Краткое резюме на русском языке.",
                         "topics": ["verification"],
-                        "format": "article",
-                        "technical_depth": "medium",
+                        "format": "news",
+                        "technical_depth": "intermediate",
                         "verdict": "interesting",
                         "verdict_reason": "Useful boundary check.",
                     }
@@ -42,19 +42,33 @@ def test_ollama_client_accepts_summary_alias_when_summary_ru_missing() -> None:
         "body": {
             "model": "llama3.2",
             "prompt": (
-                "Return strict JSON with keys summary_ru, topics, format, technical_depth, "
-                "verdict, verdict_reason. Summary must be in Russian. "
-                "verdict must be exactly one of: interesting, not_interesting. "
-                "Title: Alpha\nContent: Body"
+                "You are a JSON-only API. Read the article and return ONE JSON object. "
+                "No explanation, no markdown.\n"
+                "\n"
+                "JSON fields:\n"
+                '  "summary_ru": 1-2 sentences in Russian (Кириллица). '
+                "Use only Russian words — no Latin, no code, no transliteration. "
+                'If you cannot write proper Russian, use "".\n'
+                '  "verdict_reason": 1 sentence in ENGLISH explaining why a developer '
+                "would or would not want to read this. MUST be in English. No Russian.\n"
+                '  "verdict": "interesting" if worth reading for a developer, '
+                'otherwise "not_interesting".\n'
+                '  "topics": array of 1-3 short English tags like ["AI", '
+                '"performance", "testing"].\n'
+                '  "format": one of tutorial|opinion|news|case-study|announcement|other.\n'
+                '  "technical_depth": one of beginner|intermediate|advanced.\n'
+                "\n"
+                "Title: Alpha\n"
+                "Content: Body"
             ),
             "stream": False,
             "format": "json",
         },
     }
-    assert result.summary_ru == "Short Russian summary."
+    assert result.summary_ru == "Краткое резюме на русском языке."
     assert result.topics == ["verification"]
-    assert result.format == "article"
-    assert result.technical_depth == "medium"
+    assert result.format == "news"
+    assert result.technical_depth == "intermediate"
     assert result.verdict == "interesting"
     assert result.verdict_reason == "Useful boundary check."
 
@@ -86,8 +100,8 @@ def test_ollama_client_normalizes_aliases_and_scalar_field_types() -> None:
 
     assert result.summary_ru == "42"
     assert result.topics == ["verification"]
-    assert result.format == "7"
-    assert result.technical_depth == "3"
+    assert result.format == ""  # "7" is not a valid format value → normalized to ""
+    assert result.technical_depth == ""  # "3" is not a valid depth value → normalized to ""
     assert result.verdict == ""
     assert result.verdict_reason == "9.5"
 
@@ -117,10 +131,10 @@ def test_ollama_client_normalizes_nested_json_values_into_contract_strings() -> 
 
     result = client.analyze_article(title="Alpha", content="Body")
 
-    assert result.summary_ru == '{"length":2,"text":"Short Russian summary."}'
+    assert result.summary_ru == ""  # JSON string has no Cyrillic → discarded by _is_mostly_cyrillic
     assert result.topics == ['{"name":"verification"}', '["runtime",2]', ""]
-    assert result.format == '{"kind":"article","score":7}'
-    assert result.technical_depth == '["medium",{"level":3}]'
+    assert result.format == ""  # JSON string is not a valid format value → normalized to ""
+    assert result.technical_depth == ""  # JSON string is not a valid depth value → normalized to ""
     assert result.verdict == ""  # dict verdict is not a valid verdict string → normalized to ""
     assert result.verdict_reason == '["Useful boundary check.",{"source":"runtime"}]'
 
