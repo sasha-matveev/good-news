@@ -191,6 +191,63 @@ def sync_active_sources(
     return processed_source_ids
 
 
+_REFRESH_LIMIT = 60  # max posts to re-fetch per refresh call
+
+
+def refresh_post_dates(
+    *,
+    session: Session,
+    source_id: int,
+    document_loader: DocumentLoader,
+    limit: int = _REFRESH_LIMIT,
+) -> dict[str, int]:
+    """Re-fetch article pages for posts that have no publication date and fill it in.
+
+    Only targets posts where published_at IS NULL (i.e. date was never found),
+    ordered by most-recently ingested first, capped at *limit* posts to avoid
+    hammering the origin server with too many requests in one go.
+
+    Returns {"checked": N, "updated": M} — M <= N.
+    """
+    posts_without_date = session.scalars(
+        select(Post)
+        .where(Post.source_id == source_id, Post.published_at.is_(None))
+        .order_by(Post.id.desc())
+        .limit(limit)
+    ).all()
+
+    checked = 0
+    updated = 0
+
+    for post in posts_without_date:
+        checked += 1
+        try:
+            html = document_loader(post.canonical_url)
+        except Exception:
+            continue
+        if not html:
+            continue
+
+        published_at, date_source = _extract_published_at_from_html(html)
+        if published_at is None:
+            continue
+
+        post.published_at = published_at
+
+        # Patch date_source in the existing ingest_metadata JSON
+        try:
+            meta: dict[str, object] = json.loads(post.ingest_metadata or "{}")
+        except (json.JSONDecodeError, ValueError):
+            meta = {}
+        meta["date_source"] = date_source
+        meta["date_refreshed_at"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        post.ingest_metadata = json.dumps(meta, sort_keys=True)
+
+        updated += 1
+
+    return {"checked": checked, "updated": updated}
+
+
 def _select_posts_for_sync(*, source: Source, parsed_posts: list[ParsedPost]) -> list[ParsedPost]:
     if source.strategy_kind == "feed":
         indexed_feed_candidates = list(enumerate(parsed_posts))

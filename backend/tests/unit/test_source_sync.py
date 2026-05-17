@@ -743,3 +743,129 @@ def test_sync_html_strategy_stores_none_date_source_when_no_date_in_article() ->
     assert post.published_at is None
     metadata = _json.loads(post.ingest_metadata)
     assert metadata["date_source"] == "none"
+
+
+def test_refresh_post_dates_updates_posts_without_dates_from_article_pages() -> None:
+    import json as _json
+
+    from app.services.source_sync import refresh_post_dates
+
+    engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session_factory = create_session_factory(engine)
+
+    with session_scope(session_factory) as session:
+        session.add(Source(id=1, display_name="Blog", original_url="https://blog.example", status="ready"))
+        # Post 1: no date
+        session.add(Post(
+            id=1, source_id=1,
+            canonical_url="https://blog.example/posts/1",
+            title="Undated",
+            published_at=None,
+            raw_content="Content.",
+            content_hash="h1",
+            ingest_metadata='{"date_source":"none","source_strategy":"html","synced_at":"2026-05-11T00:00:00Z"}',
+        ))
+        # Post 2: already has a date — must NOT be touched
+        session.add(Post(
+            id=2, source_id=1,
+            canonical_url="https://blog.example/posts/2",
+            title="Already dated",
+            published_at=datetime(2026, 4, 1, 0, 0, tzinfo=UTC),
+            raw_content="Content.",
+            content_hash="h2",
+            ingest_metadata='{"date_source":"json_ld","source_strategy":"html","synced_at":"2026-05-11T00:00:00Z"}',
+        ))
+
+    article_html = """
+    <html><head>
+      <script type="application/ld+json">{"datePublished":"2026-05-11T09:00:00Z"}</script>
+    </head><body><p>Body.</p></body></html>
+    """
+
+    def document_loader(url: str) -> str | None:
+        return article_html if url == "https://blog.example/posts/1" else None
+
+    with session_scope(session_factory) as session:
+        result = refresh_post_dates(session=session, source_id=1, document_loader=document_loader)
+
+    assert result == {"checked": 1, "updated": 1}
+
+    with session_scope(session_factory) as session:
+        post1 = session.get(Post, 1)
+        post2 = session.get(Post, 2)
+
+    assert post1 is not None
+    assert post1.published_at is not None  # was updated
+    meta1 = _json.loads(post1.ingest_metadata)
+    assert meta1["date_source"] == "json_ld"
+    assert "date_refreshed_at" in meta1
+
+    assert post2 is not None
+    assert post2.published_at == datetime(2026, 4, 1, 0, 0)  # unchanged — SQLite drops tzinfo
+    meta2 = _json.loads(post2.ingest_metadata)
+    assert meta2["date_source"] == "json_ld"  # still the original, not overwritten
+
+
+def test_refresh_post_dates_returns_zero_when_no_date_found_in_article() -> None:
+    from app.services.source_sync import refresh_post_dates
+
+    engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session_factory = create_session_factory(engine)
+
+    with session_scope(session_factory) as session:
+        session.add(Source(id=1, display_name="Blog", original_url="https://blog.example", status="ready"))
+        session.add(Post(
+            id=1, source_id=1,
+            canonical_url="https://blog.example/posts/1",
+            title="Undated",
+            published_at=None,
+            raw_content="Content.",
+            content_hash="h1",
+            ingest_metadata='{"date_source":"none","source_strategy":"html","synced_at":"2026-05-01T00:00:00Z"}',
+        ))
+
+    def document_loader(url: str) -> str | None:
+        return "<html><body><p>No date signals here.</p></body></html>"
+
+    with session_scope(session_factory) as session:
+        result = refresh_post_dates(session=session, source_id=1, document_loader=document_loader)
+
+    assert result == {"checked": 1, "updated": 0}
+
+    with session_scope(session_factory) as session:
+        post = session.get(Post, 1)
+    assert post is not None
+    assert post.published_at is None  # still no date
+
+
+def test_refresh_post_dates_returns_zero_when_no_undated_posts() -> None:
+    from app.services.source_sync import refresh_post_dates
+
+    engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session_factory = create_session_factory(engine)
+
+    with session_scope(session_factory) as session:
+        session.add(Source(id=1, display_name="Blog", original_url="https://blog.example", status="ready"))
+        session.add(Post(
+            id=1, source_id=1,
+            canonical_url="https://blog.example/posts/1",
+            title="Already dated",
+            published_at=datetime(2026, 5, 1, tzinfo=UTC),
+            raw_content="Content.",
+            content_hash="h1",
+            ingest_metadata='{"date_source":"feed","source_strategy":"feed"}',
+        ))
+
+    calls: list[str] = []
+    def document_loader(url: str) -> str | None:
+        calls.append(url)
+        return "<html><body></body></html>"
+
+    with session_scope(session_factory) as session:
+        result = refresh_post_dates(session=session, source_id=1, document_loader=document_loader)
+
+    assert result == {"checked": 0, "updated": 0}
+    assert calls == []  # loader never called
