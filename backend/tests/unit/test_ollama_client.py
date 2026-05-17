@@ -21,7 +21,7 @@ def test_ollama_client_accepts_summary_alias_when_summary_ru_missing() -> None:
                     {
                         "summary": "Краткое резюме на русском языке.",
                         "topics": ["verification"],
-                        "format": "article",
+                        "format": "news",
                         "technical_depth": "medium",
                         "verdict": "interesting",
                         "verdict_reason": "Useful boundary check.",
@@ -67,7 +67,7 @@ def test_ollama_client_accepts_summary_alias_when_summary_ru_missing() -> None:
     }
     assert result.summary_ru == "Краткое резюме на русском языке."
     assert result.topics == ["verification"]
-    assert result.format == "article"
+    assert result.format == "news"
     assert result.technical_depth == "medium"
     assert result.verdict == "interesting"
     assert result.verdict_reason == "Useful boundary check."
