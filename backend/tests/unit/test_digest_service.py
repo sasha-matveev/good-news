@@ -62,7 +62,7 @@ def test_generate_daily_digest_returns_top_five_ranked_posts_and_exact_remainder
 
     assert [post.post_id for post in digest.posts] == [2, 1, 3, 4, 5]
     assert digest.more_count == 1
-    assert "more 1 less interesting posts" in digest.html_body
+    assert "1 more post in the collection" in digest.html_body
     assert digest.digest_id > 0
     assert (
         f'href="https://api.good-news.example/api/feedback/2/interesting?digest_id={digest.digest_id}"'
