@@ -24,6 +24,8 @@ export type PostRecord = {
   canonical_url: string;
   title: string;
   published_at: string | null;
+  /** How the date was obtained: "feed" | "json_ld" | "meta_og" | "meta_date" | "time_element" | "none" | null (old posts without this metadata) */
+  published_at_source: string | null;
   raw_content: string;
   feedback_state: string | null;
   read_later: boolean;
