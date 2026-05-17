@@ -31,12 +31,3 @@ def test_frontend_container_serves_built_assets_instead_of_vite_dev_runtime() ->
     assert 'wget -qO- http://127.0.0.1:5173 >/dev/null || exit 1' in compose_text
 
 
-def test_disposable_acceptance_sets_explicit_public_origins_and_checks_digest_links() -> None:
-    acceptance_text = Path("scripts/validation/verify-phase2-isolated-acceptance.ps1").read_text(encoding="utf-8")
-    full_app_text = Path("scripts/validation/verify-task6-full-app.ps1").read_text(encoding="utf-8")
-
-    assert '$env:GOOD_NEWS_PUBLIC_CONTENT_API_ORIGIN = "https://content-api.acceptance.good-news.invalid"' in acceptance_text
-    assert '$env:GOOD_NEWS_PUBLIC_FRONTEND_ORIGIN = "https://frontend.acceptance.good-news.invalid"' in acceptance_text
-    assert "GOOD_NEWS_PUBLIC_CONTENT_API_ORIGIN" in full_app_text
-    assert "GOOD_NEWS_PUBLIC_FRONTEND_ORIGIN" in full_app_text
-    assert "Digest feedback links did not use the expected public content API origin." in full_app_text

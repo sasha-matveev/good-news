@@ -27,7 +27,7 @@ def test_generate_daily_digest_returns_top_five_ranked_posts_and_exact_remainder
                     source_id=1,
                     canonical_url=f"https://alpha.example/posts/{index}",
                     title=f"Post {index}",
-                    published_at=datetime(2026, 4, 20 + index, 9, 0, tzinfo=UTC),
+                    published_at=datetime(2026, 4, 26, index, 0, tzinfo=UTC),
                     raw_content=f"Content {index}",
                     content_hash=f"hash-{index}",
                     ingest_metadata='{"strategy":"feed"}',

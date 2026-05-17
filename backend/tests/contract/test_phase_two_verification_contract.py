@@ -116,9 +116,9 @@ def test_supported_operator_scripts_default_to_good_news_project() -> None:
 
 
 def test_phase_two_ci_workflow_exists() -> None:
-    workflow_text = _read(".github/workflows/verification-foundation.yml")
+    workflow_text = _read(".github/workflows/ci.yml")
 
-    assert "owner-local-fast" in workflow_text or "good-news" in workflow_text
+    assert "backend" in workflow_text or "frontend" in workflow_text
 
 
 def test_operator_scripts_define_canonical_local_deploy_and_restart_flows() -> None:

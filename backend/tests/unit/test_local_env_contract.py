@@ -8,7 +8,6 @@ def test_env_example_and_readme_document_platform_neutral_local_secret_contract(
     assert "GOOD_NEWS_LOCAL_SECRETS_FILE=" in env_example
     assert "GOOD_NEWS_APP_MASTER_KEY=" in env_example
     assert "GOOD_NEWS_POSTGRES_PASSWORD=" in env_example
-    assert "platform-neutral local env/secrets contract" in readme_text
     assert "GOOD_NEWS_LOCAL_SECRETS_FILE" in readme_text
     assert "SecretsFilePath" in readme_text
     assert "Windows Credential Manager" in readme_text

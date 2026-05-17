@@ -12,7 +12,9 @@ def test_docker_compose_requires_secret_env_vars_and_health_sequences_backend() 
     assert "condition: service_healthy" in compose_text
 
 
-def test_readme_documents_secret_script_test_in_task_two_verification() -> None:
+def test_readme_documents_secrets_setup() -> None:
     readme_text = Path("README.md").read_text(encoding="utf-8")
 
-    assert "backend/tests/unit/test_secret_scripts.py" in readme_text
+    assert "GOOD_NEWS_APP_MASTER_KEY" in readme_text
+    assert "GOOD_NEWS_POSTGRES_PASSWORD" in readme_text
+    assert "load-dev-secrets.ps1" in readme_text
