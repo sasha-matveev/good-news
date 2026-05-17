@@ -177,6 +177,15 @@ export async function syncSource(sourceId: number): Promise<SourceSyncRecord> {
   return readJson<SourceSyncRecord>(response);
 }
 
+export type RefreshPostDatesResult = { checked: number; updated: number };
+
+export async function refreshPostDates(sourceId: number): Promise<RefreshPostDatesResult> {
+  const response = await fetch(`${API_ROOT}/sources/${sourceId}/refresh-post-dates`, {
+    method: "POST"
+  });
+  return readJson<RefreshPostDatesResult>(response);
+}
+
 export async function listPosts(params?: {
   sourceId?: number;
   feedbackState?: string;
