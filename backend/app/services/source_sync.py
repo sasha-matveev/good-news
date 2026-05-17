@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass
+import re as _re
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
@@ -36,6 +37,8 @@ class ParsedPost:
     title: str
     published_at: datetime | None
     raw_content: str
+    # How the date was obtained: "feed" | "json_ld" | "meta_og" | "meta_date" | "time_element" | "none"
+    published_at_source: str = field(default="none")
 
 
 class _HtmlStripper(HTMLParser):
@@ -64,8 +67,6 @@ def _strip_html(value: str) -> str:
         return _collapse_whitespace(unescaped)
     return stripper.get_text()
 
-
-import re as _re
 
 # Matches common RSS boilerplate appended by Medium/Ghost/WordPress:
 #   "The post <title> appeared first on <Site>."
@@ -255,6 +256,7 @@ def _persist_posts(
             content_hash=content_hash,
             ingest_metadata=json.dumps(
                 {
+                    "date_source": post.published_at_source,
                     "source_strategy": source.strategy_kind,
                     "synced_at": sync_time.astimezone(UTC).isoformat().replace("+00:00", "Z"),
                 },
@@ -364,6 +366,91 @@ def _load_posts_for_source(
     raise SourceSyncError(f"Unsupported source strategy {source.strategy_kind}")
 
 
+class _DateMetaParser(HTMLParser):
+    """Single-pass HTML parser that collects meta date attributes and <time datetime>."""
+
+    # <meta property/name> values that carry publication date
+    _DATE_PROPERTIES = frozenset(
+        ["article:published_time", "article:modified_time", "og:updated_time"]
+    )
+    _DATE_NAMES = frozenset(
+        ["date", "pubdate", "dc.date", "dc.date.issued", "published_time", "article.published"]
+    )
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.meta_dates: list[tuple[str, str]] = []  # [(source_label, value), ...]
+        self.time_datetime: str | None = None
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        tag_lower = tag.lower()
+        attr_map = {k.lower(): (v or "") for k, v in attrs}
+
+        if tag_lower == "meta":
+            content = attr_map.get("content", "").strip()
+            if not content:
+                return
+            prop = attr_map.get("property", "").lower()
+            name = attr_map.get("name", "").lower()
+            if prop in self._DATE_PROPERTIES:
+                self.meta_dates.append(("meta_og", content))
+            elif name in self._DATE_NAMES:
+                self.meta_dates.append(("meta_date", content))
+
+        elif tag_lower == "time" and self.time_datetime is None:
+            dt_val = attr_map.get("datetime", "").strip()
+            if dt_val:
+                self.time_datetime = dt_val
+
+
+def _extract_published_at_from_html(html: str) -> tuple[datetime | None, str]:
+    """Try to extract a publication date from article HTML using multiple strategies.
+
+    Returns (datetime_or_none, source_label) where source_label is one of:
+      "json_ld", "meta_og", "meta_date", "time_element", "none"
+    """
+    # 1. JSON-LD structured data — most reliable
+    for script_content in _re.findall(
+        r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',
+        html,
+        _re.IGNORECASE | _re.DOTALL,
+    ):
+        try:
+            data = json.loads(script_content)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        # data may be a list of graph objects
+        objects = data if isinstance(data, list) else [data]
+        for obj in objects:
+            if not isinstance(obj, dict):
+                continue
+            for key in ("datePublished", "dateCreated", "dateModified"):
+                raw = obj.get(key)
+                if raw and isinstance(raw, str):
+                    parsed = _parse_datetime(raw)
+                    if parsed is not None:
+                        return parsed, "json_ld"
+
+    # 2. Meta tags and <time> elements
+    parser = _DateMetaParser()
+    try:
+        parser.feed(html)
+    except Exception:
+        pass
+
+    for source_label, raw in parser.meta_dates:
+        parsed = _parse_datetime(raw)
+        if parsed is not None:
+            return parsed, source_label
+
+    if parser.time_datetime is not None:
+        parsed = _parse_datetime(parser.time_datetime)
+        if parsed is not None:
+            return parsed, "time_element"
+
+    return None, "none"
+
+
 def _parse_feed_document(document: str) -> list[ParsedPost]:
     try:
         root = ElementTree.fromstring(document.strip())
@@ -384,12 +471,16 @@ def _parse_feed_document(document: str) -> list[ParsedPost]:
         description = _child_text(item, "description") or _child_text(item, "summary") or title
         if not link:
             continue
+        raw_date_str = _child_text(item, "pubDate") or _child_text(item, "published") or _child_text(item, "updated")
+        published_at = _parse_datetime(raw_date_str)
+        published_at_source = "feed" if published_at is not None else "none"
         parsed_posts.append(
             ParsedPost(
                 canonical_url=link.strip(),
                 title=_strip_html(title.strip()),
-                published_at=_parse_datetime(_child_text(item, "pubDate") or _child_text(item, "published") or _child_text(item, "updated")),
+                published_at=published_at,
                 raw_content=_strip_rss_boilerplate(_strip_html(description.strip())),
+                published_at_source=published_at_source,
             )
         )
     return parsed_posts
@@ -420,12 +511,14 @@ def _parse_html_listing(
         article_url = urljoin(listing_url, href)
         article_document = _load_document(article_url, responses, document_loader) or ""
         raw_content = _extract_first_paragraph(article_document) or title
+        published_at, published_at_source = _extract_published_at_from_html(article_document)
         parsed_posts.append(
             ParsedPost(
                 canonical_url=article_url,
                 title=title,
-                published_at=None,
+                published_at=published_at,
                 raw_content=raw_content,
+                published_at_source=published_at_source,
             )
         )
     return parsed_posts
@@ -461,14 +554,22 @@ def _child_text(element: ElementTree.Element, tag_name: str) -> str | None:
     return None
 
 
+_ISO_DATE_ONLY_RE = _re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
 def _parse_datetime(raw_value: str | None) -> datetime | None:
     if raw_value is None:
         return None
     try:
         if "T" in raw_value:
+            # ISO 8601 with time component
             normalized = raw_value.replace("Z", "+00:00")
             parsed = datetime.fromisoformat(normalized)
+        elif _ISO_DATE_ONLY_RE.match(raw_value.strip()):
+            # Date-only ISO 8601 like "2026-05-11" — treat as midnight UTC
+            parsed = datetime.fromisoformat(raw_value.strip())
         else:
+            # RFC 2822 as used in RSS <pubDate>
             parsed = parsedate_to_datetime(raw_value)
     except (TypeError, ValueError):
         return None

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 
 from pydantic import BaseModel
@@ -13,6 +14,16 @@ def _serialize_datetime(value: datetime | None) -> str | None:
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
+def _extract_date_source(ingest_metadata: str | None) -> str | None:
+    if not ingest_metadata:
+        return None
+    try:
+        data = json.loads(ingest_metadata)
+        return data.get("date_source") or None
+    except (json.JSONDecodeError, AttributeError):
+        return None
+
+
 class PostResponse(BaseModel):
     id: int
     source_id: int
@@ -20,6 +31,7 @@ class PostResponse(BaseModel):
     canonical_url: str
     title: str
     published_at: str | None
+    published_at_source: str | None
     raw_content: str
     feedback_state: str | None
     read_later: bool
@@ -37,6 +49,7 @@ class PostResponse(BaseModel):
             canonical_url=row.canonical_url,
             title=row.title,
             published_at=_serialize_datetime(row.published_at),
+            published_at_source=_extract_date_source(getattr(row, "ingest_metadata", None)),
             raw_content=row.raw_content,
             feedback_state=row.feedback_state,
             read_later=getattr(row, "read_later", False) or False,

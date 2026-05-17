@@ -29,12 +29,28 @@ type PostCardProps = {
   post: PostRecord;
 };
 
-function formatPublishedDate(value: string | null) {
-  if (!value) {
-    return "Unknown date";
-  }
+const DATE_SOURCE_REASONS: Record<string, string> = {
+  feed: "Date from feed",
+  json_ld: "Date from page metadata (JSON-LD)",
+  meta_og: "Date from page metadata (Open Graph)",
+  meta_date: "Date from page metadata",
+  time_element: "Date from page HTML",
+  none: "No publication date found in the feed or article page",
+};
 
-  return value.split("T")[0] ?? value;
+type DateDisplay = { text: string; title: string; uncertain: boolean };
+
+function formatPublishedDate(value: string | null, source: string | null): DateDisplay {
+  const reason = (source && DATE_SOURCE_REASONS[source]) ?? "Date origin unknown";
+  if (!value) {
+    return {
+      text: "Unknown date",
+      title: reason,
+      uncertain: true,
+    };
+  }
+  const dateStr = value.split("T")[0] ?? value;
+  return { text: dateStr, title: reason, uncertain: false };
 }
 
 // Keep in sync with FEEDBACK_WEIGHTS in backend/app/services/ranking.py
@@ -99,9 +115,39 @@ export function PostCard({
             {post.title}
           </h3>
         </div>
-        <div style={{ color: "#6a7480", fontSize: "12px", flexShrink: 0 }}>
-          {formatPublishedDate(post.published_at)}
-        </div>
+        {(() => {
+          const date = formatPublishedDate(post.published_at, post.published_at_source);
+          return (
+            <div
+              title={date.title}
+              style={{
+                color: date.uncertain ? "#a0aab4" : "#6a7480",
+                fontSize: "12px",
+                flexShrink: 0,
+                cursor: "help",
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
+              }}
+            >
+              {date.uncertain && (
+                <svg
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  viewBox="0 0 16 16"
+                  style={{ width: "12px", height: "12px", flexShrink: 0 }}
+                  aria-label="Date unavailable"
+                >
+                  <circle cx="8" cy="8" r="6.5" />
+                  <path d="M8 5v3.5" strokeLinecap="round" />
+                  <circle cx="8" cy="11" r="0.6" fill="currentColor" stroke="none" />
+                </svg>
+              )}
+              {date.text}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Match score */}

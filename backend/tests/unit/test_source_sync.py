@@ -505,3 +505,241 @@ def test_sync_active_sources_fetches_live_feed_when_stub_responses_are_missing()
         "https://www.yegor256.com/2026/05/03/couriers-not-coders.html"
     ]
     assert requested_urls == ["https://www.yegor256.com/rss.xml"]
+
+
+def test_sync_feed_strategy_stores_feed_as_date_source_in_ingest_metadata() -> None:
+    import json
+
+    engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session_factory = create_session_factory(engine)
+
+    with session_scope(session_factory) as session:
+        session.add(
+            Source(
+                display_name="Alpha",
+                original_url="https://alpha.example",
+                feed_url="https://alpha.example/feed.xml",
+                strategy_kind="feed",
+                strategy_config='{"discovery_method": "alternate_link"}',
+                status="ready",
+                active=True,
+            )
+        )
+
+    sync_active_sources(
+        session_factory=session_factory,
+        responses={
+            "https://alpha.example/feed.xml": """
+            <rss>
+              <channel>
+                <item>
+                  <title>Post with date</title>
+                  <link>https://alpha.example/posts/1</link>
+                  <pubDate>2026-05-11T10:00:00+00:00</pubDate>
+                  <description>Content here.</description>
+                </item>
+              </channel>
+            </rss>
+            """
+        },
+        now=datetime(2026, 5, 11, 12, 0, tzinfo=UTC),
+    )
+
+    with session_scope(session_factory) as session:
+        post = session.scalars(select(Post)).first()
+
+    assert post is not None
+    assert post.published_at == datetime(2026, 5, 11, 10, 0)  # SQLite drops tzinfo on readback
+    metadata = json.loads(post.ingest_metadata)
+    assert metadata["date_source"] == "feed"
+
+
+def test_sync_feed_strategy_stores_none_as_date_source_when_date_absent() -> None:
+    import json
+
+    engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session_factory = create_session_factory(engine)
+
+    with session_scope(session_factory) as session:
+        session.add(
+            Source(
+                display_name="Alpha",
+                original_url="https://alpha.example",
+                feed_url="https://alpha.example/feed.xml",
+                strategy_kind="feed",
+                strategy_config='{"discovery_method": "alternate_link"}',
+                status="ready",
+                active=True,
+            )
+        )
+
+    sync_active_sources(
+        session_factory=session_factory,
+        responses={
+            "https://alpha.example/feed.xml": """
+            <rss>
+              <channel>
+                <item>
+                  <title>Post without date</title>
+                  <link>https://alpha.example/posts/1</link>
+                  <description>No date tag here.</description>
+                </item>
+              </channel>
+            </rss>
+            """
+        },
+        now=datetime(2026, 5, 11, 12, 0, tzinfo=UTC),
+    )
+
+    with session_scope(session_factory) as session:
+        post = session.scalars(select(Post)).first()
+
+    assert post is not None
+    assert post.published_at is None
+    metadata = json.loads(post.ingest_metadata)
+    assert metadata["date_source"] == "none"
+
+
+def test_sync_html_strategy_extracts_date_from_article_json_ld() -> None:
+    import json as _json
+
+    engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session_factory = create_session_factory(engine)
+
+    with session_scope(session_factory) as session:
+        session.add(
+            Source(
+                display_name="Spring Blog",
+                original_url="https://spring.example/blog",
+                strategy_kind="html",
+                strategy_config='{"listing_url": "https://spring.example/blog", "link_selector": "h2 a"}',
+                status="ready",
+                active=True,
+            )
+        )
+
+    article_html = """
+    <html>
+    <head>
+      <script type="application/ld+json">
+        {"@type": "BlogPosting", "datePublished": "2026-05-11T00:00:00Z"}
+      </script>
+    </head>
+    <body><p>Article body text here.</p></body>
+    </html>
+    """
+    sync_active_sources(
+        session_factory=session_factory,
+        responses={
+            "https://spring.example/blog": """
+            <html><body>
+              <article>
+                <h2><a href="/blog/post-one">Spring Office Hours S5E15</a></h2>
+              </article>
+            </body></html>
+            """,
+            "https://spring.example/blog/post-one": article_html,
+        },
+        now=datetime(2026, 5, 11, 12, 0, tzinfo=UTC),
+    )
+
+    with session_scope(session_factory) as session:
+        post = session.scalars(select(Post)).first()
+
+    assert post is not None
+    assert post.published_at == datetime(2026, 5, 11, 0, 0)  # SQLite drops tzinfo on readback
+    metadata = _json.loads(post.ingest_metadata)
+    assert metadata["date_source"] == "json_ld"
+
+
+def test_sync_html_strategy_extracts_date_from_article_og_meta() -> None:
+    import json as _json
+
+    engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session_factory = create_session_factory(engine)
+
+    with session_scope(session_factory) as session:
+        session.add(
+            Source(
+                display_name="Engineering Blog",
+                original_url="https://blog.example",
+                strategy_kind="html",
+                strategy_config='{"listing_url": "https://blog.example", "link_selector": "h2 a"}',
+                status="ready",
+                active=True,
+            )
+        )
+
+    article_html = """
+    <html>
+    <head>
+      <meta property="article:published_time" content="2026-04-01T08:00:00+00:00" />
+    </head>
+    <body><p>Content.</p></body>
+    </html>
+    """
+    sync_active_sources(
+        session_factory=session_factory,
+        responses={
+            "https://blog.example": """
+            <html><body>
+              <article><h2><a href="/posts/alpha">Alpha Post</a></h2></article>
+            </body></html>
+            """,
+            "https://blog.example/posts/alpha": article_html,
+        },
+        now=datetime(2026, 4, 1, 12, 0, tzinfo=UTC),
+    )
+
+    with session_scope(session_factory) as session:
+        post = session.scalars(select(Post)).first()
+
+    assert post is not None
+    assert post.published_at == datetime(2026, 4, 1, 8, 0)  # SQLite drops tzinfo on readback
+    metadata = _json.loads(post.ingest_metadata)
+    assert metadata["date_source"] == "meta_og"
+
+
+def test_sync_html_strategy_stores_none_date_source_when_no_date_in_article() -> None:
+    import json as _json
+
+    engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session_factory = create_session_factory(engine)
+
+    with session_scope(session_factory) as session:
+        session.add(
+            Source(
+                display_name="Minimal Blog",
+                original_url="https://minimal.example",
+                strategy_kind="html",
+                strategy_config='{"listing_url": "https://minimal.example", "link_selector": "h2 a"}',
+                status="ready",
+                active=True,
+            )
+        )
+
+    sync_active_sources(
+        session_factory=session_factory,
+        responses={
+            "https://minimal.example": """
+            <html><body>
+              <article><h2><a href="/posts/1">No date post</a></h2></article>
+            </body></html>
+            """,
+            "https://minimal.example/posts/1": "<html><body><p>No dates here at all.</p></body></html>",
+        },
+        now=datetime(2026, 5, 11, 12, 0, tzinfo=UTC),
+    )
+
+    with session_scope(session_factory) as session:
+        post = session.scalars(select(Post)).first()
+
+    assert post is not None
+    assert post.published_at is None
+    metadata = _json.loads(post.ingest_metadata)
+    assert metadata["date_source"] == "none"
