@@ -157,11 +157,19 @@ def test_analysis_service_normalizes_nested_ollama_payloads_before_persistence()
     )
 
     assert response.status_code == 200
+    # Nested JSON objects are serialised to contract strings but then subject to
+    # the field-level validation rules:
+    #   • summary_ru → "" because the serialised object contains no Cyrillic text
+    #   • format → "" because '{"kind":"article"}' is not a valid format token
+    #   • technical_depth → "" because the serialised value is not a valid depth token
+    #   • topics → kept as JSON-serialised string (no content validation on topics)
+    #   • verdict → kept because "interesting" is valid
+    #   • verdict_reason → kept because it contains Latin characters
     assert response.json() == {
-        "summary_ru": '{"length":2,"text":"Short Russian summary."}',
+        "summary_ru": "",
         "topics": ['{"confidence":0.9,"name":"verification"}'],
-        "format": '{"kind":"article"}',
-        "technical_depth": '["medium",{"level":3}]',
+        "format": "",
+        "technical_depth": "",
         "verdict": "interesting",
         "verdict_reason": '{"detail":"Useful boundary check."}',
     }
@@ -169,11 +177,11 @@ def test_analysis_service_normalizes_nested_ollama_payloads_before_persistence()
     with session_scope(session_factory) as session:
         saved = session.query(PostAnalysis).filter(PostAnalysis.post_id == 12).one()
 
-    assert saved.summary_ru == '{"length":2,"text":"Short Russian summary."}'
+    assert saved.summary_ru == ""
     assert json.loads(saved.metadata_json) == {
         "topics": ['{"confidence":0.9,"name":"verification"}'],
-        "format": '{"kind":"article"}',
-        "technical_depth": '["medium",{"level":3}]',
+        "format": "",
+        "technical_depth": "",
         "verdict": "interesting",
         "verdict_reason": '{"detail":"Useful boundary check."}',
     }

@@ -38,6 +38,49 @@ class ParsedPost:
     raw_content: str
 
 
+class _HtmlStripper(HTMLParser):
+    """Extract plain text from an HTML fragment."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._chunks: list[str] = []
+
+    def handle_data(self, data: str) -> None:
+        self._chunks.append(data)
+
+    def get_text(self) -> str:
+        return _collapse_whitespace("".join(self._chunks))
+
+
+def _strip_html(value: str) -> str:
+    """Return plain text with all HTML tags and entities removed."""
+    import html as _html_module
+    # First unescape entities, then strip tags
+    unescaped = _html_module.unescape(value)
+    stripper = _HtmlStripper()
+    try:
+        stripper.feed(unescaped)
+    except Exception:
+        return _collapse_whitespace(unescaped)
+    return stripper.get_text()
+
+
+import re as _re
+
+# Matches common RSS boilerplate appended by Medium/Ghost/WordPress:
+#   "The post <title> appeared first on <Site>."
+#   "This post appeared first on <Site>."
+_RSS_BOILERPLATE_RE = _re.compile(
+    r"\s*(The post .+? appeared first on .+?\.|This post appeared first on .+?\.)\s*$",
+    _re.IGNORECASE | _re.DOTALL,
+)
+
+
+def _strip_rss_boilerplate(text: str) -> str:
+    """Remove common RSS trailer lines like 'The post X appeared first on Y.'"""
+    return _RSS_BOILERPLATE_RE.sub("", text).strip()
+
+
 class _HtmlListingLinkParser(HTMLParser):
     def __init__(self, link_selector: str) -> None:
         super().__init__()
@@ -103,12 +146,16 @@ def sync_active_sources(
     now: datetime | None = None,
     failure_threshold: int = 3,
     analysis_service_client: object | None = None,
+    source_ids: list[int] | None = None,
 ) -> list[int]:
     sync_time = now or datetime.now(UTC)
     processed_source_ids: list[int] = []
 
     with session_scope(session_factory) as session:
-        sources = session.scalars(select(Source).where(Source.active.is_(True)).order_by(Source.id)).all()
+        if source_ids is not None:
+            sources = session.scalars(select(Source).where(Source.id.in_(source_ids)).order_by(Source.id)).all()
+        else:
+            sources = session.scalars(select(Source).where(Source.active.is_(True)).order_by(Source.id)).all()
         for source in sources:
             try:
                 parsed_posts = _load_posts_for_source(source, responses, document_loader)
@@ -340,9 +387,9 @@ def _parse_feed_document(document: str) -> list[ParsedPost]:
         parsed_posts.append(
             ParsedPost(
                 canonical_url=link.strip(),
-                title=title.strip(),
+                title=_strip_html(title.strip()),
                 published_at=_parse_datetime(_child_text(item, "pubDate") or _child_text(item, "published") or _child_text(item, "updated")),
-                raw_content=description.strip(),
+                raw_content=_strip_rss_boilerplate(_strip_html(description.strip())),
             )
         )
     return parsed_posts
@@ -360,8 +407,16 @@ def _parse_html_listing(
     if document is None:
         raise SourceSyncError(f"No response stub for {listing_url}")
 
+    links = _extract_links(document, link_selector=link_selector)
+    if not links:
+        raise SourceSyncError(
+            f"No links found on listing page using selector '{link_selector}'. "
+            "The page structure may not match the configured strategy — "
+            "delete and re-add this source to re-run discovery."
+        )
+
     parsed_posts: list[ParsedPost] = []
-    for href, title in _extract_links(document, link_selector=link_selector):
+    for href, title in links:
         article_url = urljoin(listing_url, href)
         article_document = _load_document(article_url, responses, document_loader) or ""
         raw_content = _extract_first_paragraph(article_document) or title
@@ -392,7 +447,8 @@ def _extract_first_paragraph(document: str) -> str | None:
     paragraph_end = lower_document.find("</p>", paragraph_start + 3)
     if paragraph_start == -1 or paragraph_end == -1:
         return None
-    return document[paragraph_start + 3 : paragraph_end].strip()
+    raw = document[paragraph_start + 3 : paragraph_end].strip()
+    return _strip_html(raw) or None
 
 
 def _child_text(element: ElementTree.Element, tag_name: str) -> str | None:

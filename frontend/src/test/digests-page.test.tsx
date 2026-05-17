@@ -83,13 +83,13 @@ test("digests page renders mixed daily and weekly history entries and opens week
   digestsResponse.resolve();
 
   const weeklyDigestRow = await screen.findByRole("button", {
-    name: /Open digest 2026-04-27 16:30 UTC/i
+    name: /2026-04-27 16:30 UTC/i
   });
   expect(within(weeklyDigestRow).getByText("Type: Weekly digest")).toBeInTheDocument();
   expect(within(weeklyDigestRow).getByText("Included posts: 1")).toBeInTheDocument();
 
   const dailyDigestRow = screen.getByRole("button", {
-    name: /Open digest 2026-04-26 12:05 UTC/i
+    name: /2026-04-26 12:05 UTC/i
   });
   expect(within(dailyDigestRow).getByText("Type: Daily digest")).toBeInTheDocument();
   expect(within(dailyDigestRow).getByText("Included posts: 2")).toBeInTheDocument();
@@ -107,7 +107,7 @@ test("digests page renders mixed daily and weekly history entries and opens week
   );
 
   await waitFor(() => {
-    expect(fetchMock).toHaveBeenCalledWith("/api/posts?sort=match", { method: "GET" });
+    expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=all&sort=match&limit=50", { method: "GET" });
     expect(fetchMock).toHaveBeenCalledWith("/api/digests", { method: "GET" });
     expect(fetchMock).toHaveBeenCalledWith("/api/digests/22", { method: "GET" });
   });

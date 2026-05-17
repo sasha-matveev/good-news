@@ -33,13 +33,14 @@ class SourceResponse(BaseModel):
     strategy_kind: str | None
     active: bool
     status: str
+    post_count: int
     last_success_at: str | None
     last_failure_at: str | None
     needs_readaptation: bool
     readaptation_reason: str | None
 
     @classmethod
-    def from_model(cls, source: Source) -> "SourceResponse":
+    def from_model(cls, source: Source, post_count: int = 0) -> "SourceResponse":
         return cls(
             id=source.id,
             display_name=source.display_name,
@@ -48,6 +49,7 @@ class SourceResponse(BaseModel):
             strategy_kind=source.strategy_kind,
             active=source.active,
             status=source.status,
+            post_count=post_count,
             last_success_at=_serialize_datetime(source.last_success_at),
             last_failure_at=_serialize_datetime(source.last_failure_at),
             needs_readaptation=source.needs_readaptation,

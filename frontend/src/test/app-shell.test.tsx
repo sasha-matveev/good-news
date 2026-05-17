@@ -33,12 +33,11 @@ test("renders the approved shell navigation and header summary skeleton", async 
     "Monitoring"
   ]);
 
-  for (const label of ["Tracked sources", "System", "Capacity"]) {
+  for (const label of ["Tracked sources", "System", "Last Sync"]) {
     expect(screen.getByText(label)).toBeInTheDocument();
   }
 
-  expect(await screen.findByText("Collected posts ready for ranking")).toBeInTheDocument();
-  expect(screen.getByText("No collected posts yet.")).toBeInTheDocument();
+  expect(await screen.findByText("No collected posts yet.")).toBeInTheDocument();
 });
 
 test("app shell lands directly on want to read for deep-link paths", async () => {
@@ -46,7 +45,7 @@ test("app shell lands directly on want to read for deep-link paths", async () =>
   const fetchMock = vi
     .fn<typeof fetch>()
     .mockImplementation((url) => {
-      if (typeof url === "string" && url.includes("/api/posts?window=all")) {
+      if (typeof url === "string" && url.includes("read_later=true")) {
         return Promise.resolve(
           new Response(
             JSON.stringify([
@@ -79,18 +78,17 @@ test("app shell lands directly on want to read for deep-link paths", async () =>
   render(<AppShell />);
 
   expect(await screen.findByText("Saved post")).toBeInTheDocument();
-  expect(screen.queryByText("Collected posts ready for ranking")).not.toBeInTheDocument();
   expect(window.location.pathname).toBe("/want-to-read");
 
   await waitFor(() => {
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/posts?window=all",
+      "/api/posts?window=all&read_later=true",
       { method: "GET" }
     );
   });
 
   fireEvent.click(screen.getByRole("button", { name: "Feed" }));
 
-  expect(await screen.findByText("Collected posts ready for ranking")).toBeInTheDocument();
+  expect(await screen.findByText("No collected posts yet.")).toBeInTheDocument();
   expect(window.location.pathname).toBe("/feed");
 });

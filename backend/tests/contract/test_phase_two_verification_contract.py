@@ -81,10 +81,7 @@ def test_deploy_script_sequences_postgres_migration_and_app_services() -> None:
     assert '"postgres"' in deploy_text
     assert '"db-migrate"' in deploy_text
     assert 'Wait-ForGoodNewsPostgres' in deploy_text
-    assert '"analysis-llm-service"' in deploy_text
-    assert '"source-ingestion-service"' in deploy_text
-    assert '"delivery-service"' in deploy_text
-    assert '"content-api-service"' in deploy_text
+    assert '"app"' in deploy_text
     assert '"frontend"' in deploy_text
     assert 'Wait-ForGoodNewsHttpOk' in deploy_text
 

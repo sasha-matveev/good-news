@@ -121,6 +121,35 @@ def _stub_analysis_result(settings: Settings) -> AnalysisResult | None:
     )
 
 
+def _analyze_pending_posts(
+    session_factory: sessionmaker[Session],
+    analysis_client: object,
+) -> None:
+    """Process posts that have no PostAnalysis row yet."""
+    from sqlalchemy import select as _select
+    from app.models.post import Post as _Post
+    from app.models.post_analysis import PostAnalysis as _PostAnalysis
+    from app.services.analysis import AnalysisRequest as _AnalysisRequest
+    from app.core.db import session_scope as _session_scope
+
+    with _session_scope(session_factory) as session:
+        pending_posts = session.scalars(
+            _select(_Post)
+            .outerjoin(_PostAnalysis, _PostAnalysis.post_id == _Post.id)
+            .where(_PostAnalysis.id.is_(None))
+            .order_by(_Post.id)
+            .limit(20)
+        ).all()
+
+    for post in pending_posts:
+        try:
+            analysis_client.analyze_and_persist(
+                _AnalysisRequest(post_id=post.id, title=post.title, content=post.raw_content)
+            )
+        except Exception:
+            logger.warning("analyze_pending_posts: failed to analyze post %d", post.id)
+
+
 def create_app(
     session_factory: sessionmaker[Session] | None = None,
     responses: dict[str, str] | None = None,
@@ -142,7 +171,7 @@ def create_app(
     app.state.document_client = None
     app.state.document_loader = document_loader
     app.state.analysis_client_factory = analysis_client_factory or (
-        lambda: OllamaClient(settings=resolved_settings)
+        lambda: OllamaClient(settings=resolved_settings, session_factory=app.state.session_factory)
     )
     app.state.analysis_stub_result = _stub_analysis_result(resolved_settings)
     app.state.email_transport_factory = email_transport_factory
@@ -192,6 +221,17 @@ def create_app(
                 trigger="interval",
                 id="source-sync",
                 minutes=resolved_settings.source_sync_interval_minutes,
+                replace_existing=True,
+            )
+
+            scheduler.add_job(
+                lambda: _analyze_pending_posts(
+                    session_factory=app.state.session_factory,
+                    analysis_client=app.state.analysis_client_factory(),
+                ),
+                trigger="interval",
+                id="analyze-pending",
+                minutes=10,
                 replace_existing=True,
             )
 

@@ -24,9 +24,9 @@ export function WantToReadPage({
     async function load() {
       setLoading(true);
       try {
-        const savedPosts = await listPosts({ window: "all" });
+        const savedPosts = await listPosts({ window: "all", readLater: true });
         if (!cancelled) {
-          setPosts(savedPosts.filter((p) => p.read_later === true));
+          setPosts(savedPosts);
           setError(null);
         }
       } catch (loadError) {

@@ -16,11 +16,15 @@ type FeedFilterState = {
   window: "last_month" | "all";
 };
 
-function buildRequestParams(filters: FeedFilterState, sort: PostSortMode) {
+const PAGE_LIMIT = 50;
+
+function buildRequestParams(filters: FeedFilterState, sort: PostSortMode, offset: number) {
   return {
     feedbackState: filters.feedbackState || undefined,
     sort,
-    window: filters.window
+    window: filters.window,
+    limit: PAGE_LIMIT,
+    offset: offset > 0 ? offset : undefined
   } as const;
 }
 
@@ -39,16 +43,21 @@ export function FeedPage() {
     window: "all"
   });
   const [sort, setSort] = useState<PostSortMode>("match");
+  const [pageOffset, setPageOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
       setLoading(true);
+      setPageOffset(0);
       try {
-        const nextPosts = await listPosts(buildRequestParams(filters, sort));
+        const nextPosts = await listPosts(buildRequestParams(filters, sort, 0));
         if (!cancelled) {
           setPosts(nextPosts);
+          setHasMore(nextPosts.length === PAGE_LIMIT);
           setError(null);
           setHasLoadedOnce(true);
         }
@@ -69,6 +78,21 @@ export function FeedPage() {
       cancelled = true;
     };
   }, [filters, sort]);
+
+  async function handleLoadMore() {
+    const nextOffset = pageOffset + PAGE_LIMIT;
+    setLoadingMore(true);
+    try {
+      const morePosts = await listPosts(buildRequestParams(filters, sort, nextOffset));
+      setPosts((current) => [...current, ...morePosts]);
+      setPageOffset(nextOffset);
+      setHasMore(morePosts.length === PAGE_LIMIT);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Failed to load more posts.");
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   async function handleFeedbackSelect(postId: number, state: FeedbackState) {
     setSavingPost({ postId, state });
@@ -120,7 +144,11 @@ export function FeedPage() {
           Feed
         </p>
         <h2 style={{ fontSize: "28px", margin: "14px 0 0" }}>
-          Collected posts ready for ranking
+          {filters.feedbackState === "interesting"
+            ? "Posts you liked"
+            : filters.feedbackState === "not_interesting"
+              ? "Posts you skipped"
+              : "Your feed"}
         </h2>
       </div>
 
@@ -259,7 +287,11 @@ export function FeedPage() {
       ) : posts.length === 0 ? (
         <>
           {loading ? <p role="status">Refreshing posts...</p> : null}
-          <p>No collected posts yet.</p>
+          <p>
+            {filters.feedbackState || filters.window !== "all"
+              ? "No posts match this filter."
+              : "No collected posts yet."}
+          </p>
         </>
       ) : (
         <>
@@ -283,6 +315,28 @@ export function FeedPage() {
               />
             ))}
           </div>
+          {hasMore ? (
+            <div style={{ marginTop: "24px", textAlign: "center" }}>
+              <button
+                disabled={loadingMore}
+                onClick={() => void handleLoadMore()}
+                style={{
+                  backgroundColor: theme.color.card,
+                  border: `1px solid ${theme.color.border}`,
+                  borderRadius: theme.radius.card,
+                  color: theme.color.text,
+                  cursor: loadingMore ? "wait" : "pointer",
+                  fontFamily: "inherit",
+                  fontSize: "14px",
+                  opacity: loadingMore ? 0.7 : 1,
+                  padding: "10px 24px"
+                }}
+                type="button"
+              >
+                {loadingMore ? "Loading..." : "Load more"}
+              </button>
+            </div>
+          ) : null}
         </>
       )}
     </section>

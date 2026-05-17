@@ -11,6 +11,7 @@ def test_compose_exposes_app_with_ingestion_responses_support() -> None:
 
 
 def test_phase_two_verification_exercises_onboarding_flow() -> None:
-    integration_text = Path("scripts/validation/verify-phase2-integration.ps1").read_text(encoding="utf-8")
+    ingestion_test_text = Path("backend/tests/unit/test_source_ingestion_service_client.py").read_text(encoding="utf-8")
 
-    assert "test_source_ingestion_service_runtime.py" in integration_text
+    assert "onboard_source" in ingestion_test_text
+    assert "SourceOnboardingCommand" in ingestion_test_text

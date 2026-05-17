@@ -45,7 +45,8 @@ test("want to read tab loads saved posts from the saved filter", async () => {
     if (urlStr.includes("/api/monitoring/summary")) {
       return Promise.resolve(new Response(JSON.stringify([]), { status: 200 }));
     }
-    if (urlStr.includes("window=all")) {
+    // WantToRead uses window=all without sort; Feed uses window=all&sort=match
+    if (urlStr.includes("window=all") && !urlStr.includes("sort=match")) {
       return Promise.resolve(new Response(JSON.stringify([savedPost]), { status: 200 }));
     }
     if (urlStr.includes("/api/posts")) {
@@ -66,8 +67,8 @@ test("want to read tab loads saved posts from the saved filter", async () => {
   expect(screen.getByRole("button", { name: "Remove from want to read" })).toBeInTheDocument();
 
   await waitFor(() => {
-    expect(fetchMock).toHaveBeenCalledWith("/api/posts?sort=match", { method: "GET" });
-    expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=all", { method: "GET" });
+    expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=all&sort=match&limit=50", { method: "GET" });
+    expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=all&read_later=true", { method: "GET" });
   });
 });
 
@@ -126,7 +127,8 @@ test("feed save flows through to the want to read tab", async () => {
         new Response(JSON.stringify({ post_id: 2, read_later: true }), { status: 200 })
       );
     }
-    if (urlStr.includes("window=all")) {
+    // WantToRead uses window=all without sort; Feed uses window=all&sort=match
+    if (urlStr.includes("window=all") && !urlStr.includes("sort=match")) {
       return Promise.resolve(
         new Response(JSON.stringify([newerPostSaved]), { status: 200 })
       );
@@ -143,7 +145,7 @@ test("feed save flows through to the want to read tab", async () => {
 
   expect(await screen.findByText("Newer")).toBeInTheDocument();
 
-  fireEvent.click(screen.getByRole("button", { name: "Add to Read Later" }));
+  fireEvent.click(screen.getByRole("button", { name: "Save to Read Later" }));
 
   await waitFor(() => {
     expect(fetchMock).toHaveBeenCalledWith("/api/posts/2/read-later", {
@@ -159,8 +161,8 @@ test("feed save flows through to the want to read tab", async () => {
   expect(screen.getByRole("button", { name: "Remove from want to read" })).toBeInTheDocument();
 
   await waitFor(() => {
-    expect(fetchMock).toHaveBeenCalledWith("/api/posts?sort=match", { method: "GET" });
-    expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=all", { method: "GET" });
+    expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=all&sort=match&limit=50", { method: "GET" });
+    expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=all&read_later=true", { method: "GET" });
   });
 });
 
@@ -180,7 +182,8 @@ test("want to read page can remove a saved post without touching other tabs", as
         new Response(JSON.stringify({ post_id: 7, read_later: false }), { status: 200 })
       );
     }
-    if (urlStr.includes("window=all")) {
+    // WantToRead uses window=all without sort; Feed uses window=all&sort=match
+    if (urlStr.includes("window=all") && !urlStr.includes("sort=match")) {
       return Promise.resolve(new Response(JSON.stringify([savedPost]), { status: 200 }));
     }
     if (urlStr.includes("/api/posts")) {
@@ -231,7 +234,8 @@ test("want to read page shows an active saving state while removing a saved post
       removeCalled = true;
       return removeResponse.promise;
     }
-    if (urlStr.includes("window=all")) {
+    // WantToRead uses window=all without sort; Feed uses window=all&sort=match
+    if (urlStr.includes("window=all") && !urlStr.includes("sort=match")) {
       return Promise.resolve(new Response(JSON.stringify([savedPost]), { status: 200 }));
     }
     if (urlStr.includes("/api/posts")) {

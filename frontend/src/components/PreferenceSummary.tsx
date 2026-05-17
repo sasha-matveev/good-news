@@ -91,11 +91,15 @@ export function PreferenceSummary({ profile }: PreferenceSummaryProps) {
           }}
         >
           <h3 style={{ marginTop: 0 }}>Positive signals</h3>
-          <ul style={{ margin: 0, paddingLeft: "20px" }}>
-            {profile.positive_signals.map((signal) => (
-              <li key={signal}>{signal}</li>
-            ))}
-          </ul>
+          {profile.positive_signals.length === 0 ? (
+            <p style={{ margin: 0 }}>No positive signals recorded yet.</p>
+          ) : (
+            <ul style={{ margin: 0, paddingLeft: "20px" }}>
+              {profile.positive_signals.map((signal) => (
+                <li key={signal}>{signal}</li>
+              ))}
+            </ul>
+          )}
         </article>
 
         <article

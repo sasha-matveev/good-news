@@ -1,6 +1,23 @@
+import { useState } from "react";
 import type { FeedbackState, PostRecord } from "../lib/api";
 import { recordArticleOpen } from "../lib/api";
 import { theme } from "../styles/theme";
+
+function stripHtml(html: string): string {
+  try {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    return (doc.body.textContent ?? html).replace(/\s+/g, " ").trim();
+  } catch {
+    return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  }
+}
+
+function parseRankingExplanation(exp: string): Array<{ key: string; value: string }> {
+  return exp.split(";").filter(Boolean).map((part) => {
+    const [k, v] = part.split("=");
+    return { key: k?.trim() ?? part, value: v?.trim() ?? "" };
+  });
+}
 
 type PostCardProps = {
   busy?: boolean;
@@ -34,8 +51,10 @@ export function buildMatchScore(post: PostRecord): number {
   const contentValues = Array.from(exp.matchAll(/=([0-9.]+)/g)).map(
     (match) => Number.parseFloat(match[1] ?? "0")
   );
+  // Content values sum to ~0.5-2.5 for typical posts; multiply by 2 so
+  // max non-feedback content score lands at ~5, feedback pushes toward 10.
   const total = feedbackScore + contentValues.reduce((sum, v) => sum + v, 0);
-  return Math.max(0, Math.min(10, Math.round(total * 10)));
+  return Math.max(0, Math.min(10, Math.round(total * 2)));
 }
 
 export function PostCard({
@@ -47,6 +66,7 @@ export function PostCard({
   onWantToReadToggle,
   post
 }: PostCardProps) {
+  const [logExpanded, setLogExpanded] = useState(false);
   const canRemoveFromWantToRead =
     post.read_later === true && onWantToReadToggle !== undefined;
 
@@ -84,36 +104,45 @@ export function PostCard({
         </div>
       </div>
 
-      {/* Fix 2: LLM line — bold score + dot separator + reason */}
-      <div style={{ borderLeft: "4px solid #7ea3c6", paddingLeft: "10px", margin: "0 0 14px", display: "flex", flexWrap: "wrap", alignItems: "center", gap: "10px", fontSize: "13px", lineHeight: 1.4, color: "#4f6072" }}>
+      {/* Match score */}
+      <div style={{ borderLeft: "4px solid #7ea3c6", paddingLeft: "10px", margin: "0 0 12px", fontSize: "13px", lineHeight: 1.4, color: "#4f6072" }}>
         <span style={{ color: theme.color.llm, fontWeight: 700 }}>
           match {buildMatchScore(post)}/10
         </span>
-        {post.verdict_reason ? (
-          <>
-            <span aria-hidden="true" style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#8fa8bf", display: "inline-block" }} />
-            <span>{post.verdict_reason}</span>
-          </>
-        ) : null}
       </div>
 
-      {post.summary_ru ? <p style={{ margin: "0 0 14px" }}>{post.summary_ru}</p> : null}
-      {!post.summary_ru ? (
-        <div style={{
-          borderTop: `1px solid ${theme.color.border}`,
-          color: theme.color.muted,
-          display: "-webkit-box",
-          fontSize: "13px",
-          lineHeight: 1.55,
-          margin: "0 0 14px",
-          overflow: "hidden",
-          paddingTop: "10px",
-          WebkitBoxOrient: "vertical",
-          WebkitLineClamp: 3
-        }}>
-          {post.raw_content}
-        </div>
-      ) : null}
+      {/* LLM evaluation block — only when analysis exists */}
+      {(post.summary_ru || post.verdict_reason) ? (() => {
+        const summaryText = post.summary_ru ? stripHtml(post.summary_ru) : "";
+        const verdictText = post.verdict_reason ? stripHtml(post.verdict_reason) : "";
+        if (!summaryText && !verdictText) return null;
+        return (
+          <div style={{ margin: "0 0 12px", fontSize: "13px", lineHeight: 1.55 }}>
+            {summaryText ? (
+              <p style={{ margin: "0 0 4px" }}>{summaryText}</p>
+            ) : null}
+            {verdictText ? (
+              <p style={{ margin: 0, color: theme.color.muted }}>{verdictText}</p>
+            ) : null}
+          </div>
+        );
+      })() : null}
+
+      {/* Original content excerpt — always shown */}
+      <div style={{
+        borderTop: `1px solid ${theme.color.border}`,
+        color: theme.color.muted,
+        display: "-webkit-box",
+        fontSize: "13px",
+        lineHeight: 1.55,
+        margin: "0 0 14px",
+        overflow: "hidden",
+        paddingTop: "10px",
+        WebkitBoxOrient: "vertical",
+        WebkitLineClamp: 3
+      }}>
+        {stripHtml(post.raw_content)}
+      </div>
 
       {/* Fix 3: Actions row — icon buttons + correct order */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", paddingTop: "4px" }}>
@@ -233,8 +262,10 @@ export function PostCard({
               }}
               type="button"
             >
-              <svg fill="none" stroke="currentColor" strokeWidth="1.7" viewBox="0 0 16 16" style={{ width: "15px", height: "15px" }}>
-                <path d="M8 3s4.5 2.8 4.5 6.1A2.4 2.4 0 018 10.9a2.4 2.4 0 01-4.5-1.8C3.5 5.8 8 3 8 3z" />
+              {/* Thumbs down — Feather Icons */}
+              <svg fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ width: "15px", height: "15px" }}>
+                <path d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3z" />
+                <path d="M17 2h2.67A2.31 2.31 0 0122 4v7a2.31 2.31 0 01-2.33 2H17" />
               </svg>
             </button>
           ) : null}
@@ -294,7 +325,55 @@ export function PostCard({
             </button>
           ) : null}
         </div>
+
+        {/* Analysis log toggle */}
+        {post.ranking_explanation ? (
+          <button
+            type="button"
+            onClick={() => { setLogExpanded((v) => !v); }}
+            style={{
+              background: "none",
+              border: "none",
+              color: theme.color.muted,
+              cursor: "pointer",
+              fontFamily: theme.font.sectionTitle,
+              fontSize: "10px",
+              letterSpacing: "0.1em",
+              padding: "0 2px",
+              textTransform: "uppercase"
+            }}
+          >
+            {logExpanded ? "▲ hide analysis" : "▼ analysis log"}
+          </button>
+        ) : null}
       </div>
+
+      {/* Analysis log terminal */}
+      {logExpanded && post.ranking_explanation ? (() => {
+        const parts = parseRankingExplanation(post.ranking_explanation);
+        const score = buildMatchScore(post);
+        return (
+          <div style={{ marginTop: "10px", backgroundColor: "#111b27", border: "1px solid #1e3048", borderRadius: theme.radius.card, padding: "10px 14px", fontFamily: "'Consolas','Menlo','Monaco',monospace", fontSize: "11px", lineHeight: 1.7, color: "#c8dced" }}>
+            <div style={{ color: "#2f5878", marginBottom: "4px" }}># post analysis — id {post.id}</div>
+            {parts.map((p, i) => (
+              <div key={i}>
+                <span style={{ color: "#4a6d8c" }}>{p.key}</span>
+                <span style={{ color: "#4a7095" }}>=</span>
+                <span style={{ color: p.key === "feedback" ? "#7fbf8e" : "#c8dced" }}>{p.value || "—"}</span>
+              </div>
+            ))}
+            <div style={{ borderTop: "1px solid #1e3048", marginTop: "6px", paddingTop: "6px", color: "#7fbf8e" }}>
+              match score → {score}/10
+            </div>
+            {(post.verdict === "interesting" || post.verdict === "not_interesting") ? (
+              <div style={{ color: "#7fbf8e" }}>verdict → {post.verdict}</div>
+            ) : null}
+            {post.verdict_reason ? (
+              <div style={{ color: "#4a6d8c", marginTop: "2px" }}>{post.verdict_reason}</div>
+            ) : null}
+          </div>
+        );
+      })() : null}
     </article>
   );
 }

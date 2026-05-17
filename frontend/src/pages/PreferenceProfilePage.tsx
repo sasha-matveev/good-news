@@ -42,6 +42,7 @@ export function PreferenceProfilePage() {
       <div style={{ marginBottom: "24px" }}>
         <p
           style={{
+            color: theme.color.muted,
             fontFamily: theme.font.sectionTitle,
             fontSize: "12px",
             letterSpacing: "0.16em",

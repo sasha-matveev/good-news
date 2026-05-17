@@ -101,6 +101,7 @@ def test_source_ingestion_service_health_onboarding_and_sync() -> None:
         "strategy_kind": "feed",
         "active": True,
         "status": "ready",
+        "post_count": 0,
         "last_success_at": None,
         "last_failure_at": None,
         "needs_readaptation": False,

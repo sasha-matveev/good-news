@@ -22,6 +22,7 @@ def build_post_listing_statement(
     feedback_state: str | None = None,
     now: datetime | None = None,
     window: str = "last_month",
+    read_later: bool | None = None,
 ) -> Select[tuple[Post, str | None, str | None]]:
     statement: Select[tuple[Post, str | None, str | None]] = (
         select(
@@ -51,6 +52,10 @@ def build_post_listing_statement(
         statement = statement.where(Post.source_id == source_id)
     if feedback_state is not None:
         statement = statement.where(Feedback.state == feedback_state)
+    if read_later is True:
+        statement = statement.where(ReadLater.id.isnot(None))
+    elif read_later is False:
+        statement = statement.where(ReadLater.id.is_(None))
 
     return statement
 
@@ -127,6 +132,9 @@ def list_posts(
     now: datetime | None = None,
     window: str = "last_month",
     sort: str = "match",
+    limit: int | None = None,
+    offset: int = 0,
+    read_later: bool | None = None,
 ) -> list[PostResponse]:
     rows = session.execute(
         build_post_listing_statement(
@@ -134,7 +142,11 @@ def list_posts(
             feedback_state=feedback_state,
             now=now,
             window=window,
+            read_later=read_later,
         ).order_by(Post.published_at.desc(), Post.id.desc())
     ).all()
     rank_results = sort != "date"
-    return map_rows_to_post_responses(rows, rank_results=rank_results)
+    all_responses = map_rows_to_post_responses(rows, rank_results=rank_results)
+    if limit is not None:
+        return all_responses[offset : offset + limit]
+    return all_responses[offset:] if offset else all_responses

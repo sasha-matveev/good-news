@@ -119,6 +119,7 @@ export function DigestsPage({
       <div style={{ marginBottom: "24px" }}>
         <p
           style={{
+            color: theme.color.muted,
             fontFamily: theme.font.sectionTitle,
             fontSize: "12px",
             letterSpacing: "0.16em",
@@ -208,7 +209,7 @@ export function DigestsPage({
                       textTransform: "uppercase"
                     }}
                   >
-                    Open digest {formatSentAt(digest.sent_at)}
+                    View →
                   </span>
                 </button>
               );
@@ -242,6 +243,7 @@ export function DigestsPage({
                 <div>
                   <p
                     style={{
+                      color: theme.color.muted,
                       fontFamily: theme.font.sectionTitle,
                       fontSize: "12px",
                       letterSpacing: "0.16em",

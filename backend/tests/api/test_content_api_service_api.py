@@ -36,6 +36,7 @@ def build_client() -> tuple[TestClient, object]:
                 strategy_kind="feed",
                 active=True,
                 status="ready",
+                post_count=0,
                 last_success_at=None,
                 last_failure_at=None,
                 needs_readaptation=False,

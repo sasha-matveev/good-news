@@ -53,6 +53,9 @@ def list_posts(
     feedback_state: str | None = None,
     window: str = Query(default="last_month"),
     sort: Literal["match", "date"] = Query(default="match"),
+    limit: int | None = Query(default=None, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    read_later: bool | None = Query(default=None),
     session: Session = Depends(get_session),
     now: datetime = Depends(get_now),
 ) -> list[PostResponse]:
@@ -63,6 +66,9 @@ def list_posts(
         now=now,
         window=window,
         sort=sort,
+        limit=limit,
+        offset=offset,
+        read_later=read_later,
     )
 
 

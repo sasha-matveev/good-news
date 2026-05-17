@@ -525,3 +525,33 @@ def test_posts_api_normalizes_empty_verdict_to_null() -> None:
     assert len(data) == 1
     assert data[0]["verdict"] is None, f"Expected verdict=null, got {data[0]['verdict']!r}"
     assert data[0]["verdict_reason"] is None, f"Expected verdict_reason=null, got {data[0]['verdict_reason']!r}"
+
+
+def test_get_posts_supports_limit_and_offset_pagination() -> None:
+    client, session_factory = build_client()
+
+    with session_scope(session_factory) as session:
+        session.add(Source(id=1, display_name="Alpha", original_url="https://alpha.example", status="ready"))
+        session.add_all([
+            Post(
+                id=i,
+                source_id=1,
+                canonical_url=f"https://alpha.example/posts/{i}",
+                title=f"Post {i}",
+                published_at=datetime(2026, 4, i, 9, 0, tzinfo=UTC),
+                raw_content="Content.",
+                content_hash=f"hash-{i}",
+                ingest_metadata='{"strategy":"feed"}',
+            )
+            for i in range(1, 6)
+        ])
+
+    first_page = client.get("/api/posts?window=all&sort=date&limit=2").json()
+    second_page = client.get("/api/posts?window=all&sort=date&limit=2&offset=2").json()
+
+    assert len(first_page) == 2
+    assert len(second_page) == 2
+    assert first_page[0]["id"] != second_page[0]["id"], "Pages must not overlap"
+
+    all_ids = {p["id"] for p in first_page + second_page}
+    assert len(all_ids) == 4, "All returned posts must be distinct"

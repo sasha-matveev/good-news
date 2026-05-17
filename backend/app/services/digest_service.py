@@ -79,7 +79,7 @@ def render_daily_digest_email(
             ]
         )
     if more_count > 0:
-        parts.append(f"<p>more {more_count} less interesting posts</p>")
+        parts.append(f"<p>...and {more_count} more post{'s' if more_count != 1 else ''} in the collection.</p>")
     parts.append("</body></html>")
     return "".join(parts)
 
@@ -216,6 +216,7 @@ def generate_daily_digest(
         content_api_base_url=content_api_base_url,
         digest_type="daily",
         title=f"Good News digest for {now.astimezone(UTC).date().isoformat()}",
+        published_since=now - timedelta(days=1),
     )
 
 

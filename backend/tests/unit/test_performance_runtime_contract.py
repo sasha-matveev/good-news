@@ -44,10 +44,7 @@ def test_readme_documents_real_model_default_runtime_and_disposable_stub_lanes()
 def test_deploy_script_boots_all_services_in_sequence() -> None:
     script_text = Path("scripts/deploy.ps1").read_text(encoding="utf-8")
 
-    assert '"analysis-llm-service"' in script_text
-    assert '"source-ingestion-service"' in script_text
-    assert '"delivery-service"' in script_text
-    assert '"content-api-service"' in script_text
+    assert '"app"' in script_text
     assert '"frontend"' in script_text
     assert "Wait-ForGoodNewsPostgres" in script_text
     assert "Wait-ForGoodNewsHttpOk" in script_text

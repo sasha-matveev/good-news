@@ -8,7 +8,7 @@ beforeEach(() => {
   window.history.replaceState({}, "", "/feed");
 });
 
-test("monitoring page renders operator sections and open grafana link", async () => {
+test("monitoring page renders operator sections", async () => {
   const fetchMock = vi
     .fn<typeof fetch>()
     .mockResolvedValue(new Response(JSON.stringify([]), { status: 200 }));
@@ -22,11 +22,7 @@ test("monitoring page renders operator sections and open grafana link", async ()
   expect(await screen.findByRole("heading", { name: "Source health" })).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "System health" })).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "LLM queue" })).toBeInTheDocument();
-  expect(screen.getByRole("heading", { name: "Capacity" })).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "Open Grafana" })).toHaveAttribute(
-    "href",
-    "http://127.0.0.1:3000/d/good-news-overview/good-news-observability-overview"
-  );
+  expect(screen.queryByRole("heading", { name: "Capacity" })).not.toBeInTheDocument();
 });
 
 test("monitoring page shows real metrics when backend returns data", async () => {

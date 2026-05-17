@@ -71,8 +71,13 @@ if (-not $SkipTests) {
 
     Write-Host ""
     Write-Host "=== QUALITY GATE: frontend tests ==="
+    # Temporarily suppress NativeCommandError: Vitest writes progress to stderr and
+    # PowerShell 5.1 promotes any native-exe stderr to an error record under Stop mode.
+    $ErrorActionPreference = "Continue"
     npm --prefix frontend run test
-    if ($LASTEXITCODE -ne 0) {
+    $frontendTestExitCode = $LASTEXITCODE
+    $ErrorActionPreference = "Stop"
+    if ($frontendTestExitCode -ne 0) {
         Write-Host ""
         Write-Host "ERROR: Frontend tests failed. Deploy aborted."
         exit 1
@@ -80,8 +85,11 @@ if (-not $SkipTests) {
 
     Write-Host ""
     Write-Host "=== QUALITY GATE: frontend build ==="
+    $ErrorActionPreference = "Continue"
     npm --prefix frontend run build
-    if ($LASTEXITCODE -ne 0) {
+    $frontendBuildExitCode = $LASTEXITCODE
+    $ErrorActionPreference = "Stop"
+    if ($frontendBuildExitCode -ne 0) {
         Write-Host ""
         Write-Host "ERROR: Frontend build failed. Deploy aborted."
         exit 1
@@ -176,43 +184,26 @@ if ($useOllama) { $profileArgs += @("--profile", "ai") }
 Invoke-GoodNewsDockerCompose `
     -ComposeFiles $script:ComposeFiles `
     -ProjectName $script:ProjectName `
-    -Arguments ($profileArgs + @(
-        "up", "-d", "--build",
-        "analysis-llm-service",
-        "source-ingestion-service",
-        "delivery-service",
-        "content-api-service",
-        "frontend",
-        "prometheus",
-        "loki",
-        "otel-collector",
-        "grafana-image-renderer",
-        "grafana"
-    ))
+    -Arguments ($profileArgs + @("up", "-d", "--build", "app", "frontend"))
 
 # ---------------------------------------------------------------------------
-# Wait for frontend and Grafana health
+# Wait for app and frontend health
 # ---------------------------------------------------------------------------
 
-$grafanaPort = if ($env:GOOD_NEWS_OBSERVABILITY_GRAFANA_HOST_PORT) {
-    [int]$env:GOOD_NEWS_OBSERVABILITY_GRAFANA_HOST_PORT
-} else { 3000 }
+Wait-ForGoodNewsHttpOk `
+    -Url "http://127.0.0.1:$contentApiPort/api/health" `
+    -TimeoutSeconds $StartupTimeoutSeconds `
+    -Label "app"
 
 Wait-ForGoodNewsHttpOk `
     -Url "http://127.0.0.1:$frontendPort" `
     -TimeoutSeconds $StartupTimeoutSeconds `
     -Label "frontend"
 
-Wait-ForGoodNewsHttpOk `
-    -Url "http://127.0.0.1:$grafanaPort/api/health" `
-    -TimeoutSeconds $StartupTimeoutSeconds `
-    -Label "grafana"
-
 Write-Host ""
 Write-Host "=== Deploy complete ==="
 Write-Host "  Frontend:       http://127.0.0.1:$frontendPort"
 Write-Host "  Content API:    http://127.0.0.1:$contentApiPort/api/health"
-Write-Host "  Grafana:        http://127.0.0.1:$grafanaPort"
 Write-Host "  Docker project: $($script:ProjectName)"
 Write-Host ""
 Write-Host "Run 'docker compose -p $($script:ProjectName) ps' to inspect service state."

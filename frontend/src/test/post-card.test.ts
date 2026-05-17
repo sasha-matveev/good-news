@@ -23,14 +23,23 @@ function makePost(overrides: Partial<PostRecord>): PostRecord {
 }
 
 describe("buildMatchScore", () => {
-  // interesting/want_to_read feedbackScore (4.0/5.0) * 10 always exceeds the 10/10 cap,
-  // so liked posts are always 10/10 regardless of content scores.
-  it("liked posts always show 10/10 regardless of content signals", () => {
+  // interesting feedbackScore (4.0) * multiplier (2) = 8/10 for posts with no content signals.
+  // want_to_read (5.0 * 2 = 10) reaches the cap. Adding moderate content signals pushes
+  // interesting posts to 10/10 too.
+  it("interesting posts without content signals score 8/10", () => {
     const noContentScore = buildMatchScore(makePost({
       feedback_state: "interesting",
       ranking_explanation: "feedback=interesting; source_affinity=0.0; topic_affinity=0.0",
     }));
-    expect(noContentScore).toBe(10);
+    expect(noContentScore).toBe(8);
+  });
+
+  it("interesting posts with content signals reach 10/10", () => {
+    const withContentScore = buildMatchScore(makePost({
+      feedback_state: "interesting",
+      ranking_explanation: "feedback=interesting; source_affinity=0.5; topic_affinity=0.5",
+    }));
+    expect(withContentScore).toBe(10);
   });
 
   it("posts with no feedback are scored by content signals only", () => {

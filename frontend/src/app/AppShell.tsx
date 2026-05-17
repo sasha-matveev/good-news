@@ -34,6 +34,7 @@ const tabPaths: Record<(typeof tabs)[number], string> = {
 const pathAliases: Record<string, string> = {
   "/": "/feed",
   "/preferences": "/preference-profile",
+  "/profile": "/preference-profile",
 };
 
 function tabFromPath(pathname: string): (typeof tabs)[number] {
@@ -104,7 +105,6 @@ export function AppShell() {
         >
           <div
             style={{
-              alignItems: "start",
               display: "grid",
               gap: "16px",
               gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))"
@@ -187,12 +187,12 @@ export function AppShell() {
                   textTransform: "uppercase"
                 }}
               >
-                Capacity
+                Last Sync
               </p>
               <p style={{ margin: "10px 0 0" }}>
                 {monitoringSummary
                   ? monitoringSummary.last_sync_at
-                    ? `Last sync: ${monitoringSummary.last_sync_at.replace("T", " ").slice(0, 16)}` /* "YYYY-MM-DD HH:MM" */
+                    ? monitoringSummary.last_sync_at.replace("T", " ").slice(0, 16) /* "YYYY-MM-DD HH:MM" */
                     : "No syncs yet"
                   : "—"}
               </p>

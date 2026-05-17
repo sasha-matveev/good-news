@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Settings
 from app.core.db import session_scope
+from app.jobs.digest_jobs import register_daily_digest_job, register_weekly_digest_job
 from app.schemas.setting import SettingsResponse, SettingsUpdateRequest
 from app.services.delivery_boundary import DELIVERY_OWNED_SETTING_KEYS, send_test_email_command
 from app.services.delivery_service_client import DeliveryServiceClient
@@ -72,6 +73,28 @@ def update_settings(
     session.commit()
     settings = load_settings(session)
     request.app.state.delivery_owned_setting_keys = DELIVERY_OWNED_SETTING_KEYS
+
+    # Re-register scheduler jobs so changed digest times/days take effect immediately
+    # without requiring an app restart.
+    scheduler = getattr(request.app.state, "scheduler", None)
+    if scheduler is not None:
+        now_provider = getattr(request.app.state, "now_provider", None)
+        runtime_settings = getattr(request.app.state, "settings", None)
+        session_factory = getattr(request.app.state, "session_factory", None)
+        if now_provider is not None and session_factory is not None:
+            register_daily_digest_job(
+                scheduler=scheduler,
+                session_factory=session_factory,
+                now_provider=now_provider,
+                runtime_settings=runtime_settings,
+            )
+            register_weekly_digest_job(
+                scheduler=scheduler,
+                session_factory=session_factory,
+                now_provider=now_provider,
+                runtime_settings=runtime_settings,
+            )
+
     return SettingsResponse(
         **settings.__dict__,
         observability_dashboard_url=request.app.state.settings.observability_dashboard_url(),

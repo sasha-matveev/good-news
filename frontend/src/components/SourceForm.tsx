@@ -73,6 +73,7 @@ export function SourceForm({
             border: `1px solid ${theme.color.accent}`,
             borderRadius: theme.radius.card,
             color: theme.color.card,
+            cursor: disabled ? "wait" : "pointer",
             fontFamily: "inherit",
             fontSize: "15px",
             padding: "12px 18px"

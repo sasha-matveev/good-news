@@ -49,6 +49,7 @@ class DiscoveredSource:
 
 
 DocumentLoader = Callable[[str], str | None]
+LogCallback = Callable[[str], None] | None
 
 
 class _HeadParser(HTMLParser):
@@ -97,22 +98,42 @@ def discover_source_strategy(
     raw_url: str,
     responses: dict[str, str],
     document_loader: DocumentLoader | None = None,
+    log_cb: LogCallback = None,
 ) -> DiscoveredSource:
+    def log(msg: str) -> None:
+        if log_cb:
+            log_cb(msg)
+
     normalized_url = normalize_source_url(raw_url)
+    log(f"Normalized URL: {normalized_url}")
+
     override = _discover_source_feed_override(normalized_url)
     if override is not None:
+        log(f"Source override matched — feed: {override.feed_url}")
         return override
 
+    log(f"Fetching homepage: {normalized_url}")
     homepage = _load_document(normalized_url, responses, document_loader)
     if homepage is None:
         raise DiscoveryError(f"No response stub for {normalized_url}")
 
+    log(f"Homepage loaded ({len(homepage)} chars)")
     parser = _HeadParser()
     parser.feed(homepage)
     display_name = parser.title
+    if display_name:
+        log(f"Page title: {display_name!r}")
 
-    alternate_feed = _discover_alternate_feed(parser, normalized_url, responses, document_loader)
+    alt_links = [
+        link for link in parser.links
+        if "alternate" in {v.strip().lower() for v in link.get("rel", "").split()}
+        and link.get("type", "").lower() in FEED_TYPES
+        and link.get("href")
+    ]
+    log(f"Checking {len(alt_links)} alternate feed link(s) in page header")
+    alternate_feed = _discover_alternate_feed(parser, normalized_url, responses, document_loader, log_cb)
     if alternate_feed is not None:
+        log(f"Found feed via <link rel=alternate>: {alternate_feed}")
         return DiscoveredSource(
             normalized_url=normalized_url,
             display_name=display_name,
@@ -121,8 +142,11 @@ def discover_source_strategy(
             strategy_config={"discovery_method": "alternate_link"},
         )
 
-    engine_feed = _discover_engine_hint_feed(parser, normalized_url, responses, document_loader)
+    if parser.meta_generators:
+        log(f"Engine hints: {', '.join(parser.meta_generators)}")
+    engine_feed = _discover_engine_hint_feed(parser, normalized_url, responses, document_loader, log_cb)
     if engine_feed is not None:
+        log(f"Found feed via engine hint: {engine_feed[0]}")
         return DiscoveredSource(
             normalized_url=normalized_url,
             display_name=display_name,
@@ -131,8 +155,11 @@ def discover_source_strategy(
             strategy_config={"discovery_method": engine_feed[1]},
         )
 
-    common_feed = _discover_common_feed(normalized_url, responses, document_loader)
+    candidates = _common_feed_candidates(normalized_url)
+    log(f"Trying {len(candidates)} common feed path(s) (/feed, /rss, /atom.xml, ...)")
+    common_feed = _discover_common_feed(normalized_url, responses, document_loader, log_cb)
     if common_feed is not None:
+        log(f"Found feed at common path: {common_feed}")
         return DiscoveredSource(
             normalized_url=normalized_url,
             display_name=display_name,
@@ -141,8 +168,10 @@ def discover_source_strategy(
             strategy_config={"discovery_method": "common_feed_path"},
         )
 
+    log("No RSS/Atom feed found — analyzing HTML article structure")
     html_strategy = derive_html_strategy(homepage, normalized_url)
     if html_strategy is not None:
+        log("HTML fallback strategy available (no structured feed)")
         return DiscoveredSource(
             normalized_url=normalized_url,
             display_name=display_name,
@@ -159,6 +188,7 @@ def _discover_alternate_feed(
     normalized_url: str,
     responses: dict[str, str],
     document_loader: DocumentLoader | None,
+    log_cb: LogCallback = None,
 ) -> str | None:
     for link in parser.links:
         rel_values = {value.strip().lower() for value in link.get("rel", "").split()}
@@ -168,6 +198,8 @@ def _discover_alternate_feed(
             continue
 
         candidate = urljoin(normalized_url, href)
+        if log_cb:
+            log_cb(f"  Checking feed link: {candidate}")
         document = _load_document(candidate, responses, document_loader)
         if document is None:
             if candidate not in responses and document_loader is None:
@@ -183,12 +215,15 @@ def _discover_engine_hint_feed(
     normalized_url: str,
     responses: dict[str, str],
     document_loader: DocumentLoader | None,
+    log_cb: LogCallback = None,
 ) -> tuple[str, str] | None:
     for engine, paths in ENGINE_HINTS.items():
         if not any(engine in generator for generator in parser.meta_generators):
             continue
         for path in paths:
             candidate = urljoin(_origin_url(normalized_url), path)
+            if log_cb:
+                log_cb(f"  Trying {engine} feed path: {candidate}")
             if _looks_like_feed(_load_document(candidate, responses, document_loader)):
                 return candidate, f"engine_hint:{engine}"
     return None
@@ -198,8 +233,11 @@ def _discover_common_feed(
     normalized_url: str,
     responses: dict[str, str],
     document_loader: DocumentLoader | None,
+    log_cb: LogCallback = None,
 ) -> str | None:
     for candidate in _common_feed_candidates(normalized_url):
+        if log_cb:
+            log_cb(f"  Probing: {candidate}")
         if _looks_like_feed(_load_document(candidate, responses, document_loader)):
             return candidate
     return None

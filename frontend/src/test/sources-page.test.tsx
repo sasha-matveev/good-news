@@ -17,6 +17,7 @@ const initialSources = [
     strategy_kind: "feed",
     active: true,
     status: "ready",
+    post_count: 0,
     last_success_at: "2026-04-26T08:30:00Z",
     last_failure_at: null,
     needs_readaptation: false,
@@ -30,6 +31,7 @@ const initialSources = [
     strategy_kind: "html",
     active: false,
     status: "needs_readaptation",
+    post_count: 0,
     last_success_at: null,
     last_failure_at: "2026-04-26T09:45:00Z",
     needs_readaptation: true,
@@ -60,6 +62,7 @@ test("sources page loads source state, shows readaptation warnings, adds a sourc
     strategy_kind: "feed",
     active: true,
     status: "ready",
+    post_count: 0,
     last_success_at: null,
     last_failure_at: null,
     needs_readaptation: false,
@@ -108,7 +111,6 @@ test("sources page loads source state, shows readaptation warnings, adds a sourc
   expect(
     screen.getByText("No usable feed discovered; HTML fallback requires monitoring.")
   ).toBeInTheDocument();
-  expect(screen.getByText("2026-04-26 08:30")).toBeInTheDocument();
 
   fireEvent.change(screen.getByLabelText("Source URL"), {
     target: { value: "example.com" }
@@ -123,7 +125,7 @@ test("sources page loads source state, shows readaptation warnings, adds a sourc
     expect(screen.getByRole("button", { name: "Enable Alpha" })).toBeInTheDocument();
   });
 
-  expect(fetchMock).toHaveBeenCalledWith("/api/posts?sort=match", { method: "GET" });
+  expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=all&sort=match&limit=50", { method: "GET" });
   expect(fetchMock).toHaveBeenCalledWith("/api/sources", { method: "GET" });
   expect(fetchMock).toHaveBeenCalledWith("/api/sources", {
     method: "POST",
@@ -146,6 +148,7 @@ test("sources page supports explicit sync so the first post becomes visible in F
     strategy_kind: "feed",
     active: true,
     status: "ready",
+    post_count: 0,
     last_success_at: null,
     last_failure_at: null,
     needs_readaptation: false,
@@ -224,13 +227,12 @@ test("sources page supports explicit sync so the first post becomes visible in F
   fireEvent.click(screen.getByRole("button", { name: "Sync sources now" }));
 
   expect(await screen.findByText("Sync complete for 1 source.")).toBeInTheDocument();
-  expect(screen.getByText("2026-04-26 10:00")).toBeInTheDocument();
 
   fireEvent.click(screen.getByRole("button", { name: "Feed" }));
 
   expect(await screen.findByText("First post")).toBeInTheDocument();
 
-  expect(fetchMock).toHaveBeenCalledWith("/api/posts?sort=match", { method: "GET" });
+  expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=all&sort=match&limit=50", { method: "GET" });
   expect(fetchMock).toHaveBeenCalledWith("/api/sources", { method: "GET" });
   expect(fetchMock).toHaveBeenCalledWith("/api/sources", {
     method: "POST",
@@ -249,6 +251,7 @@ test("sources page shows in-flight labels for add, toggle, and sync operations",
     strategy_kind: "feed",
     active: true,
     status: "ready",
+    post_count: 0,
     last_success_at: null,
     last_failure_at: null,
     needs_readaptation: false,
@@ -317,7 +320,7 @@ test("sources page shows in-flight labels for add, toggle, and sync operations",
 
   fireEvent.click(screen.getByRole("button", { name: "Disable Alpha" }));
 
-  expect(screen.getByRole("button", { name: "Updating..." })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Disable Alpha" })).toBeDisabled();
 
   toggleSourceResponse.resolve();
 

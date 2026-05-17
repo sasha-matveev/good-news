@@ -1,11 +1,8 @@
 import { useEffect, useState } from "react";
 
-import { fetchMonitoringSummary, MonitoringSummary, ServiceHealth } from "../lib/api";
+import { fetchMonitoringSummary, getAnalysisQueue, MonitoringSummary, QueueItem, ServiceHealth } from "../lib/api";
 import { useSetMonitoringSummary } from "../lib/MonitoringContext";
 import { theme } from "../styles/theme";
-
-const GRAFANA_URL =
-  "http://127.0.0.1:3000/d/good-news-overview/good-news-observability-overview";
 
 function formatLastSync(lastSyncAt: string | null): string {
   if (!lastSyncAt) return "—";
@@ -53,42 +50,47 @@ function ServiceRow({ label, status }: ServiceRowProps) {
   );
 }
 
+function formatQueueDate(value: string | null): string {
+  if (!value) return "—";
+  return value.replace("T", " ").slice(0, 16);
+}
+
 export function MonitoringPage() {
   const [summary, setSummary] = useState<MonitoringSummary | null>(null);
+  const [queue, setQueue] = useState<QueueItem[] | null>(null);
+  const [queueExpanded, setQueueExpanded] = useState(false);
+  const [loading, setLoading] = useState(true);
   const setContextSummary = useSetMonitoringSummary();
 
   useEffect(() => {
-    fetchMonitoringSummary().then((data) => {
-      setSummary(data);
-      setContextSummary(data);
+    let cancelled = false;
+    Promise.all([
+      fetchMonitoringSummary(),
+      getAnalysisQueue().catch(() => [] as QueueItem[]),
+    ]).then(([summaryData, queueData]) => {
+      if (cancelled) return;
+      setSummary(summaryData);
+      setContextSummary(summaryData);
+      setQueue(queueData);
+      setLoading(false);
     });
+    return () => { cancelled = true; };
   }, [setContextSummary]);
 
   const svc = summary?.services;
 
   return (
     <section style={{ padding: "24px" }}>
-      <div style={{ alignItems: "center", display: "flex", justifyContent: "space-between", marginBottom: "24px" }}>
+      <div style={{ marginBottom: "24px" }}>
         <h2 style={{ fontFamily: theme.font.sectionTitle, margin: 0 }}>Monitoring</h2>
-        <a
-          href={GRAFANA_URL}
-          rel="noopener noreferrer"
-          style={{
-            background: theme.color.accent,
-            borderRadius: theme.radius.card,
-            color: theme.color.card,
-            fontFamily: theme.font.body,
-            fontSize: "14px",
-            padding: "8px 16px",
-            textDecoration: "none"
-          }}
-          target="_blank"
-        >
-          Open Grafana
-        </a>
+        {loading ? (
+          <p style={{ color: theme.color.muted, fontSize: "13px", margin: "8px 0 0" }}>
+            Loading…
+          </p>
+        ) : null}
       </div>
 
-      <div style={{ display: "grid", gap: "16px", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
+      <div style={{ display: "grid", gap: "16px", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", opacity: loading ? 0.5 : 1 }}>
 
         <article style={{ background: theme.color.card, border: `1px solid ${theme.color.border}`, borderRadius: theme.radius.card, padding: "20px" }}>
           <h3 style={{ fontFamily: theme.font.sectionTitle, margin: "0 0 12px" }}>Source health</h3>
@@ -109,13 +111,56 @@ export function MonitoringPage() {
           <h3 style={{ fontFamily: theme.font.sectionTitle, margin: "0 0 12px" }}>LLM queue</h3>
           <MetricRow label="Pending ranking" value={summary !== null ? String(summary.posts_unranked) : "—"} />
           <MetricRow label="Total posts" value={summary !== null ? String(summary.posts_total) : "—"} />
+          {queue !== null && queue.length > 0 ? (
+            <div style={{ marginTop: "12px" }}>
+              <button
+                type="button"
+                onClick={() => { setQueueExpanded((v) => !v); }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: theme.color.accent,
+                  cursor: "pointer",
+                  fontFamily: theme.font.sectionTitle,
+                  fontSize: "11px",
+                  letterSpacing: "0.1em",
+                  padding: 0,
+                  textTransform: "uppercase"
+                }}
+              >
+                {queueExpanded ? "▲ Hide queue" : `▼ Show ${queue.length} pending post${queue.length === 1 ? "" : "s"}`}
+              </button>
+              {queueExpanded ? (
+                <div style={{ marginTop: "10px", display: "grid", gap: "6px" }}>
+                  {queue.map((item) => (
+                    <div
+                      key={item.post_id}
+                      style={{
+                        backgroundColor: theme.color.border,
+                        borderRadius: "3px",
+                        fontSize: "12px",
+                        padding: "7px 10px"
+                      }}
+                    >
+                      <div style={{ color: theme.color.text, fontWeight: 600, marginBottom: "2px", lineHeight: 1.3 }}>
+                        {item.title}
+                      </div>
+                      <div style={{ color: theme.color.muted, display: "flex", gap: "12px" }}>
+                        <span>{item.source_name ?? "unknown source"}</span>
+                        <span>{formatQueueDate(item.created_at)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : queue !== null && queue.length === 0 ? (
+            <div style={{ color: "#4a7c59", fontFamily: theme.font.sectionTitle, fontSize: "11px", letterSpacing: "0.1em", marginTop: "10px", textTransform: "uppercase" }}>
+              Queue empty
+            </div>
+          ) : null}
         </article>
 
-        <article style={{ background: theme.color.card, border: `1px solid ${theme.color.border}`, borderRadius: theme.radius.card, padding: "20px" }}>
-          <h3 style={{ fontFamily: theme.font.sectionTitle, margin: "0 0 12px" }}>Capacity</h3>
-          <MetricRow label="Posts collected" value={summary !== null ? String(summary.posts_total) : "—"} />
-          <MetricRow label="Last sync" value={formatLastSync(summary?.last_sync_at ?? null)} />
-        </article>
 
       </div>
     </section>

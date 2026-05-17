@@ -6,6 +6,7 @@ export type SourceRecord = {
   strategy_kind: string | null;
   active: boolean;
   status: string;
+  post_count: number;
   last_success_at: string | null;
   last_failure_at: string | null;
   needs_readaptation: boolean;
@@ -34,12 +35,6 @@ export type PostRecord = {
 
 export type FeedbackState = "interesting" | "not_interesting" | "want_to_read" | "norm";
 export type PostSortMode = "match" | "date";
-
-export type WantToReadUpdate = {
-  post_id: number;
-  saved: boolean;
-  feedback_state: FeedbackState | null;
-};
 
 export type PreferenceProfileRecord = {
   summary: string;
@@ -145,6 +140,15 @@ export async function createSource(url: string): Promise<SourceRecord> {
   return readJson<SourceRecord>(response);
 }
 
+export async function deleteSource(sourceId: number): Promise<void> {
+  const response = await fetch(`${API_ROOT}/sources/${sourceId}`, {
+    method: "DELETE"
+  });
+  if (!response.ok) {
+    throw new Error(`Request failed with status ${response.status}`);
+  }
+}
+
 export async function updateSourceActive(
   sourceId: number,
   active: boolean
@@ -164,11 +168,21 @@ export async function runSourceSyncOnce(): Promise<SourceSyncRecord> {
   return readJson<SourceSyncRecord>(response);
 }
 
+export async function syncSource(sourceId: number): Promise<SourceSyncRecord> {
+  const response = await fetch(`${API_ROOT}/sources/${sourceId}/sync`, {
+    method: "POST"
+  });
+  return readJson<SourceSyncRecord>(response);
+}
+
 export async function listPosts(params?: {
   sourceId?: number;
   feedbackState?: string;
   window?: "last_month" | "all";
   sort?: PostSortMode;
+  limit?: number;
+  offset?: number;
+  readLater?: boolean;
 }): Promise<PostRecord[]> {
   const search = new URLSearchParams();
   if (params?.sourceId !== undefined) {
@@ -177,11 +191,20 @@ export async function listPosts(params?: {
   if (params?.feedbackState) {
     search.set("feedback_state", params.feedbackState);
   }
-  if (params?.window === "all") {
-    search.set("window", "all");
+  if (params?.window) {
+    search.set("window", params.window);
   }
   if (params?.sort) {
     search.set("sort", params.sort);
+  }
+  if (params?.limit !== undefined) {
+    search.set("limit", String(params.limit));
+  }
+  if (params?.offset !== undefined && params.offset > 0) {
+    search.set("offset", String(params.offset));
+  }
+  if (params?.readLater !== undefined) {
+    search.set("read_later", String(params.readLater));
   }
 
   const suffix = search.toString() ? `?${search.toString()}` : "";
@@ -199,18 +222,6 @@ export async function updateFeedback(
     body: JSON.stringify({ state })
   });
   return readJson<{ post_id: number; state: FeedbackState }>(response);
-}
-
-export async function updateWantToRead(
-  postId: number,
-  saved: boolean
-): Promise<WantToReadUpdate> {
-  const response = await fetch(`${API_ROOT}/want-to-read/${postId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ saved })
-  });
-  return readJson<WantToReadUpdate>(response);
 }
 
 export async function getPreferenceProfile(): Promise<PreferenceProfileRecord> {
@@ -294,4 +305,19 @@ export async function fetchMonitoringSummary(): Promise<MonitoringSummary | null
   } catch {
     return null;
   }
+}
+
+export type SourceLogLine = { ts: number; msg: string };
+export type SourceLogRecord = { log: SourceLogLine[]; done: boolean; status: string | null };
+
+export async function getSourceLog(sourceId: number): Promise<SourceLogRecord> {
+  const response = await fetch(`${API_ROOT}/sources/${sourceId}/log`, { method: "GET" });
+  return readJson<SourceLogRecord>(response);
+}
+
+export type QueueItem = { post_id: number; title: string; source_name: string | null; created_at: string | null };
+
+export async function getAnalysisQueue(): Promise<QueueItem[]> {
+  const response = await fetch(`${API_ROOT}/monitoring/queue`, { method: "GET" });
+  return readJson<QueueItem[]>(response);
 }

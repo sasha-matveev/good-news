@@ -6,6 +6,7 @@ from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -13,6 +14,7 @@ from app.core.config import Settings
 from app.core.db import session_scope
 from app.models.feedback import Feedback
 from app.models.post import Post
+from app.models.read_later import ReadLater
 from app.schemas.feedback import FeedbackResponse, FeedbackUpdateRequest
 
 router = APIRouter(tags=["feedback"])
@@ -71,6 +73,14 @@ def save_feedback(
     session: Session = Depends(get_session),
 ) -> RedirectResponse:
     feedback = upsert_feedback_state(session, post_id, state)
+
+    # When saving as "want_to_read" via email link, also persist a ReadLater row
+    # so the post appears on the WantToReadPage (which filters by the ReadLater table).
+    if state == FeedbackState.want_to_read:
+        existing_rl = session.scalar(select(ReadLater).where(ReadLater.post_id == post_id))
+        if existing_rl is None:
+            session.add(ReadLater(post_id=post_id))
+
     session.commit()
 
     settings = getattr(request.app.state, "settings", None) or Settings.from_env()
