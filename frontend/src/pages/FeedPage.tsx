@@ -42,7 +42,7 @@ export function FeedPage() {
     feedbackState: "",
     window: "all"
   });
-  const [sort, setSort] = useState<PostSortMode>("match");
+  const [sort, setSort] = useState<PostSortMode>("date");
   const [pageOffset, setPageOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);

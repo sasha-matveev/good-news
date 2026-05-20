@@ -107,7 +107,7 @@ test("digests page renders mixed daily and weekly history entries and opens week
   );
 
   await waitFor(() => {
-    expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=all&sort=match&limit=50", { method: "GET" });
+    expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=all&sort=date&limit=50", { method: "GET" });
     expect(fetchMock).toHaveBeenCalledWith("/api/digests", { method: "GET" });
     expect(fetchMock).toHaveBeenCalledWith("/api/digests/22", { method: "GET" });
   });

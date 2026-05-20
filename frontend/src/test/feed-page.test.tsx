@@ -119,8 +119,8 @@ test("feed page loads default posts, shows the redesigned card content, and can 
   expect(screen.getByText("Разбор подходов для Beta.")).toBeInTheDocument();
 
   await waitFor(() => {
-    expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=all&sort=match&limit=50", { method: "GET" });
-    expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=last_month&sort=match&limit=50", { method: "GET" });
+    expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=all&sort=date&limit=50", { method: "GET" });
+    expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=last_month&sort=date&limit=50", { method: "GET" });
   });
 });
 
@@ -163,7 +163,7 @@ test("feed page lets the user save feedback on a post and shows the persisted st
   });
 
   await waitFor(() => {
-    expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=all&sort=match&limit=50", { method: "GET" });
+    expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=all&sort=date&limit=50", { method: "GET" });
     expect(fetchMock).toHaveBeenCalledWith("/api/feedback/2", {
       body: JSON.stringify({ state: "interesting" }),
       headers: { "Content-Type": "application/json" },
@@ -188,7 +188,7 @@ test("feed page shows active loading feedback while refreshing results and savin
       if (urlStr.includes("/api/feedback/")) {
         return saveResponse.promise;
       }
-      // Feed default load (window=all&sort=match) — immediate response
+      // Feed default load (window=all&sort=date) — immediate response
       if (urlStr.includes("window=all")) {
         return Promise.resolve(new Response(JSON.stringify([initialPost]), { status: 200 }));
       }
