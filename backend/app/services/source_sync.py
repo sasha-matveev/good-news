@@ -4,19 +4,23 @@ import hashlib
 import json
 import re as _re
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
 from typing import Any
 from urllib.parse import urljoin
 from xml.etree import ElementTree
 
-from sqlalchemy import select
+from sqlalchemy import delete as sa_delete
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.db import session_scope
+from app.models.feedback import Feedback
 from app.core.observability import record_analysis_failure, record_source_sync_failure
 from app.models.post import Post
+from app.models.post_analysis import PostAnalysis
+from app.models.read_later import ReadLater
 from app.models.setting import TechnicalEvent
 from app.models.source import Source
 from app.parsing.discovery import DocumentLoader
@@ -192,6 +196,7 @@ def sync_active_sources(
 
 
 _REFRESH_LIMIT = 60  # max posts to re-fetch per refresh call
+_RELOAD_WINDOW_DAYS = 60
 
 
 def refresh_post_dates(
@@ -246,6 +251,60 @@ def refresh_post_dates(
         updated += 1
 
     return {"checked": checked, "updated": updated}
+
+
+def reload_recent_posts(
+    *,
+    session: Session,
+    source_id: int,
+    responses: dict[str, str],
+    document_loader: DocumentLoader | None,
+    analysis_service_client: object | None,
+    now: datetime,
+    recent_days: int = _RELOAD_WINDOW_DAYS,
+) -> dict[str, int]:
+    source = session.get(Source, source_id)
+    if source is None:
+        raise LookupError(f"Source {source_id} not found")
+
+    cutoff = now.astimezone(UTC) - timedelta(days=recent_days)
+    recent_post_ids = list(
+        session.scalars(
+            select(Post.id).where(
+                Post.source_id == source_id,
+                func.coalesce(Post.published_at, Post.created_at) >= cutoff,
+            )
+        ).all()
+    )
+
+    if recent_post_ids:
+        session.execute(sa_delete(Feedback).where(Feedback.post_id.in_(recent_post_ids)))
+        session.execute(sa_delete(ReadLater).where(ReadLater.post_id.in_(recent_post_ids)))
+        session.execute(sa_delete(PostAnalysis).where(PostAnalysis.post_id.in_(recent_post_ids)))
+        session.execute(sa_delete(Post).where(Post.id.in_(recent_post_ids)))
+
+    parsed_posts = _load_posts_for_source(source, responses, document_loader)
+    reloadable_posts = [
+        post for post in parsed_posts
+        if post.published_at is None or (_normalize_utc(post.published_at) or _MIN_UTC_DATETIME) >= cutoff
+    ]
+    new_posts = _persist_posts(session, source, reloadable_posts, now)
+
+    source.last_success_at = now
+    source.status = "ready"
+    source.needs_readaptation = False
+    source.readaptation_reason = None
+    source.consecutive_failures = 0
+
+    if new_posts:
+        session.commit()
+        _persist_post_analysis(
+            session=session,
+            posts=new_posts,
+            analysis_service_client=analysis_service_client,
+        )
+
+    return {"deleted": len(recent_post_ids), "reloaded": len(new_posts)}
 
 
 def _select_posts_for_sync(*, source: Source, parsed_posts: list[ParsedPost]) -> list[ParsedPost]:

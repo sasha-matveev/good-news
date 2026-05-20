@@ -921,3 +921,150 @@ def test_refresh_post_dates_returns_zero_when_no_undated_posts() -> None:
 
     assert result == {"checked": 0, "updated": 0}
     assert calls == []  # loader never called
+
+
+def test_reload_recent_posts_replaces_recent_source_posts_using_published_at_or_created_at() -> None:
+    from datetime import timedelta
+    import json as _json
+
+    from app.models.feedback import Feedback
+    from app.models.post_analysis import PostAnalysis
+    from app.models.read_later import ReadLater
+    from app.services.source_sync import reload_recent_posts
+
+    engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session_factory = create_session_factory(engine)
+    now = datetime(2026, 5, 20, 12, 0, tzinfo=UTC)
+
+    with session_scope(session_factory) as session:
+        session.add(
+            Source(
+                id=1,
+                display_name="Alpha",
+                original_url="https://alpha.example",
+                feed_url="https://alpha.example/feed.xml",
+                strategy_kind="feed",
+                strategy_config='{"discovery_method": "alternate_link"}',
+                status="ready",
+                active=True,
+                last_success_at=now - timedelta(days=1),
+            )
+        )
+        session.add(
+            Post(
+                id=1,
+                source_id=1,
+                canonical_url="https://alpha.example/posts/recent-dated",
+                title="Recent dated",
+                published_at=now - timedelta(days=10),
+                raw_content="Old content",
+                content_hash="recent-dated",
+                ingest_metadata='{"date_source":"feed","source_strategy":"feed"}',
+                created_at=now - timedelta(days=10),
+            )
+        )
+        session.add(
+            Post(
+                id=2,
+                source_id=1,
+                canonical_url="https://alpha.example/posts/recent-undated",
+                title="Recent undated",
+                published_at=None,
+                raw_content="Undated old content",
+                content_hash="recent-undated",
+                ingest_metadata='{"date_source":"none","source_strategy":"feed"}',
+                created_at=now - timedelta(days=5),
+            )
+        )
+        session.add(
+            Post(
+                id=3,
+                source_id=1,
+                canonical_url="https://alpha.example/posts/old",
+                title="Old post",
+                published_at=now - timedelta(days=120),
+                raw_content="Old stable content",
+                content_hash="old-post",
+                ingest_metadata='{"date_source":"feed","source_strategy":"feed"}',
+                created_at=now - timedelta(days=120),
+            )
+        )
+        session.add(Feedback(post_id=1, state="interesting"))
+        session.add(ReadLater(post_id=2))
+        session.add(
+            PostAnalysis(
+                post_id=1,
+                summary_ru="Old summary",
+                metadata_json=_json.dumps({"topics": ["old"]}),
+            )
+        )
+
+    responses = {
+        "https://alpha.example/feed.xml": """
+        <rss>
+          <channel>
+            <item>
+              <title>Recent dated replacement</title>
+              <link>https://alpha.example/posts/recent-dated</link>
+              <pubDate>2026-05-10T12:00:00+00:00</pubDate>
+              <description>Reloaded recent dated content.</description>
+            </item>
+            <item>
+              <title>Recent undated replacement</title>
+              <link>https://alpha.example/posts/recent-undated</link>
+              <description>Reloaded recent undated content.</description>
+            </item>
+            <item>
+              <title>Brand new post</title>
+              <link>https://alpha.example/posts/new</link>
+              <pubDate>2026-05-19T12:00:00+00:00</pubDate>
+              <description>New content.</description>
+            </item>
+            <item>
+              <title>Very old post</title>
+              <link>https://alpha.example/posts/very-old</link>
+              <pubDate>2025-12-01T12:00:00+00:00</pubDate>
+              <description>Too old for reload.</description>
+            </item>
+          </channel>
+        </rss>
+        """
+    }
+
+    with session_scope(session_factory) as session:
+        result = reload_recent_posts(
+            session=session,
+            source_id=1,
+            responses=responses,
+            document_loader=None,
+            analysis_service_client=None,
+            now=now,
+        )
+
+    assert result == {"deleted": 2, "reloaded": 3}
+
+    with session_scope(session_factory) as session:
+        posts = session.scalars(select(Post).where(Post.source_id == 1).order_by(Post.canonical_url)).all()
+        feedback_rows = session.scalars(select(Feedback).order_by(Feedback.post_id)).all()
+        read_later_rows = session.scalars(select(ReadLater).order_by(ReadLater.post_id)).all()
+        analyses = session.scalars(select(PostAnalysis).order_by(PostAnalysis.post_id)).all()
+        source = session.get(Source, 1)
+
+    assert [post.canonical_url for post in posts] == [
+        "https://alpha.example/posts/new",
+        "https://alpha.example/posts/old",
+        "https://alpha.example/posts/recent-dated",
+        "https://alpha.example/posts/recent-undated",
+    ]
+    assert [post.title for post in posts if post.canonical_url != "https://alpha.example/posts/old"] == [
+        "Brand new post",
+        "Recent dated replacement",
+        "Recent undated replacement",
+    ]
+    assert all(post.canonical_url != "https://alpha.example/posts/very-old" for post in posts)
+    assert feedback_rows == []
+    assert read_later_rows == []
+    assert analyses == []
+    assert source is not None
+    assert source.last_success_at == datetime(2026, 5, 20, 12, 0)

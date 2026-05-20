@@ -335,3 +335,45 @@ test("sources page shows in-flight labels for add, toggle, and sync operations",
 
   expect(await screen.findByText("Sync complete for 2 sources.")).toBeInTheDocument();
 });
+
+test("sources page reloads recent posts only after a destructive confirmation warning", async () => {
+  const initialSource = {
+    ...initialSources[0],
+    post_count: 3
+  };
+  const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+  const fetchMock = vi.fn<typeof fetch>().mockImplementation((url, init) => {
+    const urlStr = typeof url === "string" ? url : String(url);
+    const method = (init as RequestInit | undefined)?.method ?? "GET";
+
+    if (urlStr.includes("/api/monitoring/summary")) {
+      return Promise.resolve(new Response(JSON.stringify([]), { status: 200 }));
+    }
+    if (urlStr.includes("/api/posts")) {
+      return Promise.resolve(new Response(JSON.stringify([]), { status: 200 }));
+    }
+    if (urlStr === "/api/sources" && method === "GET") {
+      return Promise.resolve(new Response(JSON.stringify([initialSource]), { status: 200 }));
+    }
+    if (urlStr === "/api/sources/1/reload-posts" && method === "POST") {
+      return Promise.resolve(new Response(JSON.stringify({ deleted: 2, reloaded: 3 }), { status: 200 }));
+    }
+    return Promise.resolve(new Response(JSON.stringify([]), { status: 200 }));
+  });
+
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<AppShell />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Sources" }));
+  expect(await screen.findByText("Alpha")).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Reload posts for Alpha" }));
+
+  expect(confirmSpy).toHaveBeenCalledWith(
+    "Reload posts for Alpha?\n\nThis will delete and reload posts from the last 2 months for this source. Post age is determined by published date when available, otherwise by the date the post was added."
+  );
+  expect(fetchMock).toHaveBeenCalledWith("/api/sources/1/reload-posts", { method: "POST" });
+  expect(await screen.findByText("Deleted 2 recent posts. Reloaded 3 posts from the source.")).toBeInTheDocument();
+});
