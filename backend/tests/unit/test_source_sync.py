@@ -11,7 +11,7 @@ from app.models.post_analysis import PostAnalysis
 from app.models.setting import TechnicalEvent
 from app.models.source import Source
 from app.services.analysis import AnalysisResult
-from app.services.source_sync import sync_active_sources
+from app.services.source_sync import _parse_datetime, sync_active_sources
 
 
 def _build_feed_document(*, total_items: int, newest_first: bool = True) -> str:
@@ -600,6 +600,58 @@ def test_sync_feed_strategy_stores_none_as_date_source_when_date_absent() -> Non
     assert post.published_at is None
     metadata = json.loads(post.ingest_metadata)
     assert metadata["date_source"] == "none"
+
+
+def test_parse_datetime_supports_rfc_2822_pubdate() -> None:
+    assert _parse_datetime("Tue, 19 May 2026 00:00:00 GMT") == datetime(2026, 5, 19, 0, 0, tzinfo=UTC)
+
+
+def test_sync_feed_strategy_parses_rfc_2822_pubdate_and_marks_feed_source() -> None:
+    import json
+
+    engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session_factory = create_session_factory(engine)
+
+    with session_scope(session_factory) as session:
+        session.add(
+            Source(
+                display_name="Spring",
+                original_url="https://spring.example",
+                feed_url="https://spring.example/feed.xml",
+                strategy_kind="feed",
+                strategy_config='{"discovery_method": "alternate_link"}',
+                status="ready",
+                active=True,
+            )
+        )
+
+    sync_active_sources(
+        session_factory=session_factory,
+        responses={
+            "https://spring.example/feed.xml": """
+            <rss>
+              <channel>
+                <item>
+                  <title>Office Hours</title>
+                  <link>https://spring.example/blog/office-hours</link>
+                  <pubDate>Tue, 19 May 2026 00:00:00 GMT</pubDate>
+                  <description>Episode notes.</description>
+                </item>
+              </channel>
+            </rss>
+            """
+        },
+        now=datetime(2026, 5, 20, 12, 0, tzinfo=UTC),
+    )
+
+    with session_scope(session_factory) as session:
+        post = session.scalars(select(Post)).first()
+
+    assert post is not None
+    assert post.published_at == datetime(2026, 5, 19, 0, 0)
+    metadata = json.loads(post.ingest_metadata)
+    assert metadata["date_source"] == "feed"
 
 
 def test_sync_html_strategy_extracts_date_from_article_json_ld() -> None:

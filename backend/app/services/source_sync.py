@@ -612,22 +612,24 @@ def _child_text(element: ElementTree.Element, tag_name: str) -> str | None:
 
 
 _ISO_DATE_ONLY_RE = _re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_ISO_DATETIME_PREFIX_RE = _re.compile(r"^\d{4}-\d{2}-\d{2}[T ]")
 
 
 def _parse_datetime(raw_value: str | None) -> datetime | None:
     if raw_value is None:
         return None
+    normalized_raw_value = raw_value.strip()
     try:
-        if "T" in raw_value:
+        if _ISO_DATETIME_PREFIX_RE.match(normalized_raw_value):
             # ISO 8601 with time component
-            normalized = raw_value.replace("Z", "+00:00")
+            normalized = normalized_raw_value.replace("Z", "+00:00")
             parsed = datetime.fromisoformat(normalized)
-        elif _ISO_DATE_ONLY_RE.match(raw_value.strip()):
+        elif _ISO_DATE_ONLY_RE.match(normalized_raw_value):
             # Date-only ISO 8601 like "2026-05-11" — treat as midnight UTC
-            parsed = datetime.fromisoformat(raw_value.strip())
+            parsed = datetime.fromisoformat(normalized_raw_value)
         else:
             # RFC 2822 as used in RSS <pubDate>
-            parsed = parsedate_to_datetime(raw_value)
+            parsed = parsedate_to_datetime(normalized_raw_value)
     except (TypeError, ValueError):
         return None
     if parsed.tzinfo is None:
