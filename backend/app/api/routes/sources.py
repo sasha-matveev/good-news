@@ -317,41 +317,48 @@ def sync_single_source(
     )
 
 
-class RefreshPostDatesResponse(BaseModel):
-    checked: int
-    updated: int
+class ReloadPostsResponse(BaseModel):
+    deleted: int
+    reloaded: int
 
 
-@router.post("/sources/{source_id}/refresh-post-dates", response_model=RefreshPostDatesResponse)
-def refresh_source_post_dates(
+@router.post("/sources/{source_id}/reload-posts", response_model=ReloadPostsResponse)
+def reload_source_posts(
     source_id: int,
     request: Request,
     session: Session = Depends(get_session),
-) -> RefreshPostDatesResponse:
-    """Re-fetch article pages for posts in this source that lack a publication date.
+) -> ReloadPostsResponse:
+    """Hard-reload recent posts for a source.
 
-    Targets up to 60 most-recently-ingested posts with published_at IS NULL,
-    fetches each article page, and fills in the date when found.
+    Deletes posts from the last 60 days for this source using published_at when
+    available and created_at otherwise, then reloads that source from origin.
     """
     source = session.get(Source, source_id)
     if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Source not found")
 
-    document_loader = getattr(request.app.state, "document_loader", None)
-    if document_loader is None:
+    app_state = request.app.state
+    responses = getattr(app_state, "responses", getattr(app_state, "discovery_responses", {}))
+    document_loader = getattr(app_state, "document_loader", None)
+    if not responses and document_loader is None:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="refresh-post-dates is only available in monolith mode.",
+            detail="reload-posts is only available in monolith mode.",
         )
 
-    from app.services.source_sync import refresh_post_dates
+    from app.services.source_sync import reload_recent_posts
 
-    result = refresh_post_dates(
+    result = reload_recent_posts(
         session=session,
         source_id=source_id,
+        responses=responses,
         document_loader=document_loader,
+        analysis_service_client=(
+            app_state.analysis_client_factory() if hasattr(app_state, "analysis_client_factory") else None
+        ),
+        now=app_state.now_provider(),
     )
-    return RefreshPostDatesResponse(checked=result["checked"], updated=result["updated"])
+    return ReloadPostsResponse(deleted=result["deleted"], reloaded=result["reloaded"])
 
 
 @router.post("/sources/sync", response_model=SourceSyncResponse)

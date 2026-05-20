@@ -177,13 +177,13 @@ export async function syncSource(sourceId: number): Promise<SourceSyncRecord> {
   return readJson<SourceSyncRecord>(response);
 }
 
-export type RefreshPostDatesResult = { checked: number; updated: number };
+export type ReloadPostsResult = { deleted: number; reloaded: number };
 
-export async function refreshPostDates(sourceId: number): Promise<RefreshPostDatesResult> {
-  const response = await fetch(`${API_ROOT}/sources/${sourceId}/refresh-post-dates`, {
+export async function reloadPosts(sourceId: number): Promise<ReloadPostsResult> {
+  const response = await fetch(`${API_ROOT}/sources/${sourceId}/reload-posts`, {
     method: "POST"
   });
-  return readJson<RefreshPostDatesResult>(response);
+  return readJson<ReloadPostsResult>(response);
 }
 
 export async function listPosts(params?: {

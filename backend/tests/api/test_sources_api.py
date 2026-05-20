@@ -480,8 +480,9 @@ def test_public_sources_api_sync_bounds_initial_heavy_feed_backlog() -> None:
     assert posts[-1].canonical_url == "https://heavy.example/posts/6"
 
 
-def test_refresh_post_dates_endpoint_updates_undated_posts_and_returns_counts() -> None:
-    from datetime import UTC, datetime
+def test_reload_posts_endpoint_reloads_recent_posts_and_returns_counts() -> None:
+    from datetime import UTC, datetime, timedelta
+    from app.models.feedback import Feedback
 
     engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
@@ -489,48 +490,94 @@ def test_refresh_post_dates_endpoint_updates_undated_posts_and_returns_counts() 
     stamp_schema_head(session_factory)
 
     with session_scope(session_factory) as session:
-        session.add(Source(id=1, display_name="Blog", original_url="https://blog.example", status="ready"))
-        session.add(Post(
-            id=1, source_id=1,
-            canonical_url="https://blog.example/posts/1",
-            title="Undated",
-            published_at=None,
-            raw_content="Content.",
-            content_hash="h1",
-            ingest_metadata='{"date_source":"none","source_strategy":"html","synced_at":"2026-05-11T00:00:00Z"}',
-        ))
-
-    def document_loader(url: str) -> str | None:
-        return """
-        <html><head>
-          <script type="application/ld+json">{"datePublished":"2026-05-11T09:00:00Z"}</script>
-        </head></html>
-        """
+        now = datetime(2026, 5, 20, 12, 0, tzinfo=UTC)
+        session.add(
+            Source(
+                id=1,
+                display_name="Blog",
+                original_url="https://blog.example",
+                feed_url="https://blog.example/feed.xml",
+                strategy_kind="feed",
+                strategy_config='{"discovery_method": "alternate_link"}',
+                status="ready",
+                last_success_at=now - timedelta(days=1),
+            )
+        )
+        session.add(
+            Post(
+                id=1,
+                source_id=1,
+                canonical_url="https://blog.example/posts/recent",
+                title="Recent",
+                published_at=now - timedelta(days=3),
+                raw_content="Old recent content.",
+                content_hash="recent",
+                ingest_metadata='{"date_source":"feed","source_strategy":"feed"}',
+                created_at=now - timedelta(days=3),
+            )
+        )
+        session.add(
+            Post(
+                id=2,
+                source_id=1,
+                canonical_url="https://blog.example/posts/old",
+                title="Old",
+                published_at=now - timedelta(days=120),
+                raw_content="Old stable content.",
+                content_hash="old",
+                ingest_metadata='{"date_source":"feed","source_strategy":"feed"}',
+                created_at=now - timedelta(days=120),
+            )
+        )
+        session.add(Feedback(post_id=1, state="interesting"))
 
     app = create_app(session_factory=session_factory, discovery_responses={})
-    app.state.document_loader = document_loader  # simulate monolith mode
+    app.state.now_provider = lambda: now
+    app.state.responses = {
+        "https://blog.example/feed.xml": """
+        <rss>
+          <channel>
+            <item>
+              <title>Recent replacement</title>
+              <link>https://blog.example/posts/recent</link>
+              <pubDate>2026-05-18T09:00:00+00:00</pubDate>
+              <description>Reloaded content.</description>
+            </item>
+            <item>
+              <title>Brand new</title>
+              <link>https://blog.example/posts/new</link>
+              <pubDate>2026-05-19T09:00:00+00:00</pubDate>
+              <description>Brand new content.</description>
+            </item>
+          </channel>
+        </rss>
+        """
+    }
     client = TestClient(app)
-    response = client.post("/api/sources/1/refresh-post-dates")
+    response = client.post("/api/sources/1/reload-posts")
 
     assert response.status_code == 200
     body = response.json()
-    assert body["checked"] == 1
-    assert body["updated"] == 1
+    assert body == {"deleted": 1, "reloaded": 2}
 
     with session_scope(session_factory) as session:
-        post = session.get(Post, 1)
-    assert post is not None
-    assert post.published_at is not None
+        posts = session.scalars(select(Post).where(Post.source_id == 1).order_by(Post.canonical_url)).all()
+        feedback = session.scalars(select(Feedback).order_by(Feedback.post_id)).all()
+    assert [post.canonical_url for post in posts] == [
+        "https://blog.example/posts/new",
+        "https://blog.example/posts/old",
+        "https://blog.example/posts/recent",
+    ]
+    assert feedback == []
 
 
-def test_refresh_post_dates_endpoint_returns_404_for_missing_source() -> None:
+def test_reload_posts_endpoint_returns_404_for_missing_source() -> None:
     engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
     session_factory = create_session_factory(engine)
     stamp_schema_head(session_factory)
 
     app = create_app(session_factory=session_factory, discovery_responses={})
-    app.state.document_loader = lambda url: None  # simulate monolith mode
     client = TestClient(app)
-    response = client.post("/api/sources/999/refresh-post-dates")
+    response = client.post("/api/sources/999/reload-posts")
     assert response.status_code == 404

@@ -9,7 +9,7 @@ import {
   deleteSource,
   getSourceLog,
   listSources,
-  refreshPostDates,
+  reloadPosts,
   runSourceSyncOnce,
   syncSource,
   SourceLogLine,
@@ -93,7 +93,7 @@ type PendingAction =
   | { type: "add" }
   | { type: "sync" }
   | { type: "syncSource"; sourceId: number }
-  | { type: "refreshDates"; sourceId: number }
+  | { type: "reloadPosts"; sourceId: number }
   | { type: "toggle"; sourceId: number }
   | { type: "delete"; sourceId: number }
   | null;
@@ -274,23 +274,27 @@ export function SourcesPage() {
     }
   }
 
-  async function handleRefreshDates(source: SourceRecord) {
-    setPendingAction({ type: "refreshDates", sourceId: source.id });
+  async function handleReloadPosts(source: SourceRecord) {
+    const confirmed = window.confirm(
+      `Reload posts for ${sourceTitle(source)}?\n\n` +
+      "This will delete and reload posts from the last 2 months for this source. " +
+      "Post age is determined by published date when available, otherwise by the date the post was added."
+    );
+    if (!confirmed) return;
+
+    setPendingAction({ type: "reloadPosts", sourceId: source.id });
     const start = Date.now() / 1000;
     setActiveLog({
       sourceId: source.id,
-      lines: [{ ts: start, msg: `Refreshing dates for ${sourceTitle(source)}…` }],
+      lines: [{ ts: start, msg: `Reloading recent posts for ${sourceTitle(source)}…` }],
       done: false,
       finalStatus: null,
     });
     try {
-      const result = await refreshPostDates(source.id);
+      const result = await reloadPosts(source.id);
+      await reloadSources();
       const end = Date.now() / 1000;
-      const msg = result.checked === 0
-        ? "No undated posts found — all posts already have dates."
-        : result.updated === 0
-          ? `Checked ${result.checked} undated post${result.checked === 1 ? "" : "s"} — no dates found on article pages.`
-          : `Updated ${result.updated} of ${result.checked} post${result.checked === 1 ? "" : "s"} with dates from article pages.`;
+      const msg = `Deleted ${result.deleted} recent post${result.deleted === 1 ? "" : "s"}. Reloaded ${result.reloaded} post${result.reloaded === 1 ? "" : "s"} from the source.`;
       setActiveLog((prev) => prev
         ? { ...prev, lines: [...prev.lines, { ts: end, msg }], done: true, finalStatus: "ready" }
         : null
@@ -298,7 +302,7 @@ export function SourcesPage() {
       setError(null);
     } catch (e) {
       const end = Date.now() / 1000;
-      const msg = e instanceof Error ? e.message : "Refresh failed.";
+      const msg = e instanceof Error ? e.message : "Reload failed.";
       setActiveLog((prev) => prev
         ? { ...prev, lines: [...prev.lines, { ts: end, msg: `Error: ${msg}` }], done: true, finalStatus: "failed" }
         : null
@@ -422,7 +426,7 @@ export function SourcesPage() {
 
                   {/* Actions — icon button groups */}
                   <div style={{ display: "flex", gap: "6px", alignItems: "flex-start", flexShrink: 0 }}>
-                    {/* Group 1: sync + refresh dates + log */}
+                    {/* Group 1: sync + reload posts + log */}
                     {!isDiscovering && (
                       <>
                         <button
@@ -446,22 +450,20 @@ export function SourcesPage() {
                         <button
                           type="button"
                           disabled={saving}
-                          title="Refresh post dates — re-fetch article pages to fill in missing publication dates"
-                          aria-label={`Refresh post dates for ${sourceTitle(source)}`}
-                          onClick={() => { void handleRefreshDates(source); }}
-                          style={iconBtn(pendingAction?.type === "refreshDates" && pendingAction.sourceId === source.id, "#5a7a5a", "#eef4ee")}
+                          title="Reload posts — delete and re-fetch posts from the last 2 months for this source"
+                          aria-label={`Reload posts for ${sourceTitle(source)}`}
+                          onClick={() => { void handleReloadPosts(source); }}
+                          style={iconBtn(pendingAction?.type === "reloadPosts" && pendingAction.sourceId === source.id, "#5a7a5a", "#eef4ee")}
                         >
-                          {pendingAction?.type === "refreshDates" && pendingAction.sourceId === source.id ? (
+                          {pendingAction?.type === "reloadPosts" && pendingAction.sourceId === source.id ? (
                             <svg fill="none" stroke="currentColor" strokeWidth="1.7" viewBox="0 0 16 16" style={{ width: "15px", height: "15px", animation: "spin 1s linear infinite" }}>
                               <path d="M8 2a6 6 0 11-4.24 10.24" />
                             </svg>
                           ) : (
-                            /* Calendar with refresh arrow */
+                            /* Circular reload arrow */
                             <svg fill="none" stroke="currentColor" strokeWidth="1.7" viewBox="0 0 16 16" style={{ width: "15px", height: "15px" }}>
-                              <rect x="2" y="3" width="12" height="11" rx="1" />
-                              <path d="M5 1v3M11 1v3M2 7h12" />
-                              <path d="M10 10.5a2.5 2.5 0 10-2.5 2.5" strokeLinecap="round" />
-                              <path d="M10 12.5V10h-2" strokeLinecap="round" strokeLinejoin="round" />
+                              <path d="M13.5 8A5.5 5.5 0 113.4 5.1" />
+                              <path d="M13.5 4v4h-4" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
                           )}
                         </button>
