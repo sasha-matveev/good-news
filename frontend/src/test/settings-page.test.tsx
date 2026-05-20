@@ -134,7 +134,7 @@ test("settings page loads persisted settings, supports masked password replaceme
   expect(await screen.findByText("Test email sent.")).toBeInTheDocument();
 
   await waitFor(() => {
-    expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=all&sort=match&limit=50", { method: "GET" });
+    expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=all&sort=date&limit=50", { method: "GET" });
     expect(fetchMock).toHaveBeenCalledWith("/api/settings", { method: "GET" });
     expect(fetchMock).toHaveBeenCalledWith("/api/settings", {
       method: "PUT",

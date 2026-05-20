@@ -125,7 +125,7 @@ test("sources page loads source state, shows readaptation warnings, adds a sourc
     expect(screen.getByRole("button", { name: "Enable Alpha" })).toBeInTheDocument();
   });
 
-  expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=all&sort=match&limit=50", { method: "GET" });
+  expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=all&sort=date&limit=50", { method: "GET" });
   expect(fetchMock).toHaveBeenCalledWith("/api/sources", { method: "GET" });
   expect(fetchMock).toHaveBeenCalledWith("/api/sources", {
     method: "POST",
@@ -232,7 +232,7 @@ test("sources page supports explicit sync so the first post becomes visible in F
 
   expect(await screen.findByText("First post")).toBeInTheDocument();
 
-  expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=all&sort=match&limit=50", { method: "GET" });
+  expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=all&sort=date&limit=50", { method: "GET" });
   expect(fetchMock).toHaveBeenCalledWith("/api/sources", { method: "GET" });
   expect(fetchMock).toHaveBeenCalledWith("/api/sources", {
     method: "POST",
