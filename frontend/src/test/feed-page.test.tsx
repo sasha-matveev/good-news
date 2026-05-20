@@ -84,8 +84,8 @@ test("feed page renders feed-only sort controls on the same toolbar row as filte
   expect(within(filtersGroup).getByRole("button", { name: "Interesting" })).toBeInTheDocument();
   expect(within(filtersGroup).getByRole("button", { name: "Not interesting" })).toBeInTheDocument();
   expect(within(filtersGroup).getByRole("button", { name: "All" })).toHaveAttribute("aria-pressed", "true");
-  expect(within(sortingGroup).getByRole("button", { name: "By match" })).toBeInTheDocument();
-  expect(within(sortingGroup).getByRole("button", { name: "By date" })).toBeInTheDocument();
+  expect(within(sortingGroup).getByRole("button", { name: "By match" })).toHaveAttribute("aria-pressed", "false");
+  expect(within(sortingGroup).getByRole("button", { name: "By date" })).toHaveAttribute("aria-pressed", "true");
 
   fireEvent.click(screen.getByRole("button", { name: "Monitoring" }));
 
