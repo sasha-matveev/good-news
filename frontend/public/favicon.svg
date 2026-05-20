@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">Good News favicon</title>
+  <desc id="desc">A folded news bulletin card with a small sunrise accent.</desc>
+  <rect x="5" y="5" width="54" height="54" rx="14" fill="#dfe7ef"/>
+  <circle cx="46" cy="17" r="8" fill="#e2b35d"/>
+  <path d="M19 15h22l8 8v26H19z" fill="#fffdf8" stroke="#29445f" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M41 15v8h8" fill="none" stroke="#29445f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M25 29h18M25 36h18M25 43h13" fill="none" stroke="#5a6774" stroke-width="3" stroke-linecap="round"/>
+</svg>
