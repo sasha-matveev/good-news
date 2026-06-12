@@ -98,10 +98,6 @@ test("settings page loads persisted settings, supports masked password replaceme
   expect(screen.getByLabelText("Weekly digest day of week")).toHaveValue("mon");
   expect(screen.getByLabelText("Enable weekly digest")).not.toBeChecked();
   expect(screen.getByText("SMTP password configured")).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "Open Grafana operator dashboard" })).toHaveAttribute(
-    "href",
-    "http://127.0.0.1:3000/d/good-news-overview/good-news-observability-overview"
-  );
 
   fireEvent.change(screen.getByLabelText("Daily digest time"), {
     target: { value: "08:45" }

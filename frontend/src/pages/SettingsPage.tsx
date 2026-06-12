@@ -174,18 +174,6 @@ export function SettingsPage() {
         </p>
       ) : null}
       {successMessage ? <p>{successMessage}</p> : null}
-      {observabilityDashboardUrl ? (
-        <p style={{ marginTop: 0 }}>
-          <a
-            href={observabilityDashboardUrl}
-            rel="noreferrer"
-            style={{ color: theme.color.llm, fontWeight: 700, textDecoration: "none" }}
-            target="_blank"
-          >
-            Open Grafana operator dashboard
-          </a>
-        </p>
-      ) : null}
 
       {loading || !form ? (
         <p>Loading settings...</p>
