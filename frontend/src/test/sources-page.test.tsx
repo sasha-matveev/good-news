@@ -374,6 +374,6 @@ test("sources page reloads recent posts only after a destructive confirmation wa
   expect(confirmSpy).toHaveBeenCalledWith(
     "Reload posts for Alpha?\n\nThis will delete and reload posts from the last 2 months for this source. Post age is determined by published date when available, otherwise by the date the post was added."
   );
-  expect(fetchMock).toHaveBeenCalledWith("/api/sources/1/reload-posts", { method: "POST" });
   expect(await screen.findByText("Deleted 2 recent posts. Reloaded 3 posts from the source.")).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenCalledWith("/api/sources/1/reload-posts", { method: "POST" });
 });
