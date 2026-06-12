@@ -97,7 +97,7 @@ jobs:
             --cpu 1 \
             --timeout 1800 \
             --port 8000 \
-            --set-secrets "GOOD_NEWS_DATABASE_URL=good-news-db-url:latest,GOOD_NEWS_APP_MASTER_KEY=good-news-app-master-key:latest,GOOD_NEWS_GEMINI_API_KEY=good-news-gemini-api-key:latest,GOOD_NEWS_SMTP_PASSWORD=good-news-smtp-password:latest" \
+            --set-secrets "GOOD_NEWS_DATABASE_URL=good-news-db-url:latest,GOOD_NEWS_APP_MASTER_KEY=good-news-app-master-key:latest,GOOD_NEWS_GEMINI_API_KEY=good-news-gemini-api-key:latest" \
             --set-env-vars "GOOD_NEWS_ENV=prod,GOOD_NEWS_PUBLIC_CONTENT_API_ORIGIN=$RUN_URL,GOOD_NEWS_PUBLIC_FRONTEND_ORIGIN=https://${{ vars.GCP_PROJECT_ID }}.web.app,GOOD_NEWS_FIREBASE_PROJECT_ID=${{ vars.GCP_PROJECT_ID }},GOOD_NEWS_ALLOWED_EMAILS=${{ vars.ALLOWED_EMAILS }},GOOD_NEWS_SCHEDULER_INVOKER=scheduler-invoker@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com,GOOD_NEWS_OIDC_AUDIENCE=$RUN_URL"
 
       - uses: actions/setup-node@v4
