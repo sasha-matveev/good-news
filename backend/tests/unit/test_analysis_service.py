@@ -6,7 +6,7 @@ from app.models.post_analysis import PostAnalysis
 from app.services.analysis import AnalysisResult, StoredPostAnalysis, analyze_post_payload
 
 
-class FakeOllamaClient:
+class FakeAnalysisClient:
     def __init__(self, result: AnalysisResult) -> None:
         self.result = result
         self.calls: list[dict[str, str]] = []
@@ -17,7 +17,7 @@ class FakeOllamaClient:
 
 
 def test_analyze_post_payload_returns_russian_summary_and_structured_fields() -> None:
-    client = FakeOllamaClient(
+    client = FakeAnalysisClient(
         AnalysisResult(
             summary_ru="Короткое русское summary.",
             topics=["observability", "postgres"],
@@ -31,7 +31,7 @@ def test_analyze_post_payload_returns_russian_summary_and_structured_fields() ->
     payload = analyze_post_payload(
         title="Deep Postgres observability",
         content="A long article about dashboards and database internals.",
-        ollama_client=client,
+        analysis_client=client,
     )
 
     assert payload["summary_ru"] == "Короткое русское summary."

@@ -5,7 +5,7 @@ import json
 import httpx
 from fastapi.testclient import TestClient
 
-from app.ai.ollama_client import OllamaClient
+from app.ai.gemini_client import GeminiClient
 from app.analysis_llm_service.main import create_app
 from app.core.config import Settings
 from app.core.db import create_engine_from_url, create_session_factory, session_scope
@@ -16,7 +16,7 @@ from app.models.source import Source
 from app.testing.schema import stamp_schema_head
 
 
-class FakeOllamaClient:
+class FakeAnalysisClient:
     def __init__(self) -> None:
         self.calls: list[dict[str, str]] = []
 
@@ -36,12 +36,12 @@ class FakeOllamaClient:
         )()
 
 
-def build_client() -> tuple[TestClient, object, FakeOllamaClient]:
+def build_client() -> tuple[TestClient, object, FakeAnalysisClient]:
     engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
     session_factory = create_session_factory(engine)
     stamp_schema_head(session_factory)
-    fake_client = FakeOllamaClient()
+    fake_client = FakeAnalysisClient()
     app = create_app(
         session_factory=session_factory,
         analysis_client_factory=lambda: fake_client,
@@ -99,7 +99,10 @@ def test_analysis_service_health_and_request_persistence() -> None:
     assert json.loads(saved.metadata_json)["verdict"] == "interesting"
 
 
-def test_analysis_service_normalizes_nested_ollama_payloads_before_persistence() -> None:
+def test_analysis_service_normalizes_nested_gemini_payloads_before_persistence() -> None:
+    import os
+
+    os.environ["GOOD_NEWS_GEMINI_API_KEY"] = "test-key"
     engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
     session_factory = create_session_factory(engine)
@@ -124,26 +127,36 @@ def test_analysis_service_normalizes_nested_ollama_payloads_before_persistence()
         return httpx.Response(
             200,
             json={
-                "response": json.dumps(
+                "candidates": [
                     {
-                        "summary_ru": {"text": "Short Russian summary.", "length": 2},
-                        "topics": {"name": "verification", "confidence": 0.9},
-                        "format": {"kind": "article"},
-                        "technical_depth": ["medium", {"level": 3}],
-                        "verdict": "interesting",
-                        "verdict_reason": {"detail": "Useful boundary check."},
+                        "content": {
+                            "parts": [
+                                {
+                                    "text": json.dumps(
+                                        {
+                                            "summary_ru": {"text": "Short Russian summary.", "length": 2},
+                                            "topics": {"name": "verification", "confidence": 0.9},
+                                            "format": {"kind": "article"},
+                                            "technical_depth": ["medium", {"level": 3}],
+                                            "verdict": "interesting",
+                                            "verdict_reason": {"detail": "Useful boundary check."},
+                                        }
+                                    )
+                                }
+                            ]
+                        }
                     }
-                )
+                ]
             },
         )
 
     app = create_app(
         session_factory=session_factory,
-        analysis_client_factory=lambda: OllamaClient(
-            settings=Settings(analysis_service_port=8100, ollama_host="ollama", ollama_port=11434, ollama_model="llama3.2"),
+        analysis_client_factory=lambda: GeminiClient(
+            settings=Settings(analysis_service_port=8100),
             client=httpx.Client(transport=httpx.MockTransport(handler)),
         ),
-        settings=Settings(analysis_service_port=8100, ollama_host="ollama", ollama_port=11434, ollama_model="llama3.2"),
+        settings=Settings(analysis_service_port=8100),
     )
     client = TestClient(app)
 

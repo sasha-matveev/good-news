@@ -72,9 +72,9 @@ class StoredPostAnalysis:
 
 def analyze_request(
     request: AnalysisRequest,
-    ollama_client: object,
+    analysis_client: object,
 ) -> AnalysisResult:
-    result = ollama_client.analyze_article(title=request.title, content=request.content)
+    result = analysis_client.analyze_article(title=request.title, content=request.content)
     return AnalysisResult(
         summary_ru=result.summary_ru,
         topics=list(result.topics),
@@ -110,10 +110,10 @@ def persist_analysis_result(
 def analyze_post_payload(
     title: str,
     content: str,
-    ollama_client: object,
+    analysis_client: object,
 ) -> dict[str, str]:
     normalized = analyze_request(
         AnalysisRequest(post_id=0, title=title, content=content),
-        ollama_client=ollama_client,
+        analysis_client=analysis_client,
     )
     return normalized.as_persistence_payload()

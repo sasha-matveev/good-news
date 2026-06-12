@@ -36,7 +36,7 @@ def test_service_startup_scripts_do_not_self_migrate(script_path: str, expected_
 @pytest.mark.parametrize(
     ("app_factory", "kwargs"),
     [
-        (create_monolith_app, {"enable_scheduler": False}),
+        (create_monolith_app, {}),
         (create_content_api_app, {"discovery_responses": {}}),
         (create_analysis_app, {}),
         (create_ingestion_app, {"enable_scheduler": False}),
@@ -57,7 +57,7 @@ def test_service_startup_fails_clearly_when_schema_is_not_ready(app_factory, kwa
 @pytest.mark.parametrize(
     ("app_factory", "kwargs"),
     [
-        (create_monolith_app, {"enable_scheduler": False}),
+        (create_monolith_app, {}),
         (create_content_api_app, {"discovery_responses": {}}),
         (create_analysis_app, {}),
         (create_ingestion_app, {"enable_scheduler": False}),
