@@ -20,11 +20,7 @@ jobs:
       - name: Install backend dependencies
         run: python -m pip install --upgrade pip && python -m pip install -e './backend[dev]'
       - name: Run backend tests
-        run: |
-          pytest backend/tests/unit backend/tests/api backend/tests/contract \
-            --ignore=backend/tests/unit/test_phase_two_verification_common.py \
-            --ignore=backend/tests/unit/test_secret_scripts.py \
-            -q
+        run: pytest backend/tests/unit backend/tests/api -q
 
   frontend:
     runs-on: ubuntu-latest

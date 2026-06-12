@@ -1,10 +1,25 @@
 # Good News
 
-Personal news aggregator that ingests RSS/Atom feeds, ranks posts with a local LLM against your preference profile, and delivers scheduled email digests.
+Personal news aggregator that ingests RSS/Atom feeds, ranks posts with Gemini against your preference profile, and delivers scheduled email digests.
 
-## Frontend
+Runs in Google Cloud: https://good-news-am26.web.app
 
-The frontend (port 5173) provides seven tabs:
+## Architecture
+
+| Component | Where |
+|-----------|-------|
+| Frontend (React/Vite) | Firebase Hosting |
+| Backend (FastAPI monolith) | Cloud Run `good-news-app` (us-central1, scale-to-zero) |
+| Database | Neon Postgres (`GOOD_NEWS_DATABASE_URL`, sslmode=require) |
+| Post analysis | Gemini API (`gemini-2.5-flash-lite` by default) |
+| Periodic jobs | Cloud Scheduler → `POST /internal/jobs/source-sync`, `POST /internal/jobs/digests` (Google OIDC) |
+| Email digests | Gmail SMTP — configured in the Settings tab, password stored encrypted in the DB |
+| Auth | Firebase Auth (Google sign-in) + email allowlist on the backend |
+| Secrets | GCP Secret Manager: `good-news-db-url`, `good-news-app-master-key`, `good-news-gemini-api-key` |
+
+The frontend calls Cloud Run directly (`VITE_CONTENT_API_ORIGIN` baked at build time); Firebase Hosting rewrites `/api/**` exist as a fallback.
+
+## Frontend tabs
 
 | Tab | Description |
 |-----|-------------|
@@ -14,168 +29,55 @@ The frontend (port 5173) provides seven tabs:
 | **Digest** | Browse sent email digests. |
 | **Preferences** | View the AI-derived preference profile (topics, verdicts). |
 | **Settings** | Configure email delivery, digest schedule, SMTP. |
-| **Monitoring** | In-app operator dashboard: source health, system health, LLM queue, capacity, and a direct link to Grafana. |
+| **Monitoring** | Source health, system health, LLM queue, capacity. |
 
-## Services
+## Deployment
 
-| Service | Role |
-|---------|------|
-| `postgres` | Primary database |
-| `db-migrate` | One-shot Alembic migration runner |
-| `analysis-llm-service` | AI-backed post ranking and analysis via Ollama |
-| `source-ingestion-service` | Feed fetch, parse, and normalize |
-| `delivery-service` | Email digest scheduling and dispatch |
-| `content-api-service` | REST API consumed by the frontend |
-| `frontend` | Nginx-served Vite build |
-| `ollama` | Local LLM runtime |
+Push to `master` triggers `.github/workflows/deploy.yml`:
 
-Optional services (off by default):
+1. Backend + frontend tests
+2. Docker image → Artifact Registry
+3. Cloud Run Job `db-migrate` (Alembic `upgrade head` under an advisory lock)
+4. `gcloud run deploy good-news-app` (secrets from Secret Manager)
+5. Vite build → `firebase deploy --only hosting`
 
-- `smtp` — Mailhog for email testing
-- `prometheus`, `grafana`, `loki`, `otel-collector`, `grafana-image-renderer` — observability stack
+GitHub authenticates to GCP via Workload Identity Federation — no key files.
+All changes land on `master` through pull requests.
 
-## Operator flows
+Cloud Scheduler jobs (`source-sync` every 30 min, `daily-digest` hourly) call the
+`/internal/jobs/*` endpoints with an OIDC token from `scheduler-invoker@…`;
+the backend verifies issuer, audience, and service-account email.
 
-Two supported flows:
+## Local development
 
-1. **`build + tests + deploy`** — required after any code change; rebuilds images, runs tests, runs migrations, starts services.
-2. **`restart`** — runtime recovery or config re-read only; does not rebuild images or run tests.
-
-Canonical entrypoints:
+No Docker. Run the backend against a Neon dev branch:
 
 ```powershell
-.\scripts\deploy.ps1
-.\scripts\restart-runtime-service.ps1 -Services all
-.\scripts\restart-runtime-service.ps1 -Services content-api-service
+python -m pip install -e './backend[dev]'
+# fill .env from .env.example, load it into the shell, then:
+cd backend
+uvicorn app.main:app --reload
 ```
 
-For the full operator reference (start, health, logs, stop, recovery) see [docs/local-operator-playbook.md](docs/local-operator-playbook.md).
-
-## Default local runtime
-
-`deploy.ps1` boots the full usable system in one command:
-
-1. Starts `postgres` and waits for readiness
-2. Runs the explicit `db-migrate` step
-3. Starts `ollama`, pulls the configured model if missing
-4. Builds and starts all app services
+Frontend:
 
 ```powershell
-.\scripts\deploy.ps1
+npm ci --prefix frontend
+npm run dev --prefix frontend   # proxies /api to localhost:8000
 ```
 
-If secrets live outside the repo, pass the file explicitly:
+With `GOOD_NEWS_FIREBASE_PROJECT_ID` unset, auth middleware is disabled locally.
+
+## Tests
 
 ```powershell
-.\scripts\deploy.ps1 -SecretsFilePath "C:\path\to\dev-secrets.env"
+pytest backend/tests/unit backend/tests/api -q
+npm run test --prefix frontend
 ```
 
-Raw Compose equivalent:
+## Operations
 
-```powershell
-. .\scripts\load-dev-secrets.ps1
-docker compose --profile ai up -d postgres ollama
-docker compose --profile migration run --rm --no-deps db-migrate
-$env:GOOD_NEWS_PUBLIC_CONTENT_API_ORIGIN = "http://127.0.0.1:8000"
-$env:GOOD_NEWS_PUBLIC_FRONTEND_ORIGIN = "http://127.0.0.1:5173"
-.\scripts\pull-ollama-model.ps1
-docker compose --profile ui --profile ai up -d analysis-llm-service source-ingestion-service delivery-service content-api-service frontend
-```
-
-Backend services fail fast on startup if the database schema is missing or behind Alembic head.
-
-## Local setup
-
-Run from the repo root.
-
-1. Install dependencies:
-
-```powershell
-.\scripts\bootstrap.ps1
-```
-
-2. Provide runtime secrets.
-
-Required secrets:
-
-- `GOOD_NEWS_APP_MASTER_KEY`
-- `GOOD_NEWS_POSTGRES_PASSWORD`
-
-Supported sources (tried in this order):
-
-1. Pre-set shell environment variables
-2. External `.env`-style file at `$HOME/.good-news/dev-secrets.env` (or the path in `GOOD_NEWS_LOCAL_SECRETS_FILE`)
-3. Windows Credential Manager is per-user (optional convenience fallback)
-4. Recovery from an existing running container environment
-
-Example secrets file:
-
-```dotenv
-GOOD_NEWS_APP_MASTER_KEY=<master-key>
-GOOD_NEWS_POSTGRES_PASSWORD=<postgres-password>
-```
-
-To write secrets from Credential Manager into the local `.env` file once (so subprocesses and agents can read them):
-
-```powershell
-.\scripts\export-secrets-to-dotenv.ps1
-```
-
-To create or refresh Credential Manager entries:
-
-```powershell
-.\scripts\bootstrap.ps1 -AppMasterKey "<master-key>" -PostgresPassword "<postgres-password>"
-```
-
-3. Load secrets into the current shell:
-
-```powershell
-. .\scripts\load-dev-secrets.ps1
-```
-
-4. Verify secret presence:
-
-```powershell
-.\scripts\bootstrap.ps1 -CheckSecrets
-```
-
-## Minimum acceptance checks
-
-```powershell
-curl.exe -i http://127.0.0.1:8000/api/health
-curl.exe -i http://127.0.0.1:8000/api/posts
-curl.exe -i http://127.0.0.1:5173/api/posts
-```
-
-- `postgres` is `healthy`
-- `content-api-service` is `healthy`
-- `frontend` is `running`
-
-## Ollama model
-
-The local AI runtime uses `llama3.2:3b-instruct-q4_K_M`. `deploy.ps1` pulls it automatically. To pre-warm explicitly:
-
-```powershell
-docker compose --profile ai up -d ollama
-.\scripts\pull-ollama-model.ps1
-```
-
-Configured via:
-
-- `GOOD_NEWS_OLLAMA_HOST`
-- `GOOD_NEWS_OLLAMA_PORT`
-- `GOOD_NEWS_OLLAMA_MODEL`
-
-## Observability
-
-The observability stack runs as an opt-in profile and does not affect the default runtime footprint.
-
-```powershell
-docker compose --profile observability up -d grafana prometheus loki otel-collector grafana-image-renderer
-```
-
-Smoke test:
-
-```powershell
-.\scripts\validation\verify-observability-stack.ps1
-```
+- Logs and metrics: Cloud Logging / Cloud Monitoring for `good-news-app`
+- Health: `GET https://good-news-app-446870476468.us-central1.run.app/api/health` (public)
+- Budget alert on the billing account guards the free tier (expected spend: $0/month)
+- Migration plan history: [docs/firebase-migration-plan.md](docs/firebase-migration-plan.md)

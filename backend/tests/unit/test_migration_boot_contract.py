@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
@@ -14,23 +12,6 @@ from app.delivery_service.main import create_app as create_delivery_app
 from app.main import create_app as create_monolith_app
 from app.models.base import Base
 from app.source_ingestion_service.main import create_app as create_ingestion_app
-
-
-@pytest.mark.parametrize(
-    ("script_path", "expected_app"),
-    [
-        ("backend/scripts/start-app.sh", "uvicorn app.main:app"),
-        ("backend/scripts/start-content-api-service.sh", "uvicorn app.content_api_service.main:app"),
-        ("backend/scripts/start-analysis-service.sh", "uvicorn app.analysis_llm_service.main:app"),
-        ("backend/scripts/start-ingestion-service.sh", "uvicorn app.source_ingestion_service.main:app"),
-        ("backend/scripts/start-delivery-service.sh", "uvicorn app.delivery_service.main:app"),
-    ],
-)
-def test_service_startup_scripts_do_not_self_migrate(script_path: str, expected_app: str) -> None:
-    startup_script = Path(script_path).read_text(encoding="utf-8")
-
-    assert "python -m app.core.migration_runner" not in startup_script
-    assert expected_app in startup_script
 
 
 @pytest.mark.parametrize(
