@@ -45,13 +45,17 @@ class Settings:
     postgres_user: str = "good_news"
     postgres_password_env_var: str = "GOOD_NEWS_POSTGRES_PASSWORD"
     app_master_key_env_var: str = "GOOD_NEWS_APP_MASTER_KEY"
+    database_url_override: str | None = None
     analysis_stub_response_json: str | None = None
     ingestion_responses_json: str | None = None
     source_sync_interval_minutes: int = 30
     source_failure_threshold: int = 3
-    ollama_host: str = "localhost"
-    ollama_port: int = 11434
-    ollama_model: str = "llama3.2:3b-instruct-q4_K_M"
+    gemini_api_key_env_var: str = "GOOD_NEWS_GEMINI_API_KEY"
+    gemini_model: str = "gemini-2.5-flash-lite"
+    firebase_project_id: str | None = None
+    allowed_emails: str = ""
+    scheduler_invoker: str | None = None
+    oidc_audience: str | None = None
     observability_grafana_origin: str | None = None
     observability_grafana_host: str = "127.0.0.1"
     observability_grafana_host_port: int = 3000
@@ -76,13 +80,16 @@ class Settings:
             postgres_port=_read_int_env("GOOD_NEWS_POSTGRES_PORT", 5432),
             postgres_database=os.getenv("GOOD_NEWS_POSTGRES_DATABASE", "good_news"),
             postgres_user=os.getenv("GOOD_NEWS_POSTGRES_USER", "good_news"),
+            database_url_override=os.getenv("GOOD_NEWS_DATABASE_URL"),
             analysis_stub_response_json=os.getenv("GOOD_NEWS_ANALYSIS_STUB_RESPONSE_JSON"),
             ingestion_responses_json=os.getenv("GOOD_NEWS_INGESTION_RESPONSES_JSON"),
             source_sync_interval_minutes=_read_int_env("GOOD_NEWS_SOURCE_SYNC_INTERVAL_MINUTES", 30),
             source_failure_threshold=_read_int_env("GOOD_NEWS_SOURCE_FAILURE_THRESHOLD", 3),
-            ollama_host=os.getenv("GOOD_NEWS_OLLAMA_HOST", "localhost"),
-            ollama_port=_read_int_env("GOOD_NEWS_OLLAMA_PORT", 11434),
-            ollama_model=os.getenv("GOOD_NEWS_OLLAMA_MODEL", "llama3.2:3b-instruct-q4_K_M"),
+            gemini_model=os.getenv("GOOD_NEWS_GEMINI_MODEL", "gemini-2.5-flash-lite"),
+            firebase_project_id=os.getenv("GOOD_NEWS_FIREBASE_PROJECT_ID"),
+            allowed_emails=os.getenv("GOOD_NEWS_ALLOWED_EMAILS", ""),
+            scheduler_invoker=os.getenv("GOOD_NEWS_SCHEDULER_INVOKER"),
+            oidc_audience=os.getenv("GOOD_NEWS_OIDC_AUDIENCE"),
             observability_grafana_origin=os.getenv("GOOD_NEWS_OBSERVABILITY_GRAFANA_ORIGIN"),
             observability_grafana_host=os.getenv("GOOD_NEWS_OBSERVABILITY_GRAFANA_HOST", "127.0.0.1"),
             observability_grafana_host_port=_read_int_env("GOOD_NEWS_OBSERVABILITY_GRAFANA_HOST_PORT", 3000),
@@ -124,10 +131,27 @@ class Settings:
         )
 
     def database_url(self, secret_store: SecretStore | None = None) -> str:
+        if self.database_url_override:
+            return self.database_url_override
         password = quote_plus(self.postgres_password(secret_store))
         return (
             f"postgresql+psycopg://{quote_plus(self.postgres_user)}:{password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_database}"
+        )
+
+    def gemini_api_key(self) -> str:
+        value = os.getenv(self.gemini_api_key_env_var)
+        if value:
+            return value
+        raise MissingSecretError(
+            f"Missing Gemini API key; set {self.gemini_api_key_env_var}."
+        )
+
+    def allowed_email_set(self) -> frozenset[str]:
+        return frozenset(
+            email.strip().lower()
+            for email in self.allowed_emails.split(",")
+            if email.strip()
         )
 
     def analysis_service_base_url(self) -> str:
@@ -161,9 +185,6 @@ class Settings:
 
     def delivery_service_base_url(self) -> str:
         return f"http://{self.delivery_service_host}:{self.delivery_service_port}"
-
-    def ollama_base_url(self) -> str:
-        return f"http://{self.ollama_host}:{self.ollama_port}"
 
     def observability_grafana_base_url(self) -> str:
         normalized = (self.observability_grafana_origin or "").strip().rstrip("/")

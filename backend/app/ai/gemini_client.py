@@ -14,9 +14,11 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import sessionmaker, Session
     from app.services.analysis import AnalysisRequest, AnalysisResult
 
+GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
+
 
 @dataclass(frozen=True)
-class OllamaAnalysisPayload:
+class GeminiAnalysisPayload:
     summary_ru: str
     topics: list[str]
     format: str
@@ -25,7 +27,7 @@ class OllamaAnalysisPayload:
     verdict_reason: str
 
 
-class OllamaClient:
+class GeminiClient:
     def __init__(
         self,
         settings: Settings | None = None,
@@ -48,9 +50,8 @@ class OllamaClient:
                 session.commit()
         return result
 
-    def analyze_article(self, title: str, content: str) -> OllamaAnalysisPayload:
-        # Give the model a reasonable window without overwhelming a small local model
-        content_snippet = content[:1200]
+    def analyze_article(self, title: str, content: str) -> GeminiAnalysisPayload:
+        content_snippet = content[:4000]
         prompt = (
             "You are a JSON-only API. Read the article and return ONE JSON object. No explanation, no markdown.\n"
             "\n"
@@ -69,17 +70,23 @@ class OllamaClient:
             f"Content: {content_snippet}"
         )
         response = self.client.post(
-            f"{self.settings.ollama_base_url()}/api/generate",
+            f"{GEMINI_API_BASE_URL}/models/{self.settings.gemini_model}:generateContent",
+            headers={"x-goog-api-key": self.settings.gemini_api_key()},
             json={
-                "model": self.settings.ollama_model,
-                "prompt": prompt,
-                "stream": False,
-                "format": "json",
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "responseMimeType": "application/json",
+                    "temperature": 0.2,
+                },
             },
         )
         response.raise_for_status()
         raw_payload = response.json()
-        parsed = json.loads(raw_payload["response"])
+        try:
+            text = raw_payload["candidates"][0]["content"]["parts"][0]["text"]
+        except (KeyError, IndexError) as exc:
+            raise TypeError(f"Gemini response missing candidate text: {exc}") from exc
+        parsed = json.loads(text)
         return _normalize_analysis_payload(parsed)
 
 
@@ -129,14 +136,14 @@ def _is_mostly_cyrillic(text: str) -> bool:
     return cyrillic >= latin
 
 
-def _normalize_analysis_payload(parsed: object) -> OllamaAnalysisPayload:
+def _normalize_analysis_payload(parsed: object) -> GeminiAnalysisPayload:
     if not isinstance(parsed, dict):
-        raise TypeError("Ollama response payload must be a JSON object.")
+        raise TypeError("Gemini response payload must be a JSON object.")
 
     try:
         summary_value = parsed["summary_ru"] if "summary_ru" in parsed else parsed["summary"]
         coerced_summary = _coerce_scalar_to_string(summary_value, field_name="summary_ru")
-        # Discard summary if it's primarily Latin (garbled transliteration from a small model)
+        # Discard summary if it's primarily Latin (garbled transliteration)
         clean_summary = coerced_summary if _is_mostly_cyrillic(coerced_summary) else ""
 
         coerced_verdict = _coerce_scalar_to_string(parsed["verdict"], field_name="verdict")
@@ -154,7 +161,7 @@ def _normalize_analysis_payload(parsed: object) -> OllamaAnalysisPayload:
         latin_vr = sum(1 for c in raw_verdict_reason if "A" <= c <= "Z" or "a" <= c <= "z")
         verdict_reason = raw_verdict_reason if latin_vr >= cyrillic_vr else ""
 
-        return OllamaAnalysisPayload(
+        return GeminiAnalysisPayload(
             summary_ru=clean_summary,
             topics=_coerce_topics(parsed["topics"]),
             format=normalized_format,
@@ -163,7 +170,7 @@ def _normalize_analysis_payload(parsed: object) -> OllamaAnalysisPayload:
             verdict_reason=verdict_reason,
         )
     except KeyError as exc:
-        raise TypeError(f"Ollama response missing required field: {exc}") from exc
+        raise TypeError(f"Gemini response missing required field: {exc}") from exc
 
 
 def _coerce_topics(value: object) -> list[str]:
@@ -185,5 +192,5 @@ def _normalize_value_to_contract_string(value: object, *, field_name: str) -> st
         return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     except TypeError as exc:
         raise TypeError(
-            f"Ollama field '{field_name}' must be JSON-serializable into the internal string contract."
+            f"Gemini field '{field_name}' must be JSON-serializable into the internal string contract."
         ) from exc
