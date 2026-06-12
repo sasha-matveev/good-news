@@ -1,0 +1,112 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/good-news/backend:${{ github.sha }}
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install backend dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -e './backend[dev]'
+      - name: Run backend tests
+        run: |
+          pytest backend/tests/unit backend/tests/api backend/tests/contract \
+            --ignore=backend/tests/unit/test_phase_two_verification_common.py \
+            --ignore=backend/tests/unit/test_secret_scripts.py \
+            -q
+
+  frontend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install frontend dependencies
+        run: npm ci --prefix frontend
+      - name: Run frontend tests
+        run: npm run test --prefix frontend
+
+  deploy:
+    needs: [backend-tests, frontend-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build and push backend image
+        run: |
+          gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
+          docker build -f backend/Dockerfile -t "$IMAGE" .
+          docker push "$IMAGE"
+
+      - name: Run database migrations
+        run: |
+          gcloud run jobs deploy db-migrate \
+            --image "$IMAGE" \
+            --region ${{ vars.GCP_REGION }} \
+            --project ${{ vars.GCP_PROJECT_ID }} \
+            --service-account good-news-app@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
+            --set-secrets "GOOD_NEWS_DATABASE_URL=good-news-db-url:latest" \
+            --memory 512Mi \
+            --max-retries 0 \
+            --command python \
+            --args -m,app.core.migration_runner
+          gcloud run jobs execute db-migrate \
+            --region ${{ vars.GCP_REGION }} \
+            --project ${{ vars.GCP_PROJECT_ID }} \
+            --wait
+
+      - name: Deploy Cloud Run service
+        run: |
+          gcloud run deploy good-news-app \
+            --image "$IMAGE" \
+            --region ${{ vars.GCP_REGION }} \
+            --project ${{ vars.GCP_PROJECT_ID }} \
+            --service-account good-news-app@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
+            --allow-unauthenticated \
+            --min-instances 0 \
+            --max-instances 1 \
+            --memory 512Mi \
+            --cpu 1 \
+            --timeout 300 \
+            --port 8000 \
+            --set-secrets "GOOD_NEWS_DATABASE_URL=good-news-db-url:latest,GOOD_NEWS_APP_MASTER_KEY=good-news-app-master-key:latest,GOOD_NEWS_GEMINI_API_KEY=good-news-gemini-api-key:latest,GOOD_NEWS_SMTP_PASSWORD=good-news-smtp-password:latest" \
+            --set-env-vars "GOOD_NEWS_ENV=prod,GOOD_NEWS_PUBLIC_CONTENT_API_ORIGIN=https://${{ vars.GCP_PROJECT_ID }}.web.app,GOOD_NEWS_PUBLIC_FRONTEND_ORIGIN=https://${{ vars.GCP_PROJECT_ID }}.web.app,GOOD_NEWS_FIREBASE_PROJECT_ID=${{ vars.GCP_PROJECT_ID }},GOOD_NEWS_ALLOWED_EMAILS=${{ vars.ALLOWED_EMAILS }},GOOD_NEWS_SCHEDULER_INVOKER=scheduler-invoker@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build frontend
+        run: |
+          npm ci --prefix frontend
+          npm run build --prefix frontend
+
+      - name: Deploy Firebase Hosting
+        run: npx firebase-tools@latest deploy --only hosting --project ${{ vars.GCP_PROJECT_ID }} --non-interactive
