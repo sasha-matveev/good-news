@@ -45,7 +45,10 @@ class ArticleInput:
 
 _JSON_FIELDS_SPEC = (
     "JSON fields per article:\n"
-    '  "summary_ru": 1-2 sentences in Russian (Кириллица). '
+    '  "summary_ru": a detailed summary in Russian (Кириллица), 4-6 sentences (roughly 60-120 words). '
+    "Cover what the article is about, its key points, arguments or findings, and the concrete takeaway — "
+    "enough that the reader understands the substance without opening the article. "
+    "Do not just rephrase the title; add the specifics from the body. "
     "Use only Russian words — no Latin, no code, no transliteration. "
     'If you cannot write proper Russian, use "".\n'
     '  "verdict_reason": 1 sentence in ENGLISH explaining why a developer would or would not want to read this. '

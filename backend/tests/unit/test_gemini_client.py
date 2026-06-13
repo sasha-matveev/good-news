@@ -65,6 +65,10 @@ def test_gemini_client_sends_json_request_and_accepts_summary_alias() -> None:
     assert "Title: Alpha" in prompt_text
     assert "Content: Body" in prompt_text
     assert '"summary_ru"' in prompt_text
+    # The summary must be requested as a detailed, multi-sentence Russian overview,
+    # not a one-line restatement of the title.
+    assert "detailed summary in Russian" in prompt_text
+    assert "4-6 sentences" in prompt_text
 
     assert result.summary_ru == "Краткое резюме на русском языке."
     assert result.topics == ["verification"]
