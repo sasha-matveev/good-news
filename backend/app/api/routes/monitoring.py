@@ -4,17 +4,27 @@ import urllib.request
 import urllib.error
 from datetime import datetime
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Settings
 from app.core.db import session_scope
+from app.jobs.analysis_jobs import analyze_pending_posts
 from app.models.post import Post
 from app.models.post_analysis import PostAnalysis
 from app.models.source import Source
 
 router = APIRouter(tags=["monitoring"])
+
+
+def _count_pending_analysis(session: Session) -> int:
+    return session.scalar(
+        select(func.count())
+        .select_from(Post)
+        .outerjoin(PostAnalysis, PostAnalysis.post_id == Post.id)
+        .where(PostAnalysis.id.is_(None))
+    ) or 0
 
 _SERVICE_TIMEOUT = 2
 
@@ -63,12 +73,7 @@ def _build_summary(session: Session, settings: Settings, *, is_monolith: bool) -
         select(func.count()).select_from(Post)
     ) or 0
 
-    posts_unranked: int = session.scalar(
-        select(func.count())
-        .select_from(Post)
-        .outerjoin(PostAnalysis, PostAnalysis.post_id == Post.id)
-        .where(PostAnalysis.id.is_(None))
-    ) or 0
+    posts_unranked: int = _count_pending_analysis(session)
 
     last_sync_at: datetime | None = session.scalar(
         select(func.max(Source.last_success_at))
@@ -96,6 +101,33 @@ def monitoring_summary(request: Request) -> dict:
     is_monolith = getattr(request.app.state, "analysis_client_factory", None) is not None
     with session_scope(session_factory) as session:
         return _build_summary(session, settings, is_monolith=is_monolith)
+
+
+@router.post("/monitoring/analyze-now")
+def analyze_now(request: Request) -> dict:
+    """Drain a batch of the pending-analysis queue on demand.
+
+    Analyzes up to one batch (see analyze_pending_posts) per call so the request
+    stays bounded; returns how many were analyzed and how many remain so the UI
+    can invite another click.
+    """
+    session_factory: sessionmaker[Session] = request.app.state.session_factory
+    factory = getattr(request.app.state, "analysis_client_factory", None)
+    if factory is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Analysis client is not configured in this runtime.",
+        )
+
+    with session_scope(session_factory) as session:
+        before = _count_pending_analysis(session)
+
+    analyze_pending_posts(session_factory=session_factory, analysis_client=factory())
+
+    with session_scope(session_factory) as session:
+        remaining = _count_pending_analysis(session)
+
+    return {"analyzed": max(0, before - remaining), "remaining": remaining}
 
 
 @router.get("/monitoring/queue")
