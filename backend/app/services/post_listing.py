@@ -50,7 +50,12 @@ def build_post_listing_statement(
         statement = statement.where(Post.published_at >= now - timedelta(days=30))
     if source_id is not None:
         statement = statement.where(Post.source_id == source_id)
-    if feedback_state is not None:
+    if feedback_state == "none":
+        # "No reaction" — posts the user has never given feedback on. Because the
+        # Feedback join is outer and Feedback.state is NOT NULL, a null state here
+        # means no feedback row exists at all.
+        statement = statement.where(Feedback.state.is_(None))
+    elif feedback_state is not None:
         statement = statement.where(Feedback.state == feedback_state)
     if read_later is True:
         statement = statement.where(ReadLater.id.isnot(None))

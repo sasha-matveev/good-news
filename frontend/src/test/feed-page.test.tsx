@@ -93,6 +93,33 @@ test("feed page renders feed-only sort controls on the same toolbar row as filte
   expect(screen.queryByRole("button", { name: "By date" })).not.toBeInTheDocument();
 });
 
+test("feed page groups filters by type and the No reaction chip requests posts without feedback", async () => {
+  const fetchMock = makeUrlMock({
+    "feedback_state=none": [{ ...BASE_POST, feedback_state: null }],
+    "/api/posts": [BASE_POST]
+  });
+
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<AppShell />);
+
+  expect(await screen.findByText("Newer")).toBeInTheDocument();
+
+  // Filters are grouped under labelled headings.
+  expect(screen.getByText("Reaction")).toBeInTheDocument();
+  expect(screen.getByText("Period")).toBeInTheDocument();
+  expect(screen.getByText("Sort")).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "No reaction" }));
+
+  await waitFor(() => {
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/posts?feedback_state=none&window=all&sort=date&limit=50",
+      { method: "GET" }
+    );
+  });
+});
+
 test("feed page loads default posts, shows the redesigned card content, and can request all collected posts", async () => {
   const fetchMock = makeUrlMock({
     "window=all": [OLDER_POST, BASE_POST],
