@@ -51,7 +51,10 @@ class Settings:
     source_sync_interval_minutes: int = 30
     source_failure_threshold: int = 3
     gemini_api_key_env_var: str = "GOOD_NEWS_GEMINI_API_KEY"
-    gemini_model: str = "gemini-2.5-flash-lite"
+    gemini_model: str = "gemini-3.1-flash-lite"
+    gemini_batch_size: int = 10
+    gemini_max_rpm: int = 8
+    gemini_max_retries: int = 4
     firebase_project_id: str | None = None
     allowed_emails: str = ""
     scheduler_invoker: str | None = None
@@ -85,7 +88,10 @@ class Settings:
             ingestion_responses_json=os.getenv("GOOD_NEWS_INGESTION_RESPONSES_JSON"),
             source_sync_interval_minutes=_read_int_env("GOOD_NEWS_SOURCE_SYNC_INTERVAL_MINUTES", 30),
             source_failure_threshold=_read_int_env("GOOD_NEWS_SOURCE_FAILURE_THRESHOLD", 3),
-            gemini_model=os.getenv("GOOD_NEWS_GEMINI_MODEL", "gemini-2.5-flash-lite"),
+            gemini_model=os.getenv("GOOD_NEWS_GEMINI_MODEL", "gemini-3.1-flash-lite"),
+            gemini_batch_size=_read_int_env("GOOD_NEWS_GEMINI_BATCH_SIZE", 10),
+            gemini_max_rpm=_read_int_env("GOOD_NEWS_GEMINI_MAX_RPM", 8),
+            gemini_max_retries=_read_int_env("GOOD_NEWS_GEMINI_MAX_RETRIES", 4),
             firebase_project_id=os.getenv("GOOD_NEWS_FIREBASE_PROJECT_ID"),
             allowed_emails=os.getenv("GOOD_NEWS_ALLOWED_EMAILS", ""),
             scheduler_invoker=os.getenv("GOOD_NEWS_SCHEDULER_INVOKER"),

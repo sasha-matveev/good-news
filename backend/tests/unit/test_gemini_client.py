@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import json
+import os
 
 import httpx
 
-from app.ai.gemini_client import GeminiClient
+from app.ai.gemini_client import ArticleInput, GeminiClient
 from app.core.config import Settings
 
 
@@ -18,7 +19,8 @@ def _gemini_response(payload: object) -> dict:
 
 def _build_client(handler) -> GeminiClient:
     return GeminiClient(
-        settings=Settings(gemini_model="gemini-2.5-flash-lite"),
+        # High RPM keeps the throttle from sleeping between calls in tests.
+        settings=Settings(gemini_model="gemini-2.5-flash-lite", gemini_max_rpm=60000),
         client=httpx.Client(transport=httpx.MockTransport(handler)),
     )
 
@@ -221,3 +223,103 @@ def test_gemini_client_wraps_non_list_topics_variants_into_single_item_list() ->
 
     assert result.topics == ['{"confidence":0.9,"name":"verification"}']
     assert result.verdict_reason == '{"detail":"Useful boundary check."}'
+
+
+def _batch_item(article_id: int) -> dict:
+    return {
+        "id": article_id,
+        "summary_ru": "Краткое резюме на русском языке.",
+        "topics": ["ai"],
+        "format": "news",
+        "technical_depth": "intermediate",
+        "verdict": "interesting",
+        "verdict_reason": "Useful.",
+    }
+
+
+def test_gemini_client_batches_articles_into_single_request() -> None:
+    calls: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(json.loads(request.content.decode("utf-8")))
+        return httpx.Response(
+            200,
+            json=_gemini_response({"results": [_batch_item(1), _batch_item(2), _batch_item(3)]}),
+        )
+
+    os.environ["GOOD_NEWS_GEMINI_API_KEY"] = "test-key"
+    try:
+        client = _build_client(handler)
+        results = client.analyze_articles(
+            [
+                ArticleInput(post_id=1, title="A", content="a"),
+                ArticleInput(post_id=2, title="B", content="b"),
+                ArticleInput(post_id=3, title="C", content="c"),
+            ]
+        )
+    finally:
+        del os.environ["GOOD_NEWS_GEMINI_API_KEY"]
+
+    # Three articles, one HTTP request (default batch size 10).
+    assert len(calls) == 1
+    prompt = calls[0]["contents"][0]["parts"][0]["text"]
+    assert "[id=1]" in prompt and "[id=2]" in prompt and "[id=3]" in prompt
+    assert '"results"' in prompt
+    assert set(results.keys()) == {1, 2, 3}
+    assert results[1].verdict == "interesting"
+    assert results[2].summary_ru == "Краткое резюме на русском языке."
+
+
+def test_gemini_client_batch_omits_ids_missing_from_response() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        # Model returns only id 1 and a stray unexpected id 99.
+        return httpx.Response(
+            200,
+            json=_gemini_response({"results": [_batch_item(1), _batch_item(99)]}),
+        )
+
+    os.environ["GOOD_NEWS_GEMINI_API_KEY"] = "test-key"
+    try:
+        results = _build_client(handler).analyze_articles(
+            [
+                ArticleInput(post_id=1, title="A", content="a"),
+                ArticleInput(post_id=2, title="B", content="b"),
+            ]
+        )
+    finally:
+        del os.environ["GOOD_NEWS_GEMINI_API_KEY"]
+
+    # id 2 missing → not in results; stray id 99 ignored (not requested).
+    assert set(results.keys()) == {1}
+
+
+def test_gemini_client_retries_on_429(monkeypatch) -> None:
+    monkeypatch.setattr("app.ai.gemini_client.time.sleep", lambda _seconds: None)
+    attempts: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        attempts.append(1)
+        if len(attempts) == 1:
+            return httpx.Response(429, json={"error": "rate limited"})
+        return httpx.Response(
+            200,
+            json=_gemini_response(
+                {
+                    "summary_ru": "Резюме.",
+                    "topics": ["ai"],
+                    "format": "news",
+                    "technical_depth": "intermediate",
+                    "verdict": "interesting",
+                    "verdict_reason": "Useful.",
+                }
+            ),
+        )
+
+    os.environ["GOOD_NEWS_GEMINI_API_KEY"] = "test-key"
+    try:
+        result = _build_client(handler).analyze_article(title="A", content="a")
+    finally:
+        del os.environ["GOOD_NEWS_GEMINI_API_KEY"]
+
+    assert len(attempts) == 2  # one 429, one success
+    assert result.verdict == "interesting"
