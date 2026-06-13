@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { PostCard } from "../components/PostCard";
 import {
@@ -17,6 +17,64 @@ type FeedFilterState = {
 };
 
 const PAGE_LIMIT = 50;
+
+/** A labelled cluster of related filter chips. */
+function FilterGroup({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+      <span
+        style={{
+          color: theme.color.muted,
+          fontFamily: theme.font.sectionTitle,
+          fontSize: "10px",
+          fontWeight: 700,
+          letterSpacing: "0.14em",
+          textTransform: "uppercase"
+        }}
+      >
+        {label}
+      </span>
+      <div style={{ alignItems: "center", display: "flex", flexWrap: "wrap", gap: "8px" }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** A single pill-shaped filter toggle, styled consistently across all groups. */
+function FilterChip({
+  active,
+  busy = false,
+  onClick,
+  children
+}: {
+  active: boolean;
+  busy?: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      aria-pressed={active}
+      disabled={busy}
+      onClick={onClick}
+      style={{
+        backgroundColor: active ? theme.color.accent : theme.color.card,
+        border: `1px solid ${active ? theme.color.accent : theme.color.border}`,
+        borderRadius: theme.radius.card,
+        color: active ? theme.color.card : theme.color.text,
+        cursor: busy ? "wait" : "pointer",
+        fontFamily: "inherit",
+        fontSize: "12px",
+        opacity: busy ? 0.7 : 1,
+        padding: "8px 10px"
+      }}
+      type="button"
+    >
+      {children}
+    </button>
+  );
+}
 
 function buildRequestParams(filters: FeedFilterState, sort: PostSortMode, offset: number) {
   return {
@@ -148,7 +206,9 @@ export function FeedPage() {
             ? "Posts you liked"
             : filters.feedbackState === "not_interesting"
               ? "Posts you skipped"
-              : "Your feed"}
+              : filters.feedbackState === "none"
+                ? "Posts awaiting your reaction"
+                : "Your feed"}
         </h2>
       </div>
 
@@ -165,114 +225,73 @@ export function FeedPage() {
       >
         <div
           style={{
-            alignItems: "center",
+            alignItems: "flex-start",
             display: "flex",
             flex: "1 1 auto",
             flexWrap: "wrap",
-            gap: "8px"
+            gap: "20px"
           }}
         >
-          {([
-            { label: "All", value: "" },
-            { label: "Interesting", value: "interesting" },
-            { label: "Not interesting", value: "not_interesting" }
-          ] as const).map((chip) => {
-            const active = filters.feedbackState === chip.value;
-            return (
-              <button
-                aria-pressed={active}
-                disabled={loading}
+          <FilterGroup label="Reaction">
+            {([
+              { label: "All", value: "" },
+              { label: "No reaction", value: "none" },
+              { label: "Interesting", value: "interesting" },
+              { label: "Not interesting", value: "not_interesting" }
+            ] as const).map((chip) => (
+              <FilterChip
+                active={filters.feedbackState === chip.value}
+                busy={loading}
                 key={chip.value === "" ? "all" : chip.value}
                 onClick={() => {
                   setFilters((current) => ({ ...current, feedbackState: chip.value }));
                 }}
-                style={{
-                  backgroundColor: active ? theme.color.accent : theme.color.card,
-                  border: `1px solid ${active ? theme.color.accent : theme.color.border}`,
-                  borderRadius: theme.radius.card,
-                  color: active ? theme.color.card : theme.color.text,
-                  cursor: loading ? "wait" : "pointer",
-                  fontFamily: "inherit",
-                  fontSize: "12px",
-                  opacity: loading ? 0.7 : 1,
-                  padding: "8px 10px"
-                }}
-                type="button"
               >
                 {chip.label}
-              </button>
-            );
-          })}
-          {([
-            { label: "Last month", value: "last_month" as const },
-            { label: "All time", value: "all" as const }
-          ]).map((chip) => {
-            const active = filters.window === chip.value;
-            return (
-              <button
-                aria-pressed={active}
-                disabled={loading}
-                key={chip.value}
-                onClick={() => {
-                  setFilters((current) => ({ ...current, window: chip.value }));
-                }}
-                style={{
-                  backgroundColor: active ? theme.color.accent : theme.color.card,
-                  border: `1px solid ${active ? theme.color.accent : theme.color.border}`,
-                  borderRadius: theme.radius.card,
-                  color: active ? theme.color.card : theme.color.text,
-                  cursor: loading ? "wait" : "pointer",
-                  fontFamily: "inherit",
-                  fontSize: "12px",
-                  opacity: loading ? 0.7 : 1,
-                  padding: "8px 10px"
-                }}
-                type="button"
-              >
-                {loading && active ? `Loading ${chip.label.toLowerCase()} posts...` : chip.label}
-              </button>
-            );
-          })}
+              </FilterChip>
+            ))}
+          </FilterGroup>
+
+          <FilterGroup label="Period">
+            {([
+              { label: "Last month", value: "last_month" as const },
+              { label: "All time", value: "all" as const }
+            ]).map((chip) => {
+              const active = filters.window === chip.value;
+              return (
+                <FilterChip
+                  active={active}
+                  busy={loading}
+                  key={chip.value}
+                  onClick={() => {
+                    setFilters((current) => ({ ...current, window: chip.value }));
+                  }}
+                >
+                  {loading && active ? `Loading ${chip.label.toLowerCase()} posts...` : chip.label}
+                </FilterChip>
+              );
+            })}
+          </FilterGroup>
         </div>
 
-        <div
-          style={{
-            alignItems: "center",
-            display: "flex",
-            flexShrink: 0,
-            gap: "8px"
-          }}
-        >
-          {([
-            { label: "By match", value: "match" },
-            { label: "By date", value: "date" }
-          ] as const).map((option) => {
-            const active = sort === option.value;
-            return (
-              <button
-                aria-pressed={active}
-                disabled={loading}
+        <div style={{ flexShrink: 0 }}>
+          <FilterGroup label="Sort">
+            {([
+              { label: "By match", value: "match" },
+              { label: "By date", value: "date" }
+            ] as const).map((option) => (
+              <FilterChip
+                active={sort === option.value}
+                busy={loading}
                 key={option.value}
                 onClick={() => {
                   setSort(option.value);
                 }}
-                style={{
-                  backgroundColor: active ? theme.color.accent : theme.color.card,
-                  border: `1px solid ${active ? theme.color.accent : theme.color.border}`,
-                  borderRadius: theme.radius.card,
-                  color: active ? theme.color.card : theme.color.text,
-                  cursor: loading ? "wait" : "pointer",
-                  fontFamily: "inherit",
-                  fontSize: "12px",
-                  opacity: loading ? 0.7 : 1,
-                  padding: "8px 10px"
-                }}
-                type="button"
               >
                 {option.label}
-              </button>
-            );
-          })}
+              </FilterChip>
+            ))}
+          </FilterGroup>
         </div>
       </div>
 
