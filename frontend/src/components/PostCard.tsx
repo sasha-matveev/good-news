@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { FeedbackState, PostRecord } from "../lib/api";
 import { recordArticleOpen } from "../lib/api";
+import { SourceIcon } from "./SourceIcon";
 import { theme } from "../styles/theme";
 
 function stripHtml(html: string): string {
@@ -101,15 +102,19 @@ export function PostCard({
       <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "flex-start", marginBottom: "10px" }}>
         <div>
           <div style={{
+            alignItems: "center",
             color: "#738194",
+            display: "flex",
             fontFamily: theme.font.sectionTitle,
             fontSize: "12px",
             fontWeight: 700,
+            gap: "7px",
             letterSpacing: "0.14em",
             textTransform: "uppercase",
             marginBottom: "6px"
           }}>
-            {post.source_name ?? "Unknown source"}
+            <SourceIcon url={post.canonical_url} size={16} title={post.source_name ?? undefined} />
+            <span>{post.source_name ?? "Unknown source"}</span>
           </div>
           <h3 style={{ fontSize: "21px", letterSpacing: "-0.02em", margin: 0, lineHeight: 1.16 }}>
             {post.title}
