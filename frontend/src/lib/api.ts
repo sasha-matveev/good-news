@@ -257,6 +257,11 @@ export async function getPreferenceProfile(): Promise<PreferenceProfileRecord> {
   return readJson<PreferenceProfileRecord>(response);
 }
 
+export async function recomputePreferenceProfile(): Promise<PreferenceProfileRecord> {
+  const response = await apiFetch(`${API_ROOT}/preferences/recompute`, { method: "POST" });
+  return readJson<PreferenceProfileRecord>(response);
+}
+
 export async function getSettings(): Promise<SettingsRecord> {
   const response = await apiFetch(`${API_ROOT}/settings`, { method: "GET" });
   return readJson<SettingsRecord>(response);
@@ -348,4 +353,11 @@ export type QueueItem = { post_id: number; title: string; source_name: string | 
 export async function getAnalysisQueue(): Promise<QueueItem[]> {
   const response = await apiFetch(`${API_ROOT}/monitoring/queue`, { method: "GET" });
   return readJson<QueueItem[]>(response);
+}
+
+export type AnalyzeNowResult = { analyzed: number; remaining: number };
+
+export async function analyzePendingNow(): Promise<AnalyzeNowResult> {
+  const response = await apiFetch(`${API_ROOT}/monitoring/analyze-now`, { method: "POST" });
+  return readJson<AnalyzeNowResult>(response);
 }

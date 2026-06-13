@@ -23,8 +23,7 @@ def get_session(
         yield session
 
 
-@router.get("/preferences", response_model=PreferenceProfileResponse)
-def get_preferences(session: Session = Depends(get_session)) -> PreferenceProfileResponse:
+def _recompute_and_respond(session: Session) -> PreferenceProfileResponse:
     profile = build_preference_profile(session)
     persist_preference_profile(session, profile)
     return PreferenceProfileResponse(
@@ -34,3 +33,14 @@ def get_preferences(session: Session = Depends(get_session)) -> PreferenceProfil
         learning_proof=profile.learning_proof,
         feedback_totals=profile.feedback_totals,
     )
+
+
+@router.get("/preferences", response_model=PreferenceProfileResponse)
+def get_preferences(session: Session = Depends(get_session)) -> PreferenceProfileResponse:
+    return _recompute_and_respond(session)
+
+
+@router.post("/preferences/recompute", response_model=PreferenceProfileResponse)
+def recompute_preferences(session: Session = Depends(get_session)) -> PreferenceProfileResponse:
+    """Rebuild the preference profile from current reactions + post analysis."""
+    return _recompute_and_respond(session)

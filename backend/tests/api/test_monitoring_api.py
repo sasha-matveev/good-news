@@ -6,8 +6,10 @@ from fastapi.testclient import TestClient
 
 from app.core.db import create_engine_from_url, create_session_factory, session_scope
 from app.content_api_service.main import create_app
+from app.main import create_app as create_monolith_app
 from app.models.base import Base
 from app.models.post import Post
+from app.models.post_analysis import PostAnalysis
 from app.models.source import Source
 from app.testing.schema import stamp_schema_head
 
@@ -115,3 +117,54 @@ def test_monitoring_summary_last_sync_is_max_of_all_sources() -> None:
     assert response.json()["last_sync_at"] == "2026-05-14T12:00:00Z"
     assert response.json()["sources_active"] == 2
     assert response.json()["sources_total"] == 2
+
+
+def _seed_post(session, post_id: int) -> None:
+    session.add(Source(id=post_id, display_name=f"S{post_id}", original_url=f"https://s{post_id}.example", status="ready"))
+    session.add(
+        Post(
+            id=post_id,
+            source_id=post_id,
+            canonical_url=f"https://s{post_id}.example/p",
+            title=f"Post {post_id}",
+            published_at=datetime(2026, 5, 1, 9, 0, tzinfo=timezone.utc),
+            raw_content="Body.",
+            content_hash=f"hash-{post_id}",
+            ingest_metadata='{"strategy":"feed"}',
+        )
+    )
+
+
+def test_analyze_now_drains_pending_queue() -> None:
+    engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session_factory = create_session_factory(engine)
+    stamp_schema_head(session_factory)
+
+    with session_scope(session_factory) as session:
+        _seed_post(session, 1)
+        _seed_post(session, 2)
+
+    class FakePersistingClient:
+        def __init__(self, factory: object) -> None:
+            self._factory = factory
+
+        def analyze_and_persist(self, request: object) -> None:
+            with session_scope(self._factory) as session:
+                session.add(PostAnalysis(post_id=request.post_id, summary_ru="x", metadata_json="{}"))
+                session.commit()
+
+    app = create_monolith_app(
+        session_factory=session_factory,
+        document_loader=lambda url: None,
+        analysis_client_factory=lambda: FakePersistingClient(session_factory),
+    )
+    client = TestClient(app)
+
+    response = client.post("/api/monitoring/analyze-now")
+
+    assert response.status_code == 200
+    assert response.json() == {"analyzed": 2, "remaining": 0}
+
+    summary = client.get("/api/monitoring/summary")
+    assert summary.json()["posts_unranked"] == 0

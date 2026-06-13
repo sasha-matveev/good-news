@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { fetchMonitoringSummary, getAnalysisQueue, MonitoringSummary, QueueItem, ServiceHealth } from "../lib/api";
+import { analyzePendingNow, fetchMonitoringSummary, getAnalysisQueue, MonitoringSummary, QueueItem, ServiceHealth } from "../lib/api";
 import { useSetMonitoringSummary } from "../lib/MonitoringContext";
 import { theme } from "../styles/theme";
 
@@ -60,24 +60,57 @@ export function MonitoringPage() {
   const [queue, setQueue] = useState<QueueItem[] | null>(null);
   const [queueExpanded, setQueueExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeMsg, setAnalyzeMsg] = useState<string | null>(null);
   const setContextSummary = useSetMonitoringSummary();
+
+  async function refresh() {
+    const [summaryData, queueData] = await Promise.all([
+      fetchMonitoringSummary(),
+      getAnalysisQueue().catch(() => [] as QueueItem[]),
+    ]);
+    setSummary(summaryData);
+    setContextSummary(summaryData);
+    setQueue(queueData);
+    setLoading(false);
+  }
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      fetchMonitoringSummary(),
-      getAnalysisQueue().catch(() => [] as QueueItem[]),
-    ]).then(([summaryData, queueData]) => {
+    void (async () => {
+      const [summaryData, queueData] = await Promise.all([
+        fetchMonitoringSummary(),
+        getAnalysisQueue().catch(() => [] as QueueItem[]),
+      ]);
       if (cancelled) return;
       setSummary(summaryData);
       setContextSummary(summaryData);
       setQueue(queueData);
       setLoading(false);
-    });
+    })();
     return () => { cancelled = true; };
   }, [setContextSummary]);
 
+  async function handleAnalyzeNow() {
+    setAnalyzing(true);
+    setAnalyzeMsg(null);
+    try {
+      const result = await analyzePendingNow();
+      setAnalyzeMsg(
+        result.remaining > 0
+          ? `Analyzed ${result.analyzed}. ${result.remaining} still pending — click again to continue.`
+          : `Analyzed ${result.analyzed}. Queue empty.`
+      );
+      await refresh();
+    } catch {
+      setAnalyzeMsg("Analysis run failed. Try again in a moment.");
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
   const svc = summary?.services;
+  const pending = summary?.posts_unranked ?? 0;
 
   return (
     <section style={{ padding: "24px" }}>
@@ -111,6 +144,31 @@ export function MonitoringPage() {
           <h3 style={{ fontFamily: theme.font.sectionTitle, margin: "0 0 12px" }}>LLM queue</h3>
           <MetricRow label="Pending ranking" value={summary !== null ? String(summary.posts_unranked) : "—"} />
           <MetricRow label="Total posts" value={summary !== null ? String(summary.posts_total) : "—"} />
+
+          <button
+            type="button"
+            disabled={analyzing || loading || pending === 0}
+            onClick={() => { void handleAnalyzeNow(); }}
+            style={{
+              backgroundColor: pending === 0 ? theme.color.border : theme.color.llm,
+              border: `1px solid ${pending === 0 ? theme.color.border : theme.color.llm}`,
+              borderRadius: theme.radius.card,
+              color: "#ffffff",
+              cursor: analyzing || pending === 0 ? "default" : "pointer",
+              fontFamily: "inherit",
+              fontSize: "13px",
+              marginTop: "12px",
+              padding: "9px 14px",
+              width: "100%"
+            }}
+          >
+            {analyzing ? "Analyzing…" : "Analyze pending now"}
+          </button>
+          {analyzeMsg ? (
+            <p style={{ color: theme.color.muted, fontSize: "12px", margin: "8px 0 0", lineHeight: 1.4 }}>
+              {analyzeMsg}
+            </p>
+          ) : null}
           {queue !== null && queue.length > 0 ? (
             <div style={{ marginTop: "12px" }}>
               <button
