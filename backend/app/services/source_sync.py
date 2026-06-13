@@ -387,6 +387,20 @@ def _persist_posts(
     return new_posts
 
 
+def _record_analysis_failure_event(session: Session, post: Post, details: str) -> None:
+    record_analysis_failure(reason="write_failed")
+    session.add(
+        TechnicalEvent(
+            severity="warning",
+            subsystem="analysis",
+            event_code="analysis.write_failed",
+            summary="Post analysis write failed.",
+            details=details,
+            source_id=post.source_id,
+        )
+    )
+
+
 def _persist_post_analysis(
     *,
     session: Session,
@@ -396,23 +410,32 @@ def _persist_post_analysis(
     if analysis_service_client is None:
         return
 
+    # Free-tier Gemini is request-starved: analyze the whole batch in a few calls
+    # rather than one request per post (which slams the per-minute request cap).
+    batch = getattr(analysis_service_client, "analyze_and_persist_batch", None)
+    if callable(batch):
+        requests = [
+            AnalysisRequest(post_id=post.id, title=post.title, content=post.raw_content)
+            for post in posts
+        ]
+        try:
+            failed_ids = set(batch(requests))
+        except Exception as exc:
+            for post in posts:
+                _record_analysis_failure_event(session, post, str(exc))
+            return
+        for post in posts:
+            if post.id in failed_ids:
+                _record_analysis_failure_event(session, post, "Post left pending by batch analysis.")
+        return
+
     for post in posts:
         try:
             analysis_service_client.analyze_and_persist(
                 AnalysisRequest(post_id=post.id, title=post.title, content=post.raw_content),
             )
         except Exception as exc:
-            record_analysis_failure(reason="write_failed")
-            session.add(
-                TechnicalEvent(
-                    severity="warning",
-                    subsystem="analysis",
-                    event_code="analysis.write_failed",
-                    summary="Post analysis write failed.",
-                    details=str(exc),
-                    source_id=post.source_id,
-                )
-            )
+            _record_analysis_failure_event(session, post, str(exc))
 
 
 def _record_sync_failure(

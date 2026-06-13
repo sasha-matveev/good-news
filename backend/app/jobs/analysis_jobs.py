@@ -29,10 +29,23 @@ def analyze_pending_posts(
             .limit(PENDING_BATCH_SIZE)
         ).all()
 
-    for post in pending_posts:
+    requests = [
+        AnalysisRequest(post_id=post.id, title=post.title, content=post.raw_content)
+        for post in pending_posts
+    ]
+    if not requests:
+        return
+
+    batch = getattr(analysis_client, "analyze_and_persist_batch", None)
+    if callable(batch):
+        failed_ids = batch(requests)
+        if failed_ids:
+            logger.warning("analyze_pending_posts: %d posts left pending: %s", len(failed_ids), failed_ids)
+        return
+
+    # Fallback for clients without a batch path (e.g. the legacy HTTP service client).
+    for request in requests:
         try:
-            analysis_client.analyze_and_persist(
-                AnalysisRequest(post_id=post.id, title=post.title, content=post.raw_content)
-            )
+            analysis_client.analyze_and_persist(request)
         except Exception:
-            logger.warning("analyze_pending_posts: failed to analyze post %d", post.id)
+            logger.warning("analyze_pending_posts: failed to analyze post %d", request.post_id)
