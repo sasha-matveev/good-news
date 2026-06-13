@@ -44,21 +44,43 @@ class ArticleInput:
     content: str
 
 
-_JSON_FIELDS_SPEC = (
-    "JSON fields per article:\n"
-    '  "summary_ru": a detailed summary in Russian (Кириллица), 4-6 sentences (roughly 60-120 words). '
+# The editable, content/instruction parts of the analysis prompt. These are the
+# defaults; in production they are overridden by the values stored in the
+# `settings` table (keys analysis_summary_prompt / analysis_verdict_reason_prompt).
+# Keep these strings identical to settings_service.DEFAULT_SETTINGS — that module
+# imports them from here to avoid drift.
+DEFAULT_SUMMARY_INSTRUCTIONS = (
+    "a detailed summary in Russian (Кириллица), 4-6 sentences (roughly 60-120 words). "
     "Cover what the article is about, its key points, arguments or findings, and the concrete takeaway — "
     "enough that the reader understands the substance without opening the article. "
     "Do not just rephrase the title; add the specifics from the body. "
     "Use only Russian words — no Latin, no code, no transliteration. "
-    'If you cannot write proper Russian, use "".\n'
-    '  "verdict_reason": 1 sentence in ENGLISH explaining why a developer would or would not want to read this. '
-    "MUST be in English. No Russian.\n"
-    '  "verdict": "interesting" if worth reading for a developer, otherwise "not_interesting".\n'
-    '  "topics": array of 1-3 short English tags like ["AI", "performance", "testing"].\n'
-    '  "format": one of tutorial|opinion|news|case-study|announcement|other.\n'
-    '  "technical_depth": one of beginner|intermediate|advanced.\n'
+    'If you cannot write proper Russian, use "".'
 )
+
+DEFAULT_VERDICT_REASON_INSTRUCTIONS = (
+    "1 sentence in ENGLISH explaining why a developer would or would not want to read this. "
+    "MUST be in English. No Russian."
+)
+
+
+def build_json_fields_spec(summary_instructions: str, verdict_reason_instructions: str) -> str:
+    """Compose the per-article JSON field spec.
+
+    Only the *content/instruction* parts for summary_ru and verdict_reason are
+    injectable; the JSON contract (field names, allowed values, the verdict /
+    topics / format / technical_depth lines) stays fixed so the parser keeps
+    working regardless of the configured instruction text.
+    """
+    return (
+        "JSON fields per article:\n"
+        '  "summary_ru": ' + summary_instructions + "\n"
+        '  "verdict_reason": ' + verdict_reason_instructions + "\n"
+        '  "verdict": "interesting" if worth reading for a developer, otherwise "not_interesting".\n'
+        '  "topics": array of 1-3 short English tags like ["AI", "performance", "testing"].\n'
+        '  "format": one of tutorial|opinion|news|case-study|announcement|other.\n'
+        '  "technical_depth": one of beginner|intermediate|advanced.\n'
+    )
 
 
 class GeminiClient:
@@ -89,16 +111,31 @@ class GeminiClient:
         return result
 
     def analyze_article(self, title: str, content: str) -> GeminiAnalysisPayload:
+        summary_instructions, verdict_reason_instructions = self._resolve_analysis_instructions()
         prompt = (
             "You are a JSON-only API. Read the article and return ONE JSON object. No explanation, no markdown.\n"
             "\n"
-            + _JSON_FIELDS_SPEC
+            + build_json_fields_spec(summary_instructions, verdict_reason_instructions)
             + "\n"
             f"Title: {title}\n"
             f"Content: {content[:CONTENT_SNIPPET_CHARS]}"
         )
         text = self._generate(prompt)
         return _normalize_analysis_payload(json.loads(text))
+
+    def _resolve_analysis_instructions(self) -> tuple[str, str]:
+        """Load the editable instruction texts once per public call.
+
+        Reads from the DB when a session factory is available (production); falls
+        back to the module defaults otherwise (tests / standalone use).
+        """
+        if self._session_factory is None:
+            return DEFAULT_SUMMARY_INSTRUCTIONS, DEFAULT_VERDICT_REASON_INSTRUCTIONS
+        from app.core.db import session_scope
+        from app.services.settings_service import get_analysis_prompts
+
+        with session_scope(self._session_factory) as session:
+            return get_analysis_prompts(session)
 
     # ---- batch path (used by source sync and the pending-analysis job) ----
 
@@ -139,16 +176,26 @@ class GeminiClient:
 
     def analyze_articles(self, items: list[ArticleInput]) -> dict[int, GeminiAnalysisPayload]:
         results: dict[int, GeminiAnalysisPayload] = {}
+        # Resolve the editable instructions once — not per chunk — so the batch
+        # loop does not issue a DB read on every iteration.
+        summary_instructions, verdict_reason_instructions = self._resolve_analysis_instructions()
         batch_size = max(1, self.settings.gemini_batch_size)
         for start in range(0, len(items), batch_size):
             chunk = items[start : start + batch_size]
             try:
-                results.update(self._analyze_chunk(chunk))
+                results.update(
+                    self._analyze_chunk(chunk, summary_instructions, verdict_reason_instructions)
+                )
             except Exception:
                 logger.exception("Gemini batch chunk failed for post ids %s", [i.post_id for i in chunk])
         return results
 
-    def _analyze_chunk(self, chunk: list[ArticleInput]) -> dict[int, GeminiAnalysisPayload]:
+    def _analyze_chunk(
+        self,
+        chunk: list[ArticleInput],
+        summary_instructions: str,
+        verdict_reason_instructions: str,
+    ) -> dict[int, GeminiAnalysisPayload]:
         articles_block = "\n\n".join(
             f"[id={item.post_id}]\nTitle: {item.title}\nContent: {item.content[:CONTENT_SNIPPET_CHARS]}"
             for item in chunk
@@ -160,7 +207,7 @@ class GeminiClient:
             'Return: {"results": [ {"id": <the id given for the article>, ...fields...}, ... ]}\n'
             "Echo back the exact id for each article. Include every id exactly once.\n"
             "\n"
-            + _JSON_FIELDS_SPEC
+            + build_json_fields_spec(summary_instructions, verdict_reason_instructions)
             + "\n"
             f"Articles:\n{articles_block}"
         )

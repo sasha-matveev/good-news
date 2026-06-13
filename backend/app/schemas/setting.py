@@ -19,6 +19,8 @@ class SettingsResponse(BaseModel):
     weekly_digest_enabled: bool
     weekly_digest_catch_up_enabled: bool
     smtp_password_configured: bool
+    analysis_summary_prompt: str
+    analysis_verdict_reason_prompt: str
 
 
 class SettingsUpdateRequest(BaseModel):
@@ -36,6 +38,19 @@ class SettingsUpdateRequest(BaseModel):
     weekly_digest_enabled: bool = False
     weekly_digest_catch_up_enabled: bool = True
     smtp_password: str | None = None
+    # Editable analysis instruction texts. Default to "" so older clients that
+    # omit them still validate; blank input is treated as "reset to default" by
+    # the settings service.
+    analysis_summary_prompt: str = ""
+    analysis_verdict_reason_prompt: str = ""
+
+    @field_validator("analysis_summary_prompt", "analysis_verdict_reason_prompt")
+    @classmethod
+    def validate_prompt_length(cls, value: str) -> str:
+        # Lenient cap to avoid pathological payloads; admin-authored text only.
+        if len(value) > 8000:
+            raise ValueError("prompt must be at most 8000 characters")
+        return value
 
     @field_validator("daily_digest_time", "weekly_digest_time")
     @classmethod

@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 
+import { MarkdownEditor } from "../components/MarkdownEditor";
 import { theme } from "../styles/theme";
 import {
   getSettings,
@@ -25,6 +26,8 @@ type SettingsFormState = {
   weekly_digest_catch_up_enabled: boolean;
   replace_password: boolean;
   smtp_password: string;
+  analysis_summary_prompt: string;
+  analysis_verdict_reason_prompt: string;
 };
 
 const WEEKDAY_OPTIONS: Array<{ label: string; value: WeeklyDigestDayOfWeek }> = [
@@ -53,7 +56,9 @@ function buildFormState(settings: SettingsRecord): SettingsFormState {
     weekly_digest_enabled: settings.weekly_digest_enabled,
     weekly_digest_catch_up_enabled: settings.weekly_digest_catch_up_enabled,
     replace_password: false,
-    smtp_password: ""
+    smtp_password: "",
+    analysis_summary_prompt: settings.analysis_summary_prompt,
+    analysis_verdict_reason_prompt: settings.analysis_verdict_reason_prompt
   };
 }
 
@@ -120,6 +125,8 @@ export function SettingsPage() {
         daily_digest_catch_up_enabled: form.daily_digest_catch_up_enabled,
         weekly_digest_enabled: form.weekly_digest_enabled,
         weekly_digest_catch_up_enabled: form.weekly_digest_catch_up_enabled,
+        analysis_summary_prompt: form.analysis_summary_prompt,
+        analysis_verdict_reason_prompt: form.analysis_verdict_reason_prompt,
         ...(form.replace_password ? { smtp_password: form.smtp_password } : {})
       });
       setForm(buildFormState(updated));
@@ -428,6 +435,50 @@ export function SettingsPage() {
               />
             ) : null}
           </div>
+
+          <section
+            style={{
+              backgroundColor: theme.color.card,
+              border: `1px solid ${theme.color.border}`,
+              borderRadius: theme.radius.card,
+              display: "grid",
+              gap: "14px",
+              padding: "18px"
+            }}
+          >
+            <div>
+              <h3 style={{ fontSize: "20px", margin: 0 }}>AI analysis</h3>
+              <p style={{ color: theme.color.muted, fontSize: "13px", margin: "6px 0 0" }}>
+                Only the content guidance below is editable. The JSON contract the model must follow
+                (field names, allowed verdict/topics/format/depth values) is fixed in code so the
+                analysis keeps parsing.
+              </p>
+            </div>
+
+            <MarkdownEditor
+              label="Post summary prompt"
+              ariaLabel="Post summary prompt"
+              value={form.analysis_summary_prompt}
+              rows={8}
+              helpText="Instructions for the summary_ru field. Leave blank to reset to the default."
+              onChange={(value) => {
+                setForm((current) => (current ? { ...current, analysis_summary_prompt: value } : current));
+              }}
+            />
+
+            <MarkdownEditor
+              label="Verdict reason prompt"
+              ariaLabel="Verdict reason prompt"
+              value={form.analysis_verdict_reason_prompt}
+              rows={4}
+              helpText="Instructions for the verdict_reason field. Leave blank to reset to the default."
+              onChange={(value) => {
+                setForm((current) =>
+                  current ? { ...current, analysis_verdict_reason_prompt: value } : current
+                );
+              }}
+            />
+          </section>
 
           <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
             <button

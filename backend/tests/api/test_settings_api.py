@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from app.core.db import create_engine_from_url, create_session_factory, session_scope
 from app.content_api_service.main import create_app
 from app.models.base import Base
+from app.ai.gemini_client import DEFAULT_SUMMARY_INSTRUCTIONS, DEFAULT_VERDICT_REASON_INSTRUCTIONS
 from app.models.setting import SecretSetting, Setting
 from app.testing.schema import stamp_schema_head
 
@@ -48,6 +49,8 @@ def test_settings_api_returns_defaults_and_persists_write_only_smtp_password() -
         "weekly_digest_enabled": False,
         "weekly_digest_catch_up_enabled": True,
         "smtp_password_configured": False,
+        "analysis_summary_prompt": DEFAULT_SUMMARY_INSTRUCTIONS,
+        "analysis_verdict_reason_prompt": DEFAULT_VERDICT_REASON_INSTRUCTIONS,
     }
 
     update_response = client.put(
@@ -87,6 +90,9 @@ def test_settings_api_returns_defaults_and_persists_write_only_smtp_password() -
         "weekly_digest_enabled": True,
         "weekly_digest_catch_up_enabled": False,
         "smtp_password_configured": True,
+        # PUT omitted the prompt fields → they fall back to the defaults.
+        "analysis_summary_prompt": DEFAULT_SUMMARY_INSTRUCTIONS,
+        "analysis_verdict_reason_prompt": DEFAULT_VERDICT_REASON_INSTRUCTIONS,
     }
     assert "plain-secret" not in update_response.text
 
@@ -101,6 +107,57 @@ def test_settings_api_returns_defaults_and_persists_write_only_smtp_password() -
 
     assert time_setting.value == "08:45"
     assert password_setting.encrypted_value != "plain-secret"
+
+
+def _base_update_payload() -> dict:
+    return {
+        "daily_digest_time": "12:00",
+        "weekly_digest_day_of_week": "sat",
+        "weekly_digest_time": "23:30",
+        "smtp_port": 587,
+        "smtp_security_mode": "starttls",
+        "daily_digest_enabled": True,
+        "daily_digest_catch_up_enabled": True,
+        "weekly_digest_enabled": False,
+        "weekly_digest_catch_up_enabled": True,
+    }
+
+
+def test_settings_api_persists_custom_analysis_prompts_and_resets_on_blank() -> None:
+    client, _ = build_client()
+
+    custom_summary = "Дай короткое резюме на русском в одном предложении."
+    custom_verdict = "One short English sentence on relevance."
+
+    update_response = client.put(
+        "/api/settings",
+        json={
+            **_base_update_payload(),
+            "analysis_summary_prompt": custom_summary,
+            "analysis_verdict_reason_prompt": custom_verdict,
+        },
+    )
+    assert update_response.status_code == 200
+    assert update_response.json()["analysis_summary_prompt"] == custom_summary
+    assert update_response.json()["analysis_verdict_reason_prompt"] == custom_verdict
+
+    # GET reflects the persisted custom values.
+    get_response = client.get("/api/settings")
+    assert get_response.json()["analysis_summary_prompt"] == custom_summary
+    assert get_response.json()["analysis_verdict_reason_prompt"] == custom_verdict
+
+    # Blank/whitespace input resets to the defaults.
+    reset_response = client.put(
+        "/api/settings",
+        json={
+            **_base_update_payload(),
+            "analysis_summary_prompt": "   ",
+            "analysis_verdict_reason_prompt": "",
+        },
+    )
+    assert reset_response.status_code == 200
+    assert reset_response.json()["analysis_summary_prompt"] == DEFAULT_SUMMARY_INSTRUCTIONS
+    assert reset_response.json()["analysis_verdict_reason_prompt"] == DEFAULT_VERDICT_REASON_INSTRUCTIONS
 
 
 def test_settings_api_rejects_invalid_daily_time() -> None:

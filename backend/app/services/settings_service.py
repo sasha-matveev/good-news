@@ -8,6 +8,13 @@ import os
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+# Import the prompt instruction defaults from the Gemini client so the two
+# modules never drift. gemini_client only imports app.core.config at module
+# level, so this does not create an import cycle.
+from app.ai.gemini_client import (
+    DEFAULT_SUMMARY_INSTRUCTIONS,
+    DEFAULT_VERDICT_REASON_INSTRUCTIONS,
+)
 from app.models.setting import SecretSetting, Setting
 
 
@@ -25,6 +32,8 @@ DEFAULT_SETTINGS = {
     "daily_digest_catch_up_enabled": "true",
     "weekly_digest_enabled": "false",
     "weekly_digest_catch_up_enabled": "true",
+    "analysis_summary_prompt": DEFAULT_SUMMARY_INSTRUCTIONS,
+    "analysis_verdict_reason_prompt": DEFAULT_VERDICT_REASON_INSTRUCTIONS,
 }
 
 
@@ -44,6 +53,8 @@ class AppSettings:
     weekly_digest_enabled: bool
     weekly_digest_catch_up_enabled: bool
     smtp_password_configured: bool
+    analysis_summary_prompt: str
+    analysis_verdict_reason_prompt: str
 
 
 @dataclass(frozen=True)
@@ -62,12 +73,20 @@ class AppSettingsUpdate:
     weekly_digest_enabled: bool
     weekly_digest_catch_up_enabled: bool
     smtp_password: str | None
+    analysis_summary_prompt: str
+    analysis_verdict_reason_prompt: str
 
 
 def _as_bool(value: str | None, default: bool) -> bool:
     if value is None:
         return default
     return value.lower() == "true"
+
+
+def _blank_to_none(value: str | None) -> str | None:
+    if value is None or not value.strip():
+        return None
+    return value
 
 
 def _derive_keystream(*, master_key: str, nonce: bytes, length: int) -> bytes:
@@ -116,6 +135,30 @@ def load_settings(session: Session) -> AppSettings:
         weekly_digest_enabled=_as_bool(stored.get("weekly_digest_enabled"), False),
         weekly_digest_catch_up_enabled=_as_bool(stored.get("weekly_digest_catch_up_enabled"), True),
         smtp_password_configured="smtp_password" in secret_keys,
+        analysis_summary_prompt=stored.get("analysis_summary_prompt")
+        or DEFAULT_SETTINGS["analysis_summary_prompt"],
+        analysis_verdict_reason_prompt=stored.get("analysis_verdict_reason_prompt")
+        or DEFAULT_SETTINGS["analysis_verdict_reason_prompt"],
+    )
+
+
+def get_analysis_prompts(session: Session) -> tuple[str, str]:
+    """Return (analysis_summary_prompt, analysis_verdict_reason_prompt).
+
+    Falls back to the defaults when nothing is stored. Used by the Gemini client
+    to inject the editable instruction texts into the analysis prompt.
+    """
+    stored = {
+        row.key: row.value
+        for row in session.execute(
+            select(Setting).where(
+                Setting.key.in_(["analysis_summary_prompt", "analysis_verdict_reason_prompt"])
+            )
+        ).scalars()
+    }
+    return (
+        stored.get("analysis_summary_prompt") or DEFAULT_SETTINGS["analysis_summary_prompt"],
+        stored.get("analysis_verdict_reason_prompt") or DEFAULT_SETTINGS["analysis_verdict_reason_prompt"],
     )
 
 
@@ -149,6 +192,12 @@ def save_settings(session: Session, payload: AppSettingsUpdate, master_key: str)
     _upsert_setting(session, "daily_digest_catch_up_enabled", str(payload.daily_digest_catch_up_enabled).lower())
     _upsert_setting(session, "weekly_digest_enabled", str(payload.weekly_digest_enabled).lower())
     _upsert_setting(session, "weekly_digest_catch_up_enabled", str(payload.weekly_digest_catch_up_enabled).lower())
+    # Blank/whitespace-only prompt input means "reset to default": store None so
+    # load_settings falls back to DEFAULT_SETTINGS and the prompt is never empty.
+    _upsert_setting(session, "analysis_summary_prompt", _blank_to_none(payload.analysis_summary_prompt))
+    _upsert_setting(
+        session, "analysis_verdict_reason_prompt", _blank_to_none(payload.analysis_verdict_reason_prompt)
+    )
     if payload.smtp_password:
         _upsert_secret_setting(session, "smtp_password", encrypt_secret(payload.smtp_password, master_key))
     session.flush()

@@ -37,7 +37,9 @@ const initialSettings = {
   daily_digest_catch_up_enabled: true,
   weekly_digest_enabled: false,
   weekly_digest_catch_up_enabled: true,
-  smtp_password_configured: true
+  smtp_password_configured: true,
+  analysis_summary_prompt: "Default summary instructions.",
+  analysis_verdict_reason_prompt: "Default verdict instructions."
 };
 
 const savedSettings = {
@@ -55,7 +57,9 @@ const savedSettings = {
   daily_digest_catch_up_enabled: false,
   weekly_digest_enabled: true,
   weekly_digest_catch_up_enabled: false,
-  smtp_password_configured: true
+  smtp_password_configured: true,
+  analysis_summary_prompt: "Default summary instructions.",
+  analysis_verdict_reason_prompt: "Default verdict instructions."
 };
 
 test("settings page loads persisted settings, supports masked password replacement, saves schedule, and sends test email", async () => {
@@ -149,6 +153,8 @@ test("settings page loads persisted settings, supports masked password replaceme
         daily_digest_catch_up_enabled: false,
         weekly_digest_enabled: true,
         weekly_digest_catch_up_enabled: false,
+        analysis_summary_prompt: "Default summary instructions.",
+        analysis_verdict_reason_prompt: "Default verdict instructions.",
         smtp_password: "fresh-secret"
       })
     });
@@ -212,4 +218,63 @@ test("settings page shows active button labels while saving settings and sending
   testEmailResponse.resolve();
 
   expect(await screen.findByText("Test email sent.")).toBeInTheDocument();
+});
+
+test("settings page exposes AI analysis prompt editors and sends the edited summary prompt on save", async () => {
+  let putBody: unknown = null;
+
+  const fetchMock = vi.fn<typeof fetch>().mockImplementation((url, init) => {
+    const urlStr = typeof url === "string" ? url : String(url);
+    const method = (init as RequestInit | undefined)?.method ?? "GET";
+
+    if (urlStr.includes("/api/monitoring/summary")) {
+      return Promise.resolve(new Response(JSON.stringify([]), { status: 200 }));
+    }
+    if (urlStr.includes("/api/posts")) {
+      return Promise.resolve(new Response(JSON.stringify([]), { status: 200 }));
+    }
+    if (urlStr === "/api/settings" && method === "PUT") {
+      putBody = JSON.parse((init as RequestInit).body as string);
+      return Promise.resolve(new Response(JSON.stringify(savedSettings), { status: 200 }));
+    }
+    if (urlStr === "/api/settings" && method === "GET") {
+      return Promise.resolve(new Response(JSON.stringify(initialSettings), { status: 200 }));
+    }
+    return Promise.resolve(new Response(JSON.stringify([]), { status: 200 }));
+  });
+
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<AppShell />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+
+  // Both editor controls render and are pre-filled from the loaded settings.
+  const summaryEditor = await screen.findByLabelText("Post summary prompt");
+  expect(summaryEditor).toBeInTheDocument();
+  expect(screen.getByLabelText("Verdict reason prompt")).toBeInTheDocument();
+  expect(summaryEditor).toHaveValue("Default summary instructions.");
+
+  // Edit the summary prompt with Markdown, then verify the Preview toggle renders it.
+  fireEvent.change(summaryEditor, { target: { value: "# My heading\n\nSummarize **clearly**." } });
+
+  // The Post summary editor's own Edit/Preview tabs are the first pair on the page.
+  const previewButtons = screen.getAllByRole("tab", { name: "Preview" });
+  fireEvent.click(previewButtons[0]);
+
+  const heading = await screen.findByRole("heading", { name: "My heading" });
+  expect(heading).toBeInTheDocument();
+  expect(heading.tagName).toBe("H1");
+  expect(screen.getByText("clearly")).toBeInTheDocument();
+
+  // Switch back to Edit and save; the PUT carries the edited prompt text.
+  fireEvent.click(screen.getAllByRole("tab", { name: "Edit" })[0]);
+  fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+
+  await waitFor(() => {
+    expect(putBody).toMatchObject({
+      analysis_summary_prompt: "# My heading\n\nSummarize **clearly**.",
+      analysis_verdict_reason_prompt: "Default verdict instructions."
+    });
+  });
 });
