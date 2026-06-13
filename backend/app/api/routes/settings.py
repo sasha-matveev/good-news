@@ -66,6 +66,8 @@ def update_settings(
             weekly_digest_enabled=payload.weekly_digest_enabled,
             weekly_digest_catch_up_enabled=payload.weekly_digest_catch_up_enabled,
             smtp_password=payload.smtp_password,
+            analysis_summary_prompt=payload.analysis_summary_prompt,
+            analysis_verdict_reason_prompt=payload.analysis_verdict_reason_prompt,
         ),
         master_key,
     )

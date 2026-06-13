@@ -28,6 +28,10 @@ dev = [
 [tool.pytest.ini_options]
 addopts = "-q -p no:cacheprovider"
 testpaths = ["tests"]
+# Prepend this directory (rootdir) so the local `app` package is imported even
+# when an editable install on sys.path points elsewhere (e.g. a git worktree
+# sharing the parent checkout's editable install).
+pythonpath = ["."]
 
 [tool.setuptools.packages.find]
 include = ["app*"]

@@ -67,6 +67,8 @@ export type SettingsRecord = {
   weekly_digest_enabled: boolean;
   weekly_digest_catch_up_enabled: boolean;
   smtp_password_configured: boolean;
+  analysis_summary_prompt: string;
+  analysis_verdict_reason_prompt: string;
 };
 
 export type WeeklyDigestDayOfWeek =
@@ -93,6 +95,8 @@ export type SettingsUpdate = {
   weekly_digest_enabled: boolean;
   weekly_digest_catch_up_enabled: boolean;
   smtp_password?: string;
+  analysis_summary_prompt: string;
+  analysis_verdict_reason_prompt: string;
 };
 
 export type DigestListItemRecord = {

@@ -5,8 +5,18 @@ import os
 
 import httpx
 
-from app.ai.gemini_client import ArticleInput, GeminiClient
+from app.ai.gemini_client import (
+    DEFAULT_SUMMARY_INSTRUCTIONS,
+    DEFAULT_VERDICT_REASON_INSTRUCTIONS,
+    ArticleInput,
+    GeminiClient,
+    build_json_fields_spec,
+)
 from app.core.config import Settings
+from app.core.db import create_engine_from_url, create_session_factory, session_scope
+from app.models.base import Base
+from app.models.setting import Setting
+from app.testing.schema import stamp_schema_head
 
 
 def _gemini_response(payload: object) -> dict:
@@ -327,3 +337,94 @@ def test_gemini_client_retries_on_429(monkeypatch) -> None:
 
     assert len(attempts) == 2  # one 429, one success
     assert result.verdict == "interesting"
+
+
+def test_build_json_fields_spec_injects_custom_instructions_and_keeps_fixed_lines() -> None:
+    spec = build_json_fields_spec("MY CUSTOM SUMMARY GUIDE", "MY CUSTOM VERDICT GUIDE")
+
+    # Editable instruction texts are injected for their respective fields.
+    assert '"summary_ru": MY CUSTOM SUMMARY GUIDE' in spec
+    assert '"verdict_reason": MY CUSTOM VERDICT GUIDE' in spec
+    # The fixed JSON contract lines remain unchanged.
+    assert '"verdict": "interesting" if worth reading for a developer' in spec
+    assert '"topics": array of 1-3 short English tags' in spec
+    assert '"format": one of tutorial|opinion|news|case-study|announcement|other.' in spec
+    assert '"technical_depth": one of beginner|intermediate|advanced.' in spec
+
+
+def test_gemini_client_without_session_factory_uses_default_summary_instructions() -> None:
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(
+            200,
+            json=_gemini_response(
+                {
+                    "summary_ru": "Резюме.",
+                    "topics": ["ai"],
+                    "format": "news",
+                    "technical_depth": "intermediate",
+                    "verdict": "interesting",
+                    "verdict_reason": "Useful.",
+                }
+            ),
+        )
+
+    os.environ["GOOD_NEWS_GEMINI_API_KEY"] = "test-key"
+    try:
+        # _build_client constructs the client WITHOUT a session_factory.
+        _build_client(handler).analyze_article(title="Alpha", content="Body")
+    finally:
+        del os.environ["GOOD_NEWS_GEMINI_API_KEY"]
+
+    prompt_text = captured["body"]["contents"][0]["parts"][0]["text"]
+    assert "4-6 sentences" in prompt_text
+    assert DEFAULT_SUMMARY_INSTRUCTIONS in prompt_text
+    assert DEFAULT_VERDICT_REASON_INSTRUCTIONS in prompt_text
+
+
+def test_gemini_client_uses_custom_prompt_from_database() -> None:
+    engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session_factory = create_session_factory(engine)
+    stamp_schema_head(session_factory)
+
+    custom_summary = "Дай однострочное резюме на русском."
+    with session_scope(session_factory) as session:
+        session.add(Setting(key="analysis_summary_prompt", value=custom_summary))
+        session.commit()
+
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(
+            200,
+            json=_gemini_response(
+                {
+                    "summary_ru": "Резюме.",
+                    "topics": ["ai"],
+                    "format": "news",
+                    "technical_depth": "intermediate",
+                    "verdict": "interesting",
+                    "verdict_reason": "Useful.",
+                }
+            ),
+        )
+
+    os.environ["GOOD_NEWS_GEMINI_API_KEY"] = "test-key"
+    try:
+        client = GeminiClient(
+            settings=Settings(gemini_model="gemini-2.5-flash-lite", gemini_max_rpm=60000),
+            client=httpx.Client(transport=httpx.MockTransport(handler)),
+            session_factory=session_factory,
+        )
+        client.analyze_article(title="Alpha", content="Body")
+    finally:
+        del os.environ["GOOD_NEWS_GEMINI_API_KEY"]
+
+    prompt_text = captured["body"]["contents"][0]["parts"][0]["text"]
+    assert custom_summary in prompt_text
+    # The unset verdict_reason prompt still falls back to its default.
+    assert DEFAULT_VERDICT_REASON_INSTRUCTIONS in prompt_text
