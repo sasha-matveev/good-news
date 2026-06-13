@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 import httpx
 
 from app.core.config import Settings
+from app.core.observability import record_gemini_rate_limited
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import sessionmaker, Session
@@ -184,6 +185,7 @@ class GeminiClient:
             if response.status_code == 429 and attempt < max_attempts:
                 delay = _retry_delay_seconds(response, attempt)
                 logger.warning("Gemini 429 (attempt %d/%d); backing off %.1fs", attempt, max_attempts, delay)
+                record_gemini_rate_limited(model=self.settings.gemini_model, attempt=attempt)
                 time.sleep(delay)
                 continue
             response.raise_for_status()
