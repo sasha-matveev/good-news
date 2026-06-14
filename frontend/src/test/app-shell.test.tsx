@@ -62,6 +62,7 @@ test("app shell lands directly on want to read for deep-link paths", async () =>
                 summary_ru: null,
                 verdict: null,
                 verdict_reason: null,
+                relevance_score: null,
                 ranking_explanation: "feedback=none"
               }
             ]),

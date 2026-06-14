@@ -30,6 +30,7 @@ const BASE_POST = {
   summary_ru: "Разбор подходов для Beta.",
   verdict: "interesting",
   verdict_reason: "High practical backend value.",
+  relevance_score: 6,
   ranking_explanation: "feedback=none; topic_affinity=0.9"
 };
 
@@ -46,6 +47,7 @@ const OLDER_POST = {
   summary_ru: "Русское summary for Alpha.",
   verdict: "interesting",
   verdict_reason: "High operator relevance.",
+  relevance_score: 9,
   ranking_explanation: "feedback=interesting; source_affinity=0.4"
 };
 

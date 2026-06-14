@@ -76,6 +76,7 @@ def test_get_posts_defaults_to_last_month_and_returns_placeholder_ranking_order(
             "summary_ru": None,
             "verdict": None,
             "verdict_reason": None,
+            "relevance_score": None,
             "ranking_explanation": "feedback=none; source_affinity=0.0; topic_affinity=0.0; format_affinity=0.0; practical=0.1; depth=0.0; recency=0.3",
         }
     ]
@@ -150,6 +151,7 @@ def test_get_posts_supports_window_all_source_filter_and_feedback_filter() -> No
             "summary_ru": None,
             "verdict": None,
             "verdict_reason": None,
+            "relevance_score": None,
             "ranking_explanation": "feedback=interesting; source_affinity=0.4; topic_affinity=0.0; format_affinity=0.0; practical=0.1; depth=0.0; recency=0.3",
         }
     ]
@@ -292,6 +294,61 @@ def test_get_posts_sort_match_ranks_by_match_score() -> None:
     assert response.status_code == 200
     ids = [item["id"] for item in response.json()]
     assert ids[0] == 1, f"sort=match should rank the interesting post first; got order {ids}"
+
+
+def test_get_posts_sort_match_ranks_by_relevance_score_over_recency() -> None:
+    """A profile-aware relevance_score outranks a newer post with a lower score."""
+    client, session_factory = build_client()
+
+    def _analysis_metadata(relevance_score: int) -> str:
+        return json.dumps(
+            {
+                "topics": ["devops"],
+                "format": "guide",
+                "technical_depth": "medium",
+                "verdict": "interesting",
+                "verdict_reason": "Relevant.",
+                "relevance_score": relevance_score,
+            },
+            sort_keys=True,
+        )
+
+    with session_scope(session_factory) as session:
+        session.add(Source(id=1, display_name="Alpha", original_url="https://alpha.example", status="ready"))
+        session.add_all([
+            Post(
+                id=1,
+                source_id=1,
+                canonical_url="https://alpha.example/posts/one",
+                title="Older but high relevance",
+                published_at=datetime(2026, 1, 1, 8, 0, tzinfo=UTC),
+                raw_content="Older content.",
+                content_hash="hash-1",
+                ingest_metadata='{"strategy":"feed"}',
+            ),
+            Post(
+                id=2,
+                source_id=1,
+                canonical_url="https://alpha.example/posts/two",
+                title="Newer but low relevance",
+                published_at=datetime(2026, 4, 25, 8, 0, tzinfo=UTC),
+                raw_content="Newer content.",
+                content_hash="hash-2",
+                ingest_metadata='{"strategy":"feed"}',
+            ),
+        ])
+        session.add_all([
+            PostAnalysis(post_id=1, summary_ru="s1", metadata_json=_analysis_metadata(9)),
+            PostAnalysis(post_id=2, summary_ru="s2", metadata_json=_analysis_metadata(3)),
+        ])
+
+    response = client.get("/api/posts?sort=match&window=all")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [item["id"] for item in body] == [1, 2], "higher relevance_score must rank first"
+    assert body[0]["relevance_score"] == 9
+    assert body[1]["relevance_score"] == 3
 
 
 def test_get_posts_sort_date_returns_newest_first() -> None:

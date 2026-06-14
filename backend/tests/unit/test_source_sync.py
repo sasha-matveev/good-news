@@ -405,6 +405,7 @@ def test_sync_active_sources_writes_post_analysis_through_analysis_flow() -> Non
                 technical_depth="deep",
                 verdict="interesting",
                 verdict_reason="Strong backend learning signal.",
+                relevance_score=8,
             )
 
     engine = create_engine_from_url("sqlite+pysqlite:///:memory:")

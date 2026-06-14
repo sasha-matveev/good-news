@@ -52,6 +52,7 @@ def test_gemini_client_sends_json_request_and_accepts_summary_alias() -> None:
                     "technical_depth": "intermediate",
                     "verdict": "interesting",
                     "verdict_reason": "Useful boundary check.",
+                    "relevance_score": 8,
                 }
             ),
         )
@@ -75,10 +76,13 @@ def test_gemini_client_sends_json_request_and_accepts_summary_alias() -> None:
     assert "Title: Alpha" in prompt_text
     assert "Content: Body" in prompt_text
     assert '"summary_ru"' in prompt_text
+    assert '"relevance_score"' in prompt_text
     # The summary must be requested as a detailed, multi-sentence Russian overview,
     # not a one-line restatement of the title.
     assert "detailed summary in Russian" in prompt_text
     assert "4-6 sentences" in prompt_text
+    # No session factory → no feedback profile → no preference block in the prompt.
+    assert "READER PREFERENCE PROFILE" not in prompt_text
 
     assert result.summary_ru == "Краткое резюме на русском языке."
     assert result.topics == ["verification"]
@@ -86,6 +90,7 @@ def test_gemini_client_sends_json_request_and_accepts_summary_alias() -> None:
     assert result.technical_depth == "intermediate"
     assert result.verdict == "interesting"
     assert result.verdict_reason == "Useful boundary check."
+    assert result.relevance_score == 8
 
 
 def test_gemini_client_normalizes_aliases_and_scalar_field_types() -> None:
@@ -248,6 +253,7 @@ def _batch_item(article_id: int) -> dict:
         "technical_depth": "intermediate",
         "verdict": "interesting",
         "verdict_reason": "Useful.",
+        "relevance_score": 7,
     }
 
 
@@ -281,6 +287,7 @@ def test_gemini_client_batches_articles_into_single_request() -> None:
     assert '"results"' in prompt
     assert set(results.keys()) == {1, 2, 3}
     assert results[1].verdict == "interesting"
+    assert results[1].relevance_score == 7
     assert results[2].summary_ru == "Краткое резюме на русском языке."
 
 
@@ -346,7 +353,8 @@ def test_build_json_fields_spec_injects_custom_instructions_and_keeps_fixed_line
     assert '"summary_ru": MY CUSTOM SUMMARY GUIDE' in spec
     assert '"verdict_reason": MY CUSTOM VERDICT GUIDE' in spec
     # The fixed JSON contract lines remain unchanged.
-    assert '"verdict": "interesting" if worth reading for a developer' in spec
+    assert '"verdict": "interesting" if worth reading for this reader' in spec
+    assert '"relevance_score": integer 0-10' in spec
     assert '"topics": array of 1-3 short English tags' in spec
     assert '"format": one of tutorial|opinion|news|case-study|announcement|other.' in spec
     assert '"technical_depth": one of beginner|intermediate|advanced.' in spec
@@ -428,3 +436,81 @@ def test_gemini_client_uses_custom_prompt_from_database() -> None:
     assert custom_summary in prompt_text
     # The unset verdict_reason prompt still falls back to its default.
     assert DEFAULT_VERDICT_REASON_INSTRUCTIONS in prompt_text
+
+
+def test_gemini_client_injects_reader_preference_profile_into_prompt() -> None:
+    from datetime import UTC, datetime
+
+    from app.models.feedback import Feedback
+    from app.models.post import Post
+    from app.models.post_analysis import PostAnalysis
+    from app.models.source import Source
+
+    engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session_factory = create_session_factory(engine)
+    stamp_schema_head(session_factory)
+
+    # Seed one "interesting" reaction so build_preference_profile yields signals.
+    with session_scope(session_factory) as session:
+        session.add(Source(id=1, display_name="Alpha Blog", original_url="https://alpha.example", status="ready"))
+        session.add(
+            Post(
+                id=1,
+                source_id=1,
+                canonical_url="https://alpha.example/posts/one",
+                title="Liked post",
+                published_at=datetime(2026, 4, 20, 9, 0, tzinfo=UTC),
+                raw_content="content",
+                content_hash="hash-1",
+                ingest_metadata='{"strategy":"feed"}',
+            )
+        )
+        session.add(
+            PostAnalysis(
+                post_id=1,
+                summary_ru="s",
+                metadata_json=json.dumps(
+                    {"topics": ["observability"], "format": "postmortem", "technical_depth": "deep"},
+                    sort_keys=True,
+                ),
+            )
+        )
+        session.add(Feedback(post_id=1, state="interesting"))
+        session.commit()
+
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(
+            200,
+            json=_gemini_response(
+                {
+                    "summary_ru": "Резюме.",
+                    "topics": ["ai"],
+                    "format": "news",
+                    "technical_depth": "intermediate",
+                    "verdict": "interesting",
+                    "verdict_reason": "Useful.",
+                    "relevance_score": 6,
+                }
+            ),
+        )
+
+    os.environ["GOOD_NEWS_GEMINI_API_KEY"] = "test-key"
+    try:
+        client = GeminiClient(
+            settings=Settings(gemini_model="gemini-2.5-flash-lite", gemini_max_rpm=60000),
+            client=httpx.Client(transport=httpx.MockTransport(handler)),
+            session_factory=session_factory,
+        )
+        client.analyze_article(title="New post", content="Body")
+    finally:
+        del os.environ["GOOD_NEWS_GEMINI_API_KEY"]
+
+    prompt_text = captured["body"]["contents"][0]["parts"][0]["text"]
+    assert "READER PREFERENCE PROFILE" in prompt_text
+    # The reader's positive signals (liked source + topic) surface in the prompt.
+    assert "Alpha Blog" in prompt_text
+    assert "observability" in prompt_text

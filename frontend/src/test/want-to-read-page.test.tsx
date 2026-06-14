@@ -35,6 +35,7 @@ const savedPost = {
   summary_ru: null,
   verdict: null,
   verdict_reason: null,
+  relevance_score: null,
   ranking_explanation: "feedback=none"
 };
 
@@ -107,6 +108,7 @@ test("feed save flows through to the want to read tab", async () => {
     summary_ru: null,
     verdict: null,
     verdict_reason: null,
+    relevance_score: null,
     ranking_explanation: "feedback=none"
   };
 

@@ -93,14 +93,22 @@ def map_rows_to_post_responses(rows: Sequence[object], *, rank_results: bool) ->
         ranked_results = rank_post_projections(projections)
         score_by_post_id = {entry.post_id: entry for entry in ranked_results}
         explanation_by_post_id = {entry.post_id: entry.explanation for entry in ranked_results}
-        ordered_rows = sorted(
-            rows,
-            key=lambda row: (
-                score_by_post_id.get(row.id).score if row.id in score_by_post_id else -9999,
+
+        def _match_sort_key(row: object) -> tuple[int, int, float, int]:
+            # Primary signal: the AI's profile-aware relevance score. Analyzed
+            # posts (score present) always rank above not-yet-analyzed ones, and
+            # the heuristic composite breaks ties / orders the un-analyzed tail by
+            # feedback + recency.
+            relevance = analysis_by_post_id[row.id].relevance_score
+            composite = score_by_post_id[row.id].score if row.id in score_by_post_id else -9999.0
+            return (
+                1 if relevance is not None else 0,
+                relevance if relevance is not None else 0,
+                composite,
                 row.id,
-            ),
-            reverse=True,
-        )
+            )
+
+        ordered_rows = sorted(rows, key=_match_sort_key, reverse=True)
 
     response_rows = []
     for row in ordered_rows:
@@ -122,6 +130,7 @@ def map_rows_to_post_responses(rows: Sequence[object], *, rank_results: bool) ->
                     "summary_ru": analysis.summary_ru,
                     "verdict": analysis.verdict,
                     "verdict_reason": analysis.verdict_reason,
+                    "relevance_score": analysis.relevance_score,
                     "ranking_explanation": explanation_by_post_id.get(row.id),
                 },
             )()
