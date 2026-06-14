@@ -132,3 +132,24 @@ def rank_post_projections(posts: list[RankablePostProjection]) -> list[RankingRe
 
 def depth_score(raw_depth: str | None) -> float:
     return DEPTH_WEIGHTS.get(raw_depth or "", 0.0)
+
+
+def match_sort_value(
+    relevance_score: int | None,
+    composite_score: float,
+    post_id: int,
+) -> tuple[int, int, float, int]:
+    """Shared feed/digest ordering key — use with ``reverse=True``.
+
+    The post's stored, profile-aware AI relevance score is the primary signal, so
+    a post is ordered the same way everywhere it appears. Posts that have been
+    analyzed (score present) always rank above not-yet-analyzed ones; the
+    heuristic composite then breaks ties and orders the un-analyzed tail by
+    feedback + recency.
+    """
+    return (
+        1 if relevance_score is not None else 0,
+        relevance_score if relevance_score is not None else 0,
+        composite_score,
+        post_id,
+    )

@@ -60,7 +60,10 @@ def test_generate_daily_digest_returns_top_five_ranked_posts_and_exact_remainder
             content_api_base_url="https://api.good-news.example",
         )
 
-    assert [post.post_id for post in digest.posts] == [2, 1, 3, 4, 5]
+    # 2 (want_to_read) and 1 (interesting) lead on feedback; 3 keeps topic/format
+    # affinity; the un-analyzed tail 5,4 falls back to the shared composite, where
+    # the newer post (5) edges out 4 — the same raw-recency tiebreak the feed uses.
+    assert [post.post_id for post in digest.posts] == [2, 1, 3, 5, 4]
     assert digest.more_count == 1
     assert "1 more post in the collection" in digest.html_body
     assert digest.digest_id > 0
@@ -68,6 +71,60 @@ def test_generate_daily_digest_returns_top_five_ranked_posts_and_exact_remainder
         f'href="https://api.good-news.example/api/feedback/2/interesting?digest_id={digest.digest_id}"'
         in digest.html_body
     )
+
+
+def test_generate_daily_digest_orders_by_stored_relevance_score() -> None:
+    """The digest ranks by the same stored AI relevance_score the feed uses."""
+    engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session_factory = create_session_factory(engine)
+
+    scores = {1: 3, 2: 9, 3: 6}
+    with session_scope(session_factory) as session:
+        session.add(Source(id=1, display_name="Alpha", original_url="https://alpha.example", status="ready"))
+        for index in (1, 2, 3):
+            session.add(
+                Post(
+                    id=index,
+                    source_id=1,
+                    canonical_url=f"https://alpha.example/posts/{index}",
+                    title=f"Post {index}",
+                    # Post 1 is the newest, so recency alone would rank it first.
+                    published_at=datetime(2026, 4, 26, 12 - index, 0, tzinfo=UTC),
+                    raw_content=f"Content {index}",
+                    content_hash=f"hash-{index}",
+                    ingest_metadata='{"strategy":"feed"}',
+                )
+            )
+            session.add(
+                PostAnalysis(
+                    post_id=index,
+                    summary_ru=f"Summary {index}",
+                    metadata_json=json.dumps(
+                        {
+                            "topics": ["backend"],
+                            "format": "news",
+                            "technical_depth": "medium",
+                            "verdict": "interesting",
+                            "verdict_reason": f"Reason {index}",
+                            "relevance_score": scores[index],
+                        }
+                    ),
+                )
+            )
+
+    with session_scope(session_factory) as session:
+        digest = generate_daily_digest(
+            session=session,
+            now=datetime(2026, 4, 26, 12, 0, tzinfo=UTC),
+            frontend_base_url="https://good-news.example",
+            content_api_base_url="https://api.good-news.example",
+        )
+
+    # Order follows relevance_score (9 > 6 > 3), not publication recency.
+    assert [post.post_id for post in digest.posts] == [2, 3, 1]
+    # The stored score travels into the rendered email — same number as the feed.
+    assert "Match: 9/10" in digest.html_body
 
 
 def test_generate_weekly_digest_uses_recent_window_and_persists_weekly_type() -> None:
