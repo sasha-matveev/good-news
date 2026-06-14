@@ -13,7 +13,7 @@ from app.models.read_later import ReadLater
 from app.models.source import Source
 from app.schemas.post import PostResponse
 from app.services.analysis import StoredPostAnalysis
-from app.services.ranking import RankablePostProjection, rank_post_projections
+from app.services.ranking import RankablePostProjection, match_sort_value, rank_post_projections
 
 
 def build_post_listing_statement(
@@ -95,18 +95,9 @@ def map_rows_to_post_responses(rows: Sequence[object], *, rank_results: bool) ->
         explanation_by_post_id = {entry.post_id: entry.explanation for entry in ranked_results}
 
         def _match_sort_key(row: object) -> tuple[int, int, float, int]:
-            # Primary signal: the AI's profile-aware relevance score. Analyzed
-            # posts (score present) always rank above not-yet-analyzed ones, and
-            # the heuristic composite breaks ties / orders the un-analyzed tail by
-            # feedback + recency.
             relevance = analysis_by_post_id[row.id].relevance_score
             composite = score_by_post_id[row.id].score if row.id in score_by_post_id else -9999.0
-            return (
-                1 if relevance is not None else 0,
-                relevance if relevance is not None else 0,
-                composite,
-                row.id,
-            )
+            return match_sort_value(relevance, composite, row.id)
 
         ordered_rows = sorted(rows, key=_match_sort_key, reverse=True)
 

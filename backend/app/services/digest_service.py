@@ -14,7 +14,7 @@ from app.models.post import Post
 from app.models.post_analysis import PostAnalysis
 from app.models.source import Source
 from app.services.analysis import StoredPostAnalysis
-from app.services.ranking import RankablePostProjection, rank_post_projections
+from app.services.ranking import RankablePostProjection, match_sort_value, rank_post_projections
 
 
 @dataclass(frozen=True)
@@ -26,6 +26,7 @@ class DigestEmailPost:
     summary_ru: str | None
     verdict: str | None
     verdict_reason: str | None
+    relevance_score: int | None
 
 
 @dataclass(frozen=True)
@@ -48,8 +49,7 @@ class DigestInput:
     summary_ru: str | None
     verdict: str | None
     verdict_reason: str | None
-    ranking_score: float
-    ranking_explanation: str
+    relevance_score: int | None
 
 
 def render_daily_digest_email(
@@ -63,11 +63,13 @@ def render_daily_digest_email(
     normalized_feedback_base_url = feedback_base_url.rstrip("/")
     parts = ["<html><body>", f"<h1>{digest_title}</h1>"]
     for post in posts:
+        match_line = f"<p>Match: {post.relevance_score}/10</p>" if post.relevance_score is not None else ""
         parts.extend(
             [
                 "<article>",
                 f"<h2>{post.title}</h2>",
                 f"<p>Source: {post.source_name or 'Unknown'}</p>",
+                match_line,
                 f'<p><a href="{post.canonical_url}">Open original</a></p>',
                 f"<p>{post.summary_ru or ''}</p>",
                 f"<p>Verdict: {post.verdict or ''}</p>",
@@ -127,23 +129,32 @@ def _build_digest_inputs(session: Session, *, published_since: datetime | None =
             )
         )
 
-    ranked = rank_post_projections(projections)
-    return [
+    # The heuristic composite is only the fallback for not-yet-analyzed posts;
+    # the stored AI relevance score is the primary ordering signal, identical to
+    # the feed (see match_sort_value).
+    composite_by_post_id = {entry.post_id: entry.score for entry in rank_post_projections(projections)}
+    digest_inputs = [
         DigestInput(
-            post_id=entry.post_id,
-            title=rows_by_post_id[entry.post_id].title,
-            source_name=rows_by_post_id[entry.post_id].source_name,
-            canonical_url=rows_by_post_id[entry.post_id].canonical_url,
-            published_at=rows_by_post_id[entry.post_id].published_at,
-            feedback_state=rows_by_post_id[entry.post_id].feedback_state,
-            summary_ru=analysis_by_post_id[entry.post_id].summary_ru,
-            verdict=analysis_by_post_id[entry.post_id].verdict,
-            verdict_reason=analysis_by_post_id[entry.post_id].verdict_reason,
-            ranking_score=entry.score,
-            ranking_explanation=entry.explanation,
+            post_id=row.id,
+            title=row.title,
+            source_name=row.source_name,
+            canonical_url=row.canonical_url,
+            published_at=row.published_at,
+            feedback_state=row.feedback_state,
+            summary_ru=analysis_by_post_id[row.id].summary_ru,
+            verdict=analysis_by_post_id[row.id].verdict,
+            verdict_reason=analysis_by_post_id[row.id].verdict_reason,
+            relevance_score=analysis_by_post_id[row.id].relevance_score,
         )
-        for entry in sorted(ranked, key=lambda value: (-round(value.score, 1), value.post_id))
+        for row in rows
     ]
+    return sorted(
+        digest_inputs,
+        key=lambda di: match_sort_value(
+            di.relevance_score, composite_by_post_id.get(di.post_id, -9999.0), di.post_id
+        ),
+        reverse=True,
+    )
 
 
 def _generate_digest(
@@ -168,6 +179,7 @@ def _generate_digest(
                 summary_ru=digest_input.summary_ru,
                 verdict=digest_input.verdict,
                 verdict_reason=digest_input.verdict_reason,
+                relevance_score=digest_input.relevance_score,
             )
         )
     more_count = max(0, len(digest_inputs) - len(top_posts))
