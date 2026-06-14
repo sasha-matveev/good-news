@@ -166,6 +166,46 @@ def test_get_preferences_returns_persisted_aggregate_explanations() -> None:
     )
 
 
+def test_recompute_preferences_rebuilds_and_persists() -> None:
+    client, session_factory = build_client()
+
+    with session_scope(session_factory) as session:
+        session.add(Source(id=1, display_name="Alpha", original_url="https://alpha.example", status="ready"))
+        session.add(
+            Post(
+                id=1,
+                source_id=1,
+                canonical_url="https://alpha.example/posts/1",
+                title="Distributed tracing in practice",
+                published_at=datetime(2026, 4, 20, 9, 0, tzinfo=UTC),
+                raw_content="Deep incident review.",
+                content_hash="alpha-1",
+                ingest_metadata='{"strategy":"feed"}',
+            )
+        )
+        session.add(Feedback(post_id=1, state="interesting"))
+        session.add(
+            PostAnalysis(
+                post_id=1,
+                summary_ru="Русское summary.",
+                metadata_json=json.dumps(
+                    {"topics": ["observability"], "format": "postmortem", "technical_depth": "deep"},
+                    sort_keys=True,
+                ),
+            )
+        )
+
+    response = client.post("/api/preferences/recompute")
+
+    assert response.status_code == 200
+    assert response.json()["feedback_totals"]["interesting"] == 1
+
+    with session_scope(session_factory) as session:
+        persisted = session.get(PreferenceProfile, 1)
+    assert persisted is not None
+    assert "Alpha" in persisted.summary
+
+
 def test_get_preferences_counts_feedback_without_analysis() -> None:
     """GOO-48: feedback for posts with no PostAnalysis must still be counted."""
     client, session_factory = build_client()

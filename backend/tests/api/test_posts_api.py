@@ -218,6 +218,46 @@ def test_get_posts_supports_want_to_read_filter_and_no_dedicated_read_endpoint()
     assert removed_endpoint_response.status_code == 404
 
 
+def test_get_posts_feedback_state_none_returns_only_posts_without_feedback() -> None:
+    client, session_factory = build_client()
+
+    with session_scope(session_factory) as session:
+        session.add(Source(id=1, display_name="Alpha", original_url="https://alpha.example", status="ready"))
+        session.add_all(
+            [
+                Post(
+                    id=1,
+                    source_id=1,
+                    canonical_url="https://alpha.example/posts/one",
+                    title="Reacted",
+                    published_at=datetime(2026, 2, 10, 8, 0, tzinfo=UTC),
+                    raw_content="Has feedback.",
+                    content_hash="alpha-one",
+                    ingest_metadata='{"strategy":"feed"}',
+                ),
+                Post(
+                    id=2,
+                    source_id=1,
+                    canonical_url="https://alpha.example/posts/two",
+                    title="Untouched",
+                    published_at=datetime(2026, 2, 11, 8, 0, tzinfo=UTC),
+                    raw_content="No feedback yet.",
+                    content_hash="alpha-two",
+                    ingest_metadata='{"strategy":"feed"}',
+                ),
+            ]
+        )
+        # Even a neutral "norm" reaction counts as a reaction and is excluded.
+        session.add(Feedback(post_id=1, state="norm"))
+
+    response = client.get("/api/posts?window=all&feedback_state=none")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [item["id"] for item in body] == [2]
+    assert body[0]["feedback_state"] is None
+
+
 def test_get_posts_sort_match_ranks_by_match_score() -> None:
     client, session_factory = build_client()
 

@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { theme } from "../styles/theme";
 
 import { SourceForm } from "../components/SourceForm";
+import { SourceIcon } from "../components/SourceIcon";
 import {
   createSource,
   deleteSource,
@@ -410,18 +411,21 @@ export function SourcesPage() {
               >
                 {/* Row 1: title + actions */}
                 <div style={{ display: "flex", justifyContent: "space-between", gap: "16px", alignItems: "flex-start", marginBottom: "10px" }}>
-                  <div style={{ minWidth: 0 }}>
-                    <h3 style={{ fontSize: "18px", margin: "0 0 3px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {sourceTitle(source)}
-                    </h3>
-                    <a
-                      href={source.original_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{ color: theme.color.muted, fontSize: "12px", textDecoration: "none" }}
-                    >
-                      {source.original_url}
-                    </a>
+                  <div style={{ display: "flex", gap: "12px", alignItems: "center", minWidth: 0 }}>
+                    <SourceIcon url={source.original_url} size={24} title={sourceTitle(source)} />
+                    <div style={{ minWidth: 0 }}>
+                      <h3 style={{ fontSize: "18px", margin: "0 0 3px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {sourceTitle(source)}
+                      </h3>
+                      <a
+                        href={source.original_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: theme.color.muted, fontSize: "12px", textDecoration: "none" }}
+                      >
+                        {source.original_url}
+                      </a>
+                    </div>
                   </div>
 
                   {/* Actions — icon button groups */}
@@ -442,8 +446,11 @@ export function SourcesPage() {
                               <path d="M8 2a6 6 0 11-4.24 10.24" />
                             </svg>
                           ) : (
-                            <svg fill="none" stroke="currentColor" strokeWidth="1.7" viewBox="0 0 16 16" style={{ width: "15px", height: "15px" }}>
-                              <path d="M13.5 8A5.5 5.5 0 112.5 8" /><path d="M13.5 4v4h-4" />
+                            /* refresh-cw (two arrows) — fetch new posts */
+                            <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ width: "15px", height: "15px" }}>
+                              <polyline points="23 4 23 10 17 10" />
+                              <polyline points="1 20 1 14 7 14" />
+                              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
                             </svg>
                           )}
                         </button>
@@ -460,10 +467,11 @@ export function SourcesPage() {
                               <path d="M8 2a6 6 0 11-4.24 10.24" />
                             </svg>
                           ) : (
-                            /* Circular reload arrow */
-                            <svg fill="none" stroke="currentColor" strokeWidth="1.7" viewBox="0 0 16 16" style={{ width: "15px", height: "15px" }}>
-                              <path d="M13.5 8A5.5 5.5 0 113.4 5.1" />
-                              <path d="M13.5 4v4h-4" strokeLinecap="round" strokeLinejoin="round" />
+                            /* download-into-tray — delete and re-fetch posts (distinct from plain sync) */
+                            <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" style={{ width: "15px", height: "15px" }}>
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                              <polyline points="7 10 12 15 17 10" />
+                              <line x1="12" y1="3" x2="12" y2="15" />
                             </svg>
                           )}
                         </button>
