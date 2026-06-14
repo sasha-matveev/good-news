@@ -83,6 +83,7 @@ def _stub_analysis_result(settings: Settings) -> AnalysisResult | None:
         technical_depth=payload["technical_depth"],
         verdict=payload["verdict"],
         verdict_reason=payload["verdict_reason"],
+        relevance_score=int(payload.get("relevance_score", 0)),
     )
 
 

@@ -32,6 +32,8 @@ export type PostRecord = {
   summary_ru: string | null;
   verdict: string | null;
   verdict_reason: string | null;
+  /** AI profile-aware match score 0–10; null when the post has not been analyzed yet. */
+  relevance_score: number | null;
   ranking_explanation: string | null;
 };
 

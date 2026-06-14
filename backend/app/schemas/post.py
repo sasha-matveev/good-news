@@ -38,6 +38,7 @@ class PostResponse(BaseModel):
     summary_ru: str | None
     verdict: str | None
     verdict_reason: str | None
+    relevance_score: int | None
     ranking_explanation: str | None
 
     @classmethod
@@ -56,5 +57,6 @@ class PostResponse(BaseModel):
             summary_ru=row.summary_ru,
             verdict=row.verdict or None,
             verdict_reason=row.verdict_reason or None,
+            relevance_score=getattr(row, "relevance_score", None),
             ranking_explanation=row.ranking_explanation,
         )

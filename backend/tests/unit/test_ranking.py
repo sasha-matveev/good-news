@@ -74,6 +74,7 @@ def test_rank_post_projections_want_to_read_builds_source_affinity() -> None:
                     technical_depth="medium",
                     verdict="interesting",
                     verdict_reason="r1",
+                    relevance_score=8,
                 ),
             ),
             RankablePostProjection(
@@ -91,6 +92,7 @@ def test_rank_post_projections_want_to_read_builds_source_affinity() -> None:
                     technical_depth="shallow",
                     verdict="not_interesting",
                     verdict_reason="r2",
+                    relevance_score=2,
                 ),
             ),
         ]
@@ -120,6 +122,7 @@ def test_rank_post_projections_centralizes_feed_and_digest_ranking_inputs() -> N
                     technical_depth="deep",
                     verdict="interesting",
                     verdict_reason="r1",
+                    relevance_score=9,
                 ),
             ),
             RankablePostProjection(
@@ -137,6 +140,7 @@ def test_rank_post_projections_centralizes_feed_and_digest_ranking_inputs() -> N
                     technical_depth="medium",
                     verdict="skip",
                     verdict_reason="r2",
+                    relevance_score=3,
                 ),
             ),
         ]

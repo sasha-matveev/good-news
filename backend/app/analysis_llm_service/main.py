@@ -30,6 +30,7 @@ class AnalysisResponseBody(BaseModel):
     technical_depth: str
     verdict: str
     verdict_reason: str
+    relevance_score: int = 0
 
 
 def _stub_result_from_settings(settings: Settings) -> AnalysisResult | None:
@@ -43,6 +44,7 @@ def _stub_result_from_settings(settings: Settings) -> AnalysisResult | None:
         technical_depth=payload["technical_depth"],
         verdict=payload["verdict"],
         verdict_reason=payload["verdict_reason"],
+        relevance_score=int(payload.get("relevance_score", 0)),
     )
 
 
@@ -111,6 +113,7 @@ def create_app(
             technical_depth=result.technical_depth,
             verdict=result.verdict,
             verdict_reason=result.verdict_reason,
+            relevance_score=result.relevance_score,
         )
 
     return app

@@ -35,6 +35,7 @@ class GeminiAnalysisPayload:
     technical_depth: str
     verdict: str
     verdict_reason: str
+    relevance_score: int
 
 
 @dataclass(frozen=True)
@@ -59,7 +60,8 @@ DEFAULT_SUMMARY_INSTRUCTIONS = (
 )
 
 DEFAULT_VERDICT_REASON_INSTRUCTIONS = (
-    "1 sentence in ENGLISH explaining why a developer would or would not want to read this. "
+    "1 sentence in ENGLISH explaining why THIS reader (given the reader preference "
+    "profile above, when present) would or would not want to read this. "
     "MUST be in English. No Russian."
 )
 
@@ -69,17 +71,36 @@ def build_json_fields_spec(summary_instructions: str, verdict_reason_instruction
 
     Only the *content/instruction* parts for summary_ru and verdict_reason are
     injectable; the JSON contract (field names, allowed values, the verdict /
-    topics / format / technical_depth lines) stays fixed so the parser keeps
-    working regardless of the configured instruction text.
+    topics / format / technical_depth / relevance_score lines) stays fixed so the
+    parser keeps working regardless of the configured instruction text.
     """
     return (
         "JSON fields per article:\n"
         '  "summary_ru": ' + summary_instructions + "\n"
         '  "verdict_reason": ' + verdict_reason_instructions + "\n"
-        '  "verdict": "interesting" if worth reading for a developer, otherwise "not_interesting".\n'
+        '  "verdict": "interesting" if worth reading for this reader, otherwise "not_interesting".\n'
+        '  "relevance_score": integer 0-10 — how well this article matches the reader preference '
+        "profile above. 10 = a perfect match for what the reader wants; 0 = irrelevant or matches "
+        "what the reader avoids. Judge for THIS reader, not a generic developer. When no profile is "
+        "given, score by general value to a software developer.\n"
         '  "topics": array of 1-3 short English tags like ["AI", "performance", "testing"].\n'
         '  "format": one of tutorial|opinion|news|case-study|announcement|other.\n'
         '  "technical_depth": one of beginner|intermediate|advanced.\n'
+    )
+
+
+def build_preference_section(preference_context: str) -> str:
+    """Wrap the reader preference profile text into a labelled prompt block.
+
+    Returns an empty string when there is no profile (no feedback recorded yet),
+    so the prompt falls back to a generic developer-relevance judgement.
+    """
+    if not preference_context:
+        return ""
+    return (
+        'READER PREFERENCE PROFILE — judge "verdict" and "relevance_score" for THIS reader:\n'
+        + preference_context
+        + "\n\n"
     )
 
 
@@ -112,12 +133,14 @@ class GeminiClient:
 
     def analyze_article(self, title: str, content: str) -> GeminiAnalysisPayload:
         summary_instructions, verdict_reason_instructions = self._resolve_analysis_instructions()
+        preference_context = self._resolve_preference_context()
         prompt = (
             "You are a JSON-only API. Read the article and return ONE JSON object. No explanation, no markdown.\n"
             "\n"
             + build_json_fields_spec(summary_instructions, verdict_reason_instructions)
             + "\n"
-            f"Title: {title}\n"
+            + build_preference_section(preference_context)
+            + f"Title: {title}\n"
             f"Content: {content[:CONTENT_SNIPPET_CHARS]}"
         )
         text = self._generate(prompt)
@@ -136,6 +159,23 @@ class GeminiClient:
 
         with session_scope(self._session_factory) as session:
             return get_analysis_prompts(session)
+
+    def _resolve_preference_context(self) -> str:
+        """Build the reader preference profile text once per public call.
+
+        Rebuilt fresh from current feedback (not the cached preference_profile
+        row, which is only refreshed on explicit recompute) so the model always
+        scores against up-to-date preferences. Returns "" when no session factory
+        is available (tests / standalone) or no feedback has been recorded yet.
+        """
+        if self._session_factory is None:
+            return ""
+        from app.core.db import session_scope
+        from app.services.preferences import build_preference_profile
+
+        with session_scope(self._session_factory) as session:
+            profile = build_preference_profile(session)
+        return _format_preference_context(profile)
 
     # ---- batch path (used by source sync and the pending-analysis job) ----
 
@@ -169,6 +209,7 @@ class GeminiClient:
                     technical_depth=payload.technical_depth,
                     verdict=payload.verdict,
                     verdict_reason=payload.verdict_reason,
+                    relevance_score=payload.relevance_score,
                 )
                 persist_analysis_result(session=session, request=request, result=result)
             session.commit()
@@ -176,15 +217,21 @@ class GeminiClient:
 
     def analyze_articles(self, items: list[ArticleInput]) -> dict[int, GeminiAnalysisPayload]:
         results: dict[int, GeminiAnalysisPayload] = {}
-        # Resolve the editable instructions once — not per chunk — so the batch
-        # loop does not issue a DB read on every iteration.
+        # Resolve the editable instructions and reader profile once — not per
+        # chunk — so the batch loop does not issue a DB read on every iteration.
         summary_instructions, verdict_reason_instructions = self._resolve_analysis_instructions()
+        preference_context = self._resolve_preference_context()
         batch_size = max(1, self.settings.gemini_batch_size)
         for start in range(0, len(items), batch_size):
             chunk = items[start : start + batch_size]
             try:
                 results.update(
-                    self._analyze_chunk(chunk, summary_instructions, verdict_reason_instructions)
+                    self._analyze_chunk(
+                        chunk,
+                        summary_instructions,
+                        verdict_reason_instructions,
+                        preference_context,
+                    )
                 )
             except Exception:
                 logger.exception("Gemini batch chunk failed for post ids %s", [i.post_id for i in chunk])
@@ -195,6 +242,7 @@ class GeminiClient:
         chunk: list[ArticleInput],
         summary_instructions: str,
         verdict_reason_instructions: str,
+        preference_context: str = "",
     ) -> dict[int, GeminiAnalysisPayload]:
         articles_block = "\n\n".join(
             f"[id={item.post_id}]\nTitle: {item.title}\nContent: {item.content[:CONTENT_SNIPPET_CHARS]}"
@@ -209,7 +257,8 @@ class GeminiClient:
             "\n"
             + build_json_fields_spec(summary_instructions, verdict_reason_instructions)
             + "\n"
-            f"Articles:\n{articles_block}"
+            + build_preference_section(preference_context)
+            + f"Articles:\n{articles_block}"
         )
         text = self._generate(prompt)
         parsed = json.loads(text)
@@ -369,9 +418,47 @@ def _normalize_analysis_payload(parsed: object) -> GeminiAnalysisPayload:
             technical_depth=normalized_depth,
             verdict=normalized_verdict,
             verdict_reason=verdict_reason,
+            # relevance_score is tolerated-optional: a model that omits or garbles it
+            # scores 0 rather than failing the whole article.
+            relevance_score=_coerce_relevance_score(parsed.get("relevance_score")),
         )
     except KeyError as exc:
         raise TypeError(f"Gemini response missing required field: {exc}") from exc
+
+
+def _coerce_relevance_score(value: object) -> int:
+    """Clamp the model's relevance score into an integer in [0, 10].
+
+    Anything non-numeric (None, prose, nested JSON) collapses to 0 so a malformed
+    field never crashes analysis and simply ranks the article low.
+    """
+    if isinstance(value, bool):
+        return 0
+    try:
+        number = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return 0
+    return max(0, min(10, round(number)))
+
+
+def _format_preference_context(profile: object) -> str:
+    """Render a PreferenceProfileView into a compact prompt block.
+
+    Returns "" when no feedback has been recorded yet, so a brand-new profile
+    falls back to generic developer-relevance scoring instead of feeding the
+    model an empty "no preferences" sentence.
+    """
+    feedback_totals = getattr(profile, "feedback_totals", {}) or {}
+    if feedback_totals.get("total", 0) == 0:
+        return ""
+    lines = [getattr(profile, "summary", "")]
+    positive_signals = getattr(profile, "positive_signals", None) or []
+    negative_signals = getattr(profile, "negative_signals", None) or []
+    if positive_signals:
+        lines.append("Likes: " + "; ".join(positive_signals))
+    if negative_signals:
+        lines.append("Avoids: " + "; ".join(negative_signals))
+    return "\n".join(line for line in lines if line)
 
 
 def _coerce_topics(value: object) -> list[str]:

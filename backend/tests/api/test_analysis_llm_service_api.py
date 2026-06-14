@@ -32,6 +32,7 @@ class FakeAnalysisClient:
                 "technical_depth": "medium",
                 "verdict": "interesting",
                 "verdict_reason": "Useful boundary check.",
+                "relevance_score": 9,
             },
         )()
 
@@ -89,6 +90,7 @@ def test_analysis_service_health_and_request_persistence() -> None:
         "technical_depth": "medium",
         "verdict": "interesting",
         "verdict_reason": "Useful boundary check.",
+        "relevance_score": 9,
     }
     assert fake_client.calls == [{"title": "Alpha One", "content": "Useful article body."}]
 
@@ -185,6 +187,8 @@ def test_analysis_service_normalizes_nested_gemini_payloads_before_persistence()
         "technical_depth": "",
         "verdict": "interesting",
         "verdict_reason": '{"detail":"Useful boundary check."}',
+        # No relevance_score in the model payload → tolerated default of 0.
+        "relevance_score": 0,
     }
 
     with session_scope(session_factory) as session:
@@ -197,4 +201,5 @@ def test_analysis_service_normalizes_nested_gemini_payloads_before_persistence()
         "technical_depth": "",
         "verdict": "interesting",
         "verdict_reason": '{"detail":"Useful boundary check."}',
+        "relevance_score": 0,
     }

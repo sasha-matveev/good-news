@@ -17,6 +17,7 @@ class AnalysisResult:
     technical_depth: str
     verdict: str
     verdict_reason: str
+    relevance_score: int
 
     def as_persistence_payload(self) -> dict[str, str]:
         return {
@@ -28,6 +29,7 @@ class AnalysisResult:
                     "technical_depth": self.technical_depth,
                     "verdict": self.verdict,
                     "verdict_reason": self.verdict_reason,
+                    "relevance_score": self.relevance_score,
                 },
                 sort_keys=True,
             ),
@@ -51,6 +53,7 @@ class StoredPostAnalysis:
     technical_depth: str | None
     verdict: str | None
     verdict_reason: str | None
+    relevance_score: int | None
 
     @classmethod
     def from_persistence(
@@ -67,6 +70,9 @@ class StoredPostAnalysis:
             technical_depth=metadata.get("technical_depth"),
             verdict=metadata.get("verdict"),
             verdict_reason=metadata.get("verdict_reason") or None,
+            # Older analyses persisted before profile-aware scoring have no score;
+            # None keeps them in the recency-ordered tail until re-analyzed.
+            relevance_score=metadata.get("relevance_score"),
         )
 
 
@@ -82,6 +88,7 @@ def analyze_request(
         technical_depth=result.technical_depth,
         verdict=result.verdict,
         verdict_reason=result.verdict_reason,
+        relevance_score=result.relevance_score,
     )
 
 

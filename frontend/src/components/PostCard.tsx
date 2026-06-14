@@ -54,26 +54,6 @@ function formatPublishedDate(value: string | null, source: string | null): DateD
   return { text: dateStr, title: reason, uncertain: false };
 }
 
-// Keep in sync with FEEDBACK_WEIGHTS in backend/app/services/ranking.py
-const FEEDBACK_SCORE: Partial<Record<string, number>> = {
-  interesting: 4.0,
-  want_to_read: 5.0,
-  not_interesting: -4.0,
-};
-
-export function buildMatchScore(post: PostRecord): number {
-  const exp = post.ranking_explanation ?? "";
-  const feedbackLabel = exp.match(/feedback=([^;]+)/)?.[1]?.trim() ?? "";
-  const feedbackScore = FEEDBACK_SCORE[feedbackLabel] ?? 0;
-  const contentValues = Array.from(exp.matchAll(/=([0-9.]+)/g)).map(
-    (match) => Number.parseFloat(match[1] ?? "0")
-  );
-  // Content values sum to ~0.5-2.5 for typical posts; multiply by 2 so
-  // max non-feedback content score lands at ~5, feedback pushes toward 10.
-  const total = feedbackScore + contentValues.reduce((sum, v) => sum + v, 0);
-  return Math.max(0, Math.min(10, Math.round(total * 2)));
-}
-
 export function PostCard({
   busy = false,
   busyAction = null,
@@ -155,12 +135,14 @@ export function PostCard({
         })()}
       </div>
 
-      {/* Match score */}
-      <div style={{ borderLeft: "4px solid #7ea3c6", paddingLeft: "10px", margin: "0 0 12px", fontSize: "13px", lineHeight: 1.4, color: "#4f6072" }}>
-        <span style={{ color: theme.color.llm, fontWeight: 700 }}>
-          match {buildMatchScore(post)}/10
-        </span>
-      </div>
+      {/* Match score — AI profile-aware relevance; hidden until the post is analyzed */}
+      {typeof post.relevance_score === "number" ? (
+        <div style={{ borderLeft: "4px solid #7ea3c6", paddingLeft: "10px", margin: "0 0 12px", fontSize: "13px", lineHeight: 1.4, color: "#4f6072" }}>
+          <span style={{ color: theme.color.llm, fontWeight: 700 }}>
+            match {post.relevance_score}/10
+          </span>
+        </div>
+      ) : null}
 
       {/* LLM evaluation block — only when analysis exists */}
       {(post.summary_ru || post.verdict_reason) ? (() => {
@@ -402,7 +384,6 @@ export function PostCard({
       {/* Analysis log terminal */}
       {logExpanded && post.ranking_explanation ? (() => {
         const parts = parseRankingExplanation(post.ranking_explanation);
-        const score = buildMatchScore(post);
         return (
           <div style={{ marginTop: "10px", backgroundColor: "#111b27", border: "1px solid #1e3048", borderRadius: theme.radius.card, padding: "10px 14px", fontFamily: "'Consolas','Menlo','Monaco',monospace", fontSize: "11px", lineHeight: 1.7, color: "#c8dced" }}>
             <div style={{ color: "#2f5878", marginBottom: "4px" }}># post analysis — id {post.id}</div>
@@ -414,7 +395,7 @@ export function PostCard({
               </div>
             ))}
             <div style={{ borderTop: "1px solid #1e3048", marginTop: "6px", paddingTop: "6px", color: "#7fbf8e" }}>
-              match score → {score}/10
+              relevance (AI) → {post.relevance_score ?? "—"}/10
             </div>
             {(post.verdict === "interesting" || post.verdict === "not_interesting") ? (
               <div style={{ color: "#7fbf8e" }}>verdict → {post.verdict}</div>

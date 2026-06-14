@@ -169,6 +169,7 @@ test("sources page supports explicit sync so the first post becomes visible in F
     summary_ru: null,
     verdict: null,
     verdict_reason: null,
+    relevance_score: null,
     ranking_explanation: "feedback=none"
   };
 

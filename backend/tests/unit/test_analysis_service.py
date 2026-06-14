@@ -25,6 +25,7 @@ def test_analyze_post_payload_returns_russian_summary_and_structured_fields() ->
             technical_depth="deep",
             verdict="interesting",
             verdict_reason="Strong practical backend content.",
+            relevance_score=9,
         )
     )
 
@@ -41,6 +42,7 @@ def test_analyze_post_payload_returns_russian_summary_and_structured_fields() ->
         "technical_depth": "deep",
         "verdict": "interesting",
         "verdict_reason": "Strong practical backend content.",
+        "relevance_score": 9,
     }
     assert client.calls == [
         {
@@ -60,6 +62,7 @@ def test_stored_post_analysis_parses_analysis_owned_persistence_shape() -> None:
                 "technical_depth": "deep",
                 "verdict": "interesting",
                 "verdict_reason": "Clear backend learning value.",
+                "relevance_score": 7,
             }
         ),
     )
@@ -70,6 +73,25 @@ def test_stored_post_analysis_parses_analysis_owned_persistence_shape() -> None:
     assert stored.technical_depth == "deep"
     assert stored.verdict == "interesting"
     assert stored.verdict_reason == "Clear backend learning value."
+    assert stored.relevance_score == 7
+
+
+def test_stored_post_analysis_defaults_missing_relevance_score_to_none() -> None:
+    """Analyses persisted before profile-aware scoring have no relevance_score key."""
+    stored = StoredPostAnalysis.from_persistence(
+        summary_ru="Legacy summary.",
+        metadata_json=json.dumps(
+            {
+                "topics": ["observability"],
+                "format": "postmortem",
+                "technical_depth": "deep",
+                "verdict": "interesting",
+                "verdict_reason": "Clear backend learning value.",
+            }
+        ),
+    )
+
+    assert stored.relevance_score is None
 
 
 def test_analysis_result_persists_through_analysis_owned_write_path() -> None:
@@ -92,6 +114,7 @@ def test_analysis_result_persists_through_analysis_owned_write_path() -> None:
                 technical_depth="deep",
                 verdict="interesting",
                 verdict_reason="Useful practical content.",
+                relevance_score=6,
             ),
         )
 
@@ -105,4 +128,5 @@ def test_analysis_result_persists_through_analysis_owned_write_path() -> None:
         "technical_depth": "deep",
         "verdict": "interesting",
         "verdict_reason": "Useful practical content.",
+        "relevance_score": 6,
     }
