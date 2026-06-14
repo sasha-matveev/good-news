@@ -22,7 +22,7 @@ from app.api.routes.settings import router as settings_router
 from app.api.routes.sources import router as sources_router
 from app.api.routes.want_to_read import router as want_to_read_router
 from app.core.config import Settings
-from app.core.db import create_engine_from_settings, create_session_factory
+from app.core.db import create_engine_from_settings, create_session_factory, wait_for_database
 from app.core.observability import instrument_app
 from app.core.request_auth import install_user_auth_middleware
 from app.core.schema_guard import assert_database_schema_is_current
@@ -153,6 +153,7 @@ def create_app(
                 timeout=30.0,
             )
             app.state.document_loader = _build_live_document_loader(app.state.document_client)
+        wait_for_database(app.state.session_factory)
         assert_database_schema_is_current(app.state.session_factory)
 
     @app.on_event("shutdown")
