@@ -176,3 +176,31 @@ def test_discovery_uses_medium_feed_override_for_netflix_tech_blog_custom_domain
         "discovery_method": "source_override:netflix_medium_feed",
         "source_origin": "https://netflixtechblog.medium.com",
     }
+
+
+def test_discovery_uses_known_site_strategy_for_claude_blog() -> None:
+    source = discover_source_strategy("https://claude.com/blog", responses={})
+
+    assert source.normalized_url == "https://claude.com/blog"
+    assert source.display_name == "Claude Blog"
+    assert source.feed_url is None
+    assert source.strategy_kind == "known_site"
+    assert source.strategy_config == {
+        "discovery_method": "known_site:claude_blog",
+        "parser_id": "claude_blog",
+        "listing_url": "https://claude.com/blog",
+    }
+
+
+def test_discovery_uses_known_site_strategy_for_anthropic_engineering() -> None:
+    source = discover_source_strategy("https://www.anthropic.com/engineering", responses={})
+
+    assert source.normalized_url == "https://www.anthropic.com/engineering"
+    assert source.display_name == "Anthropic Engineering"
+    assert source.feed_url is None
+    assert source.strategy_kind == "known_site"
+    assert source.strategy_config == {
+        "discovery_method": "known_site:anthropic_engineering",
+        "parser_id": "anthropic_engineering",
+        "listing_url": "https://www.anthropic.com/engineering",
+    }

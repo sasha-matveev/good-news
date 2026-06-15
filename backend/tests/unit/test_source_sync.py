@@ -161,6 +161,231 @@ def test_sync_active_sources_html_strategy_scopes_links_to_articles_and_cleans_t
     ]
 
 
+def test_sync_known_site_claude_blog_persists_title_date_and_article_text() -> None:
+    import json as _json
+
+    engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session_factory = create_session_factory(engine)
+
+    with session_scope(session_factory) as session:
+        session.add(
+            Source(
+                display_name="Claude Blog",
+                original_url="https://claude.com/blog",
+                strategy_kind="known_site",
+                strategy_config=(
+                    '{"listing_url": "https://claude.com/blog", '
+                    '"parser_id": "claude_blog"}'
+                ),
+                status="ready",
+                active=True,
+            )
+        )
+
+    processed = sync_active_sources(
+        session_factory=session_factory,
+        responses={
+            "https://claude.com/blog": """
+                <html>
+                  <body>
+                    <nav><a href="/download">Download app</a></nav>
+                    <nav><a href="/blog/context-editing-for-navigation">Navigation, not a post</a></nav>
+                    <main>
+                      <div role="listitem">
+                        <h2>External mirror must not be imported</h2>
+                        <time datetime="2026-06-13">June 13, 2026</time>
+                        <a href="https://evil.example/blog/external-post">External post</a>
+                      </div>
+                      <div role="listitem">
+                        <h2>Claude Code</h2>
+                        <a href="/blog/category/claude-code">Category page</a>
+                  </div>
+                  <a href="/blog/context-editing-for-agents">
+                    <article>
+                      <h2>Context editing for agents</h2>
+                      <time datetime="2026-06-12">June 12, 2026</time>
+                    </article>
+                  </a>
+                </main>
+              </body>
+            </html>
+            """,
+            "https://claude.com/blog/context-editing-for-agents": """
+            <html>
+              <head>
+                <meta property="article:published_time" content="2026-06-12T09:30:00Z" />
+              </head>
+              <body>
+                <article>
+                  <h1>Context editing for agents</h1>
+                  <p>Claude Code can now keep long-running agent sessions focused by removing stale context.</p>
+                </article>
+              </body>
+            </html>
+            """,
+        },
+        now=datetime(2026, 6, 15, 12, 0, tzinfo=UTC),
+    )
+
+    with session_scope(session_factory) as session:
+        posts = session.scalars(select(Post).order_by(Post.id)).all()
+
+    assert processed == [1]
+    assert [(post.canonical_url, post.title, post.raw_content) for post in posts] == [
+        (
+            "https://claude.com/blog/context-editing-for-agents",
+            "Context editing for agents",
+            "Claude Code can now keep long-running agent sessions focused by removing stale context.",
+        )
+    ]
+    assert posts[0].published_at == datetime(2026, 6, 12, 9, 30)
+    metadata = _json.loads(posts[0].ingest_metadata)
+    assert metadata["source_strategy"] == "known_site"
+    assert metadata["date_source"] == "meta_og"
+
+
+def test_sync_known_site_anthropic_engineering_persists_listing_date_when_article_has_no_date() -> None:
+    import json as _json
+
+    engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session_factory = create_session_factory(engine)
+
+    with session_scope(session_factory) as session:
+        session.add(
+            Source(
+                display_name="Anthropic Engineering",
+                original_url="https://www.anthropic.com/engineering",
+                strategy_kind="known_site",
+                strategy_config=(
+                    '{"listing_url": "https://www.anthropic.com/engineering", '
+                    '"parser_id": "anthropic_engineering"}'
+                ),
+                status="ready",
+                active=True,
+            )
+        )
+
+    processed = sync_active_sources(
+        session_factory=session_factory,
+        responses={
+            "https://www.anthropic.com/engineering": """
+            <html>
+              <body>
+                <header><a href="/company">Company</a></header>
+                <main>
+                  <section>
+                    <a href="/engineering/building-effective-agents">
+                      <h3>Building effective agents</h3>
+                      <time datetime="2026-06-01">June 1, 2026</time>
+                    </a>
+                  </section>
+                </main>
+              </body>
+            </html>
+            """,
+            "https://www.anthropic.com/engineering/building-effective-agents": """
+            <html>
+              <body>
+                <main>
+                  <h1>Building effective agents</h1>
+                  <p class="body-large-1">We share practical patterns for composing agents with tools, memory, and human review.</p>
+                </main>
+              </body>
+            </html>
+            """,
+        },
+        now=datetime(2026, 6, 15, 12, 0, tzinfo=UTC),
+    )
+
+    with session_scope(session_factory) as session:
+        posts = session.scalars(select(Post).order_by(Post.id)).all()
+
+    assert processed == [1]
+    assert [(post.canonical_url, post.title, post.raw_content) for post in posts] == [
+        (
+            "https://www.anthropic.com/engineering/building-effective-agents",
+            "Building effective agents",
+            "We share practical patterns for composing agents with tools, memory, and human review.",
+        )
+    ]
+    assert posts[0].published_at == datetime(2026, 6, 1, 0, 0)
+    metadata = _json.loads(posts[0].ingest_metadata)
+    assert metadata["source_strategy"] == "known_site"
+    assert metadata["date_source"] == "known_site_listing"
+
+
+def test_sync_known_site_filters_listing_items_before_fetching_article_pages() -> None:
+    engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session_factory = create_session_factory(engine)
+
+    with session_scope(session_factory) as session:
+        session.add(
+            Source(
+                display_name="Anthropic Engineering",
+                original_url="https://www.anthropic.com/engineering",
+                strategy_kind="known_site",
+                strategy_config=(
+                    '{"listing_url": "https://www.anthropic.com/engineering", '
+                    '"parser_id": "anthropic_engineering"}'
+                ),
+                status="ready",
+                active=True,
+                last_success_at=datetime(2026, 6, 10, 0, 0, tzinfo=UTC),
+            )
+        )
+
+    requested_urls: list[str] = []
+
+    def document_loader(url: str) -> str | None:
+        requested_urls.append(url)
+        if url == "https://www.anthropic.com/engineering":
+            return """
+            <html>
+              <body>
+                <main>
+                  <article>
+                    <a href="/engineering/new-post">
+                      <h3>New post</h3>
+                      <time datetime="2026-06-12">June 12, 2026</time>
+                    </a>
+                  </article>
+                  <article>
+                    <a href="/engineering/old-post">
+                      <h3>Old post</h3>
+                      <time datetime="2026-06-01">June 1, 2026</time>
+                    </a>
+                  </article>
+                </main>
+              </body>
+            </html>
+            """
+        if url == "https://www.anthropic.com/engineering/new-post":
+            return "<html><body><p class=\"body\">New post text.</p></body></html>"
+        if url == "https://www.anthropic.com/engineering/old-post":
+            return "<html><body><p class=\"body\">Old post text.</p></body></html>"
+        return None
+
+    processed = sync_active_sources(
+        session_factory=session_factory,
+        responses={},
+        document_loader=document_loader,
+        now=datetime(2026, 6, 15, 12, 0, tzinfo=UTC),
+    )
+
+    with session_scope(session_factory) as session:
+        posts = session.scalars(select(Post).order_by(Post.id)).all()
+
+    assert processed == [1]
+    assert [post.canonical_url for post in posts] == ["https://www.anthropic.com/engineering/new-post"]
+    assert requested_urls == [
+        "https://www.anthropic.com/engineering",
+        "https://www.anthropic.com/engineering/new-post",
+    ]
+
+
 def test_sync_active_sources_skips_inactive_sources() -> None:
     engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)

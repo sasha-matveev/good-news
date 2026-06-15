@@ -7,6 +7,7 @@ from urllib.parse import urljoin, urlparse
 from xml.etree import ElementTree
 
 from app.parsing.html_strategy import derive_html_strategy
+from app.parsing.known_sites import known_site_for_url
 
 COMMON_FEED_PATHS = ("/feed", "/rss", "/rss.xml", "/feed.xml", "/atom.xml", "/index.xml")
 FEED_TYPES = {"application/rss+xml", "application/atom+xml", "application/xml", "text/xml"}
@@ -111,6 +112,21 @@ def discover_source_strategy(
     if override is not None:
         log(f"Source override matched — feed: {override.feed_url}")
         return override
+
+    known_site = known_site_for_url(normalized_url)
+    if known_site is not None:
+        log(f"Known site matched — parser: {known_site.parser_id}")
+        return DiscoveredSource(
+            normalized_url=known_site.normalized_url,
+            display_name=known_site.display_name,
+            feed_url=None,
+            strategy_kind="known_site",
+            strategy_config={
+                "discovery_method": f"known_site:{known_site.parser_id}",
+                "parser_id": known_site.parser_id,
+                "listing_url": known_site.normalized_url,
+            },
+        )
 
     log(f"Fetching homepage: {normalized_url}")
     homepage = _load_document(normalized_url, responses, document_loader)
