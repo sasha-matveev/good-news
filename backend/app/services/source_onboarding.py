@@ -66,7 +66,10 @@ def onboard_source(
             )
         )
     else:
-        log(f"Strategy: {discovered.strategy_kind} — feed: {discovered.feed_url}")
+        if discovered.strategy_kind == "known_site":
+            log(f"Strategy: known_site — parser: {discovered.strategy_config.get('parser_id')}")
+        else:
+            log(f"Strategy: {discovered.strategy_kind} — feed: {discovered.feed_url}")
         source.status = "ready"
         source.needs_readaptation = False
         source.readaptation_reason = None

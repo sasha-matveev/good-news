@@ -24,6 +24,7 @@ from app.models.read_later import ReadLater
 from app.models.setting import TechnicalEvent
 from app.models.source import Source
 from app.parsing.discovery import DocumentLoader
+from app.parsing.known_sites import KnownSiteListingItem, known_site_for_parser_id, parse_known_site_listing
 from app.services.analysis import AnalysisRequest
 from app.services.source_readaptation import readapt_source_model
 
@@ -41,7 +42,7 @@ class ParsedPost:
     title: str
     published_at: datetime | None
     raw_content: str
-    # How the date was obtained: "feed" | "json_ld" | "meta_og" | "meta_date" | "time_element" | "none"
+    # How the date was obtained: "feed" | "known_site_listing" | "json_ld" | "meta_og" | "meta_date" | "time_element" | "none"
     published_at_source: str = field(default="none")
 
 
@@ -332,6 +333,32 @@ def _select_posts_for_sync(*, source: Source, parsed_posts: list[ParsedPost]) ->
     return parsed_posts
 
 
+def _select_known_site_listing_items(
+    *,
+    source: Source,
+    listing_items: list[KnownSiteListingItem],
+) -> list[KnownSiteListingItem]:
+    indexed_candidates = list(enumerate(listing_items))
+    last_success_at = _normalize_utc(source.last_success_at)
+    if last_success_at is not None:
+        indexed_candidates = [
+            (index, item)
+            for index, item in indexed_candidates
+            if item.published_at is None or _normalize_utc(item.published_at) > last_success_at
+        ]
+
+    if len(indexed_candidates) <= MAX_POSTS_PER_SOURCE_SYNC:
+        return [item for _, item in indexed_candidates]
+
+    recent_slice = sorted(
+        indexed_candidates,
+        key=lambda indexed_item: _normalize_utc(indexed_item[1].published_at) or _MIN_UTC_DATETIME,
+        reverse=True,
+    )[:MAX_POSTS_PER_SOURCE_SYNC]
+    recent_slice.sort(key=lambda indexed_item: indexed_item[0])
+    return [item for _, item in recent_slice]
+
+
 def _normalize_utc(value: datetime | None) -> datetime | None:
     if value is None:
         return None
@@ -502,6 +529,9 @@ def _load_posts_for_source(
     if source.strategy_kind == "html":
         return _parse_html_listing(source, responses, document_loader)
 
+    if source.strategy_kind == "known_site":
+        return _parse_known_site_listing(source, responses, document_loader)
+
     raise SourceSyncError(f"Unsupported source strategy {source.strategy_kind}")
 
 
@@ -540,6 +570,34 @@ class _DateMetaParser(HTMLParser):
             dt_val = attr_map.get("datetime", "").strip()
             if dt_val:
                 self.time_datetime = dt_val
+
+
+class _FirstParagraphParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self._paragraph_depth = 0
+        self._chunks: list[str] = []
+        self.paragraph: str | None = None
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if self.paragraph is not None:
+            return
+        if tag.lower() == "p":
+            self._paragraph_depth += 1
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() != "p" or self._paragraph_depth == 0:
+            return
+        self._paragraph_depth -= 1
+        if self._paragraph_depth == 0 and self.paragraph is None:
+            text = _collapse_whitespace(" ".join(self._chunks))
+            if text:
+                self.paragraph = text
+            self._chunks = []
+
+    def handle_data(self, data: str) -> None:
+        if self.paragraph is None and self._paragraph_depth > 0 and data.strip():
+            self._chunks.append(data)
 
 
 def _extract_published_at_from_html(html: str) -> tuple[datetime | None, str]:
@@ -663,6 +721,50 @@ def _parse_html_listing(
     return parsed_posts
 
 
+def _parse_known_site_listing(
+    source: Source,
+    responses: dict[str, str],
+    document_loader: DocumentLoader | None,
+) -> list[ParsedPost]:
+    strategy_config: dict[str, Any] = json.loads(source.strategy_config or "{}")
+    parser_id = str(strategy_config.get("parser_id") or "")
+    known_site = known_site_for_parser_id(parser_id)
+    if known_site is None:
+        raise SourceSyncError(f"Unknown known_site parser '{parser_id}'")
+
+    listing_url = str(strategy_config.get("listing_url") or known_site.normalized_url)
+    document = _load_document(listing_url, responses, document_loader)
+    if document is None:
+        raise SourceSyncError(f"No response stub for {listing_url}")
+
+    listing_items = parse_known_site_listing(parser_id, document)
+    if not listing_items:
+        raise SourceSyncError(
+            f"No known-site posts found on listing page using parser '{parser_id}'. "
+            "The page structure may have changed."
+        )
+
+    parsed_posts: list[ParsedPost] = []
+    selected_items = _select_known_site_listing_items(source=source, listing_items=listing_items)
+    for item in selected_items:
+        article_url = urljoin(listing_url, item.href)
+        article_document = _load_document(article_url, responses, document_loader) or ""
+        raw_content = _extract_first_paragraph(article_document) or item.title
+        article_published_at, article_date_source = _extract_published_at_from_html(article_document)
+        published_at = article_published_at or item.published_at
+        published_at_source = article_date_source if article_published_at is not None else item.published_at_source
+        parsed_posts.append(
+            ParsedPost(
+                canonical_url=article_url,
+                title=item.title,
+                published_at=published_at,
+                raw_content=raw_content,
+                published_at_source=published_at_source,
+            )
+        )
+    return parsed_posts
+
+
 def _extract_links(document: str, *, link_selector: str) -> list[tuple[str, str]]:
     parser = _HtmlListingLinkParser(link_selector=link_selector)
     parser.feed(document)
@@ -674,13 +776,12 @@ def _collapse_whitespace(value: str) -> str:
 
 
 def _extract_first_paragraph(document: str) -> str | None:
-    lower_document = document.lower()
-    paragraph_start = lower_document.find("<p>")
-    paragraph_end = lower_document.find("</p>", paragraph_start + 3)
-    if paragraph_start == -1 or paragraph_end == -1:
+    parser = _FirstParagraphParser()
+    try:
+        parser.feed(document)
+    except Exception:
         return None
-    raw = document[paragraph_start + 3 : paragraph_end].strip()
-    return _strip_html(raw) or None
+    return parser.paragraph
 
 
 def _child_text(element: ElementTree.Element, tag_name: str) -> str | None:

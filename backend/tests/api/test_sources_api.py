@@ -244,6 +244,40 @@ def test_post_sources_uses_path_scoped_common_feed_for_section_sources() -> None
     assert response.json()["status"] == "ready"
 
 
+def test_post_sources_returns_ready_for_known_site_strategy() -> None:
+    engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session_factory = create_session_factory(engine)
+    stamp_schema_head(session_factory)
+
+    class FakeSourceIngestionServiceClient:
+        def onboard_source(self, command: SourceOnboardingCommand) -> SourceResponse:
+            with session_scope(session_factory) as session:
+                source = accept_source_onboarding_command(
+                    session=session,
+                    command=command,
+                    responses={},
+                )
+            return SourceResponse.from_model(source)
+
+    app = create_app(
+        session_factory=session_factory,
+        source_ingestion_client_factory=lambda: FakeSourceIngestionServiceClient(),
+    )
+    client = TestClient(app)
+
+    response = client.post("/api/sources", json={"url": "https://claude.com/blog"})
+
+    assert response.status_code == 201
+    assert response.json()["display_name"] == "Claude Blog"
+    assert response.json()["original_url"] == "https://claude.com/blog"
+    assert response.json()["feed_url"] is None
+    assert response.json()["strategy_kind"] == "known_site"
+    assert response.json()["status"] == "ready"
+    assert response.json()["needs_readaptation"] is False
+    assert response.json()["readaptation_reason"] is None
+
+
 def test_post_sources_returns_conflict_for_duplicate_normalized_url() -> None:
     client, _ = build_client()
 
