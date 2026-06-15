@@ -22,11 +22,10 @@ function parseRankingExplanation(exp: string): Array<{ key: string; value: strin
 
 type PostCardProps = {
   busy?: boolean;
-  busyAction?: "feedback" | "remove" | "readLater" | null;
+  busyAction?: "feedback" | "readLater" | null;
   busyFeedbackState?: FeedbackState | null;
   onFeedbackSelect?: (postId: number, state: FeedbackState) => void;
   onReadLaterToggle?: (postId: number, saved: boolean) => void;
-  onWantToReadToggle?: (postId: number, saved: boolean) => void;
   post: PostRecord;
 };
 
@@ -56,17 +55,13 @@ function formatPublishedDate(value: string | null, source: string | null): DateD
 
 export function PostCard({
   busy = false,
-  busyAction = null,
+  busyAction: _busyAction = null,
   busyFeedbackState: _busyFeedbackState = null,
   onFeedbackSelect,
   onReadLaterToggle,
-  onWantToReadToggle,
   post
 }: PostCardProps) {
   const [logExpanded, setLogExpanded] = useState(false);
-  const canRemoveFromWantToRead =
-    post.read_later === true && onWantToReadToggle !== undefined;
-
 
   return (
     <article
@@ -332,29 +327,6 @@ export function PostCard({
               <svg fill="none" stroke="currentColor" strokeWidth="1.7" viewBox="0 0 16 16" style={{ width: "15px", height: "15px" }}>
                 <path d="M4 3.5h8v10l-4-2.5-4 2.5z" />
               </svg>
-            </button>
-          ) : null}
-
-          {/* WantToRead remove button (shown on WantToReadPage) */}
-          {canRemoveFromWantToRead ? (
-            <button
-              disabled={busy}
-              onClick={() => {
-                onWantToReadToggle?.(post.id, false);
-              }}
-              style={{
-                backgroundColor: theme.color.card,
-                border: `1px solid ${theme.color.border}`,
-                borderRadius: theme.radius.card,
-                color: theme.color.text,
-                cursor: busy ? "wait" : "pointer",
-                fontFamily: "inherit",
-                opacity: busy ? 0.7 : 1,
-                padding: "8px 12px"
-              }}
-              type="button"
-            >
-              {busy && busyAction === "remove" ? "Removing..." : "Remove from want to read"}
             </button>
           ) : null}
         </div>

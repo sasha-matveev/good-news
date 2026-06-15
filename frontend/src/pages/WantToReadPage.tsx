@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 
 import { PostCard } from "../components/PostCard";
-import { listPosts, type PostRecord, setReadLater } from "../lib/api";
+import {
+  listPosts,
+  setReadLater,
+  updateFeedback,
+  type FeedbackState,
+  type PostRecord
+} from "../lib/api";
 import { theme } from "../styles/theme";
 
 type WantToReadPageProps = {
@@ -16,7 +22,11 @@ export function WantToReadPage({
   const [posts, setPosts] = useState<PostRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [savingPostId, setSavingPostId] = useState<number | null>(null);
+  const [savingPost, setSavingPost] = useState<{
+    postId: number;
+    state: FeedbackState;
+  } | null>(null);
+  const [readLaterBusy, setReadLaterBusy] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -47,8 +57,27 @@ export function WantToReadPage({
     };
   }, []);
 
-  async function handleWantToReadToggle(postId: number, saved: boolean) {
-    setSavingPostId(postId);
+  async function handleFeedbackSelect(postId: number, state: FeedbackState) {
+    setSavingPost({ postId, state });
+    try {
+      const nextFeedbackState = (await updateFeedback(postId, state)).state;
+      setPosts((currentPosts) =>
+        currentPosts.map((post) =>
+          post.id === postId
+            ? { ...post, feedback_state: nextFeedbackState }
+            : post
+        )
+      );
+      setError(null);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Failed to save feedback.");
+    } finally {
+      setSavingPost((current) => (current?.postId === postId ? null : current));
+    }
+  }
+
+  async function handleReadLaterToggle(postId: number, saved: boolean) {
+    setReadLaterBusy(postId);
     try {
       await setReadLater(postId, saved);
       setPosts((currentPosts) =>
@@ -60,7 +89,7 @@ export function WantToReadPage({
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Failed to update saved posts.");
     } finally {
-      setSavingPostId((current) => (current === postId ? null : current));
+      setReadLaterBusy((current) => (current === postId ? null : current));
     }
   }
 
@@ -140,10 +169,18 @@ export function WantToReadPage({
         <div style={{ display: "grid", gap: "16px" }}>
           {posts.map((post) => (
             <PostCard
-              busy={savingPostId === post.id}
-              busyAction={savingPostId === post.id ? "remove" : null}
+              busy={savingPost?.postId === post.id || readLaterBusy === post.id}
+              busyAction={
+                readLaterBusy === post.id
+                  ? "readLater"
+                  : savingPost?.postId === post.id
+                    ? "feedback"
+                    : null
+              }
+              busyFeedbackState={savingPost?.postId === post.id ? savingPost.state : null}
               key={post.id}
-              onWantToReadToggle={handleWantToReadToggle}
+              onFeedbackSelect={handleFeedbackSelect}
+              onReadLaterToggle={handleReadLaterToggle}
               post={post}
             />
           ))}

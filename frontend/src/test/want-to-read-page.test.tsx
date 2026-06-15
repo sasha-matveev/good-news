@@ -65,7 +65,8 @@ test("want to read tab loads saved posts from the saved filter", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Want To Read" }));
 
   expect(await screen.findByText("Saved post")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Remove from want to read" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Remove from Read Later" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Interesting" })).toBeInTheDocument();
 
   await waitFor(() => {
     expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=all&sort=date&limit=50", { method: "GET" });
@@ -160,7 +161,7 @@ test("feed save flows through to the want to read tab", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Want To Read" }));
 
   expect(await screen.findByText("Newer")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Remove from want to read" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Remove from Read Later" })).toBeInTheDocument();
 
   await waitFor(() => {
     expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=all&sort=date&limit=50", { method: "GET" });
@@ -204,7 +205,7 @@ test("want to read page can remove a saved post without touching other tabs", as
 
   expect(await screen.findByText("Saved post")).toBeInTheDocument();
 
-  fireEvent.click(screen.getByRole("button", { name: "Remove from want to read" }));
+  fireEvent.click(screen.getByRole("button", { name: "Remove from Read Later" }));
 
   expect(await screen.findByText("No saved posts yet.")).toBeInTheDocument();
 
@@ -256,9 +257,9 @@ test("want to read page shows an active saving state while removing a saved post
 
   expect(await screen.findByText("Saved post")).toBeInTheDocument();
 
-  fireEvent.click(screen.getByRole("button", { name: "Remove from want to read" }));
+  fireEvent.click(screen.getByRole("button", { name: "Remove from Read Later" }));
 
-  expect(screen.getByRole("button", { name: "Removing..." })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Remove from Read Later" })).toBeDisabled();
 
   removeResponse.resolve();
 
