@@ -98,7 +98,7 @@ export function FeedPage() {
   const [readLaterBusy, setReadLaterBusy] = useState<number | null>(null);
   const [filters, setFilters] = useState<FeedFilterState>({
     feedbackState: "",
-    window: "all"
+    window: "last_month"
   });
   const [sort, setSort] = useState<PostSortMode>("date");
   const [pageOffset, setPageOffset] = useState(0);

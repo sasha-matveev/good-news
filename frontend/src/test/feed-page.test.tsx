@@ -82,6 +82,8 @@ test("feed page renders feed-only sort controls on the same toolbar row as filte
   const toolbar = screen.getByTestId("feed-toolbar");
   const [filtersGroup, sortingGroup] = Array.from(toolbar.children) as HTMLElement[];
 
+  expect(within(toolbar).getByRole("button", { name: "Last month" })).toHaveAttribute("aria-pressed", "true");
+  expect(within(toolbar).getByRole("button", { name: "All time" })).toHaveAttribute("aria-pressed", "false");
   expect(within(filtersGroup).getByRole("button", { name: "All" })).toBeInTheDocument();
   expect(within(filtersGroup).getByRole("button", { name: "Interesting" })).toBeInTheDocument();
   expect(within(filtersGroup).getByRole("button", { name: "Not interesting" })).toBeInTheDocument();
@@ -116,13 +118,13 @@ test("feed page groups filters by type and the No reaction chip requests posts w
 
   await waitFor(() => {
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/posts?feedback_state=none&window=all&sort=date&limit=50",
+      "/api/posts?feedback_state=none&window=last_month&sort=date&limit=50",
       { method: "GET" }
     );
   });
 });
 
-test("feed page loads default posts, shows the redesigned card content, and can request all collected posts", async () => {
+test("feed page loads last-month posts by default, shows the redesigned card content, and can request all collected posts", async () => {
   const fetchMock = makeUrlMock({
     "window=all": [OLDER_POST, BASE_POST],
     "/api/posts": [BASE_POST]
@@ -132,24 +134,23 @@ test("feed page loads default posts, shows the redesigned card content, and can 
 
   render(<AppShell />);
 
-  // Default window is "all" — both posts load immediately
   expect(await screen.findByText("Newer")).toBeInTheDocument();
-  expect(await screen.findByText("Older")).toBeInTheDocument();
-  expect(screen.getByText(/match 9\/10/i)).toBeInTheDocument();
-  expect(screen.getByText("Разбор подходов для Beta.")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Last month" })).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByRole("button", { name: "All time" })).toHaveAttribute("aria-pressed", "false");
   const readArticleLinks = screen.getAllByRole("link", { name: /read article/i });
   expect(readArticleLinks.some((l) => l.getAttribute("href") === "https://beta.example/posts/newer")).toBe(true);
 
-  // Switch to Last month — only the recent post (BASE_POST) remains
-  fireEvent.click(screen.getByRole("button", { name: "Last month" }));
+  await waitFor(() => {
+    expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=last_month&sort=date&limit=50", { method: "GET" });
+  });
 
-  await waitFor(() => expect(screen.queryByText("Older")).not.toBeInTheDocument());
+  fireEvent.click(screen.getByRole("button", { name: "All time" }));
+
+  expect(await screen.findByText("Older")).toBeInTheDocument();
   expect(screen.getByText("Newer")).toBeInTheDocument();
-  expect(screen.getByText("Разбор подходов для Beta.")).toBeInTheDocument();
 
   await waitFor(() => {
     expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=all&sort=date&limit=50", { method: "GET" });
-    expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=last_month&sort=date&limit=50", { method: "GET" });
   });
 });
 
@@ -192,7 +193,7 @@ test("feed page lets the user save feedback on a post and shows the persisted st
   });
 
   await waitFor(() => {
-    expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=all&sort=date&limit=50", { method: "GET" });
+    expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=last_month&sort=date&limit=50", { method: "GET" });
     expect(fetchMock).toHaveBeenCalledWith("/api/feedback/2", {
       body: JSON.stringify({ state: "interesting" }),
       headers: { "Content-Type": "application/json" },
@@ -217,11 +218,9 @@ test("feed page shows active loading feedback while refreshing results and savin
       if (urlStr.includes("/api/feedback/")) {
         return saveResponse.promise;
       }
-      // Feed default load (window=all&sort=date) — immediate response
-      if (urlStr.includes("window=all")) {
+      if (urlStr.includes("window=last_month")) {
         return Promise.resolve(new Response(JSON.stringify([initialPost]), { status: 200 }));
       }
-      // Last month filter (no window param) — deferred response
       return refreshResponse.promise;
     });
 
@@ -231,18 +230,16 @@ test("feed page shows active loading feedback while refreshing results and savin
 
   expect(await screen.findByText("Newer")).toBeInTheDocument();
 
-  // Switch from All time (default) to Last month — triggers deferred fetch
-  fireEvent.click(screen.getByRole("button", { name: "Last month" }));
+  fireEvent.click(screen.getByRole("button", { name: "All time" }));
 
   expect(screen.getByRole("status")).toHaveTextContent("Refreshing posts...");
-  expect(screen.getByRole("button", { name: "Loading last month posts..." })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Loading all time posts..." })).toBeDisabled();
   expect(screen.getByText("Newer")).toBeInTheDocument();
 
   refreshResponse.resolve();
 
   expect(await screen.findByText("Older")).toBeInTheDocument();
 
-  // [1] skips the filter tab button; PostCard feedback button comes second in DOM order
   fireEvent.click(screen.getAllByRole("button", { name: "Not interesting" })[1]);
 
   expect(screen.getAllByRole("button", { name: "Not interesting" })[1]).toBeDisabled();
