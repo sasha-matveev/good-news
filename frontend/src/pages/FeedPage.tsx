@@ -306,11 +306,11 @@ export function FeedPage() {
       ) : posts.length === 0 ? (
         <>
           {loading ? <p role="status">Refreshing posts...</p> : null}
-          <p>
-            {filters.feedbackState || filters.window !== "all"
-              ? "No posts match this filter."
-              : "No collected posts yet."}
-          </p>
+          {filters.feedbackState || filters.window !== "last_month" ? (
+            <p>No posts match this filter.</p>
+          ) : (
+            <p>No collected posts in the last month.</p>
+          )}
         </>
       ) : (
         <>
