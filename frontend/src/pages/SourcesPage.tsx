@@ -411,9 +411,9 @@ export function SourcesPage() {
               >
                 {/* Row 1: title + actions */}
                 <div style={{ display: "flex", justifyContent: "space-between", gap: "16px", alignItems: "flex-start", marginBottom: "10px" }}>
-                  <div style={{ display: "flex", gap: "12px", alignItems: "center", minWidth: 0 }}>
+                  <div style={{ display: "flex", gap: "12px", alignItems: "center", flex: "1 1 0", minWidth: 0, overflow: "hidden" }}>
                     <SourceIcon url={source.original_url} size={24} title={sourceTitle(source)} />
-                    <div style={{ minWidth: 0 }}>
+                    <div style={{ flex: "1 1 0", minWidth: 0, overflow: "hidden" }}>
                       <h3 style={{ fontSize: "18px", margin: "0 0 3px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {sourceTitle(source)}
                       </h3>
@@ -421,7 +421,7 @@ export function SourcesPage() {
                         href={source.original_url}
                         target="_blank"
                         rel="noreferrer"
-                        style={{ color: theme.color.muted, fontSize: "12px", textDecoration: "none" }}
+                        style={{ color: theme.color.muted, fontSize: "12px", textDecoration: "none", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
                       >
                         {source.original_url}
                       </a>

@@ -139,6 +139,46 @@ test("sources page loads source state, shows readaptation warnings, adds a sourc
   });
 });
 
+test("long source identity is constrained so actions remain visible", async () => {
+  const longSource = {
+    ...initialSources[0],
+    display_name: "An exceptionally long source display name that must not push action buttons outside the card",
+    original_url: "https://example.com/an/exceptionally/long/source/url/that/must/not/create/horizontal/scrolling"
+  };
+
+  const fetchMock = vi.fn<typeof fetch>().mockImplementation((url) => {
+    const urlStr = typeof url === "string" ? url : String(url);
+    if (urlStr.includes("/api/monitoring/summary") || urlStr.includes("/api/posts")) {
+      return Promise.resolve(new Response(JSON.stringify([]), { status: 200 }));
+    }
+    if (urlStr === "/api/sources") {
+      return Promise.resolve(new Response(JSON.stringify([longSource]), { status: 200 }));
+    }
+    return Promise.resolve(new Response(JSON.stringify([]), { status: 200 }));
+  });
+
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<AppShell />);
+  fireEvent.click(screen.getByRole("button", { name: "Sources" }));
+
+  const title = await screen.findByText(longSource.display_name);
+  const textContainer = title.parentElement;
+  const identityGroup = textContainer?.parentElement;
+  const sourceUrl = screen.getByRole("link", { name: longSource.original_url });
+  const actionGroup = screen.getByRole("button", { name: `Sync ${longSource.display_name}` }).parentElement;
+
+  expect(identityGroup).toHaveStyle({ flex: "1 1 0", minWidth: "0", overflow: "hidden" });
+  expect(textContainer).toHaveStyle({ flex: "1 1 0", minWidth: "0", overflow: "hidden" });
+  expect(sourceUrl).toHaveStyle({
+    display: "block",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap"
+  });
+  expect(actionGroup).toHaveStyle({ flexShrink: "0" });
+});
+
 test("sources page supports explicit sync so the first post becomes visible in Feed", async () => {
   const addedSource = {
     id: 1,
