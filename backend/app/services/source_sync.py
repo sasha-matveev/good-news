@@ -344,7 +344,9 @@ def _select_known_site_listing_items(
         indexed_candidates = [
             (index, item)
             for index, item in indexed_candidates
-            if item.published_at is None or _normalize_utc(item.published_at) > last_success_at
+            if item.raw_content is not None
+            or item.published_at is None
+            or _normalize_utc(item.published_at) > last_success_at
         ]
 
     if len(indexed_candidates) <= MAX_POSTS_PER_SOURCE_SYNC:
@@ -748,11 +750,16 @@ def _parse_known_site_listing(
     selected_items = _select_known_site_listing_items(source=source, listing_items=listing_items)
     for item in selected_items:
         article_url = urljoin(listing_url, item.href)
-        article_document = _load_document(article_url, responses, document_loader) or ""
-        raw_content = _extract_first_paragraph(article_document) or item.title
-        article_published_at, article_date_source = _extract_published_at_from_html(article_document)
-        published_at = article_published_at or item.published_at
-        published_at_source = article_date_source if article_published_at is not None else item.published_at_source
+        if item.raw_content is not None:
+            raw_content = item.raw_content
+            published_at = item.published_at
+            published_at_source = item.published_at_source
+        else:
+            article_document = _load_document(article_url, responses, document_loader) or ""
+            raw_content = _extract_first_paragraph(article_document) or item.title
+            article_published_at, article_date_source = _extract_published_at_from_html(article_document)
+            published_at = article_published_at or item.published_at
+            published_at_source = article_date_source if article_published_at is not None else item.published_at_source
         parsed_posts.append(
             ParsedPost(
                 canonical_url=article_url,
