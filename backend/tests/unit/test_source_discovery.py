@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from app.parsing.discovery import discover_source_strategy
+import pytest
+
+from app.parsing.discovery import DiscoveryError, discover_source_strategy
 
 
 def test_discovery_finds_feed_from_alternate_link() -> None:
@@ -204,3 +206,36 @@ def test_discovery_uses_known_site_strategy_for_anthropic_engineering() -> None:
         "parser_id": "anthropic_engineering",
         "listing_url": "https://www.anthropic.com/engineering",
     }
+
+
+def test_discovery_uses_known_site_strategy_for_exact_uber_engineering_url() -> None:
+    requested_urls: list[str] = []
+
+    source = discover_source_strategy(
+        "https://eng.uber.com/",
+        responses={},
+        document_loader=lambda url: requested_urls.append(url) or None,
+    )
+
+    assert source.normalized_url == "https://eng.uber.com"
+    assert source.display_name == "Uber Engineering"
+    assert source.strategy_kind == "known_site"
+    assert source.strategy_config == {
+        "discovery_method": "known_site:uber_engineering",
+        "parser_id": "uber_engineering",
+        "listing_url": "https://eng.uber.com",
+    }
+    assert requested_urls == []
+
+
+def test_discovery_does_not_match_uber_engineering_lookalike() -> None:
+    requested_urls: list[str] = []
+
+    with pytest.raises(DiscoveryError):
+        discover_source_strategy(
+            "https://eng.uber.com.example/",
+            responses={},
+            document_loader=lambda url: requested_urls.append(url) or None,
+        )
+
+    assert requested_urls == ["https://eng.uber.com.example"]

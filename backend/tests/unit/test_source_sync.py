@@ -386,6 +386,111 @@ def test_sync_known_site_filters_listing_items_before_fetching_article_pages() -
     ]
 
 
+def test_sync_uber_known_site_persists_only_new_card_data_across_polls() -> None:
+    import json as _json
+
+    engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session_factory = create_session_factory(engine)
+    with session_scope(session_factory) as session:
+        session.add(
+            Source(
+                display_name="Uber Engineering",
+                original_url="https://eng.uber.com",
+                strategy_kind="known_site",
+                strategy_config='{"listing_url":"https://eng.uber.com","parser_id":"uber_engineering"}',
+                status="ready",
+                active=True,
+            )
+        )
+
+    requested_urls: list[str] = []
+    listing = """
+        <a class="blog-card" href="/blog/first" data-date="2026-06-18">
+          <h3 class="blog-card-title">First</h3><p class="blog-card-excerpt">First excerpt.</p>
+        </a>
+    """
+    sync_active_sources(
+        session_factory=session_factory,
+        responses={},
+        document_loader=lambda url: requested_urls.append(url) or listing,
+        now=datetime(2026, 6, 19, tzinfo=UTC),
+    )
+    listing = """
+        <a class="blog-card" href="/blog/second" data-date="2026-06-18">
+          <h3 class="blog-card-title">Second</h3><p class="blog-card-excerpt">Second excerpt.</p>
+        </a>
+        <a class="blog-card" href="/blog/first" data-date="2026-06-18">
+          <h3 class="blog-card-title">First</h3><p class="blog-card-excerpt">First excerpt.</p>
+        </a>
+    """
+    sync_active_sources(
+        session_factory=session_factory,
+        responses={},
+        document_loader=lambda url: requested_urls.append(url) or listing,
+        now=datetime(2026, 6, 21, tzinfo=UTC),
+    )
+
+    with session_scope(session_factory) as session:
+        posts = session.scalars(select(Post).order_by(Post.id)).all()
+
+    assert [(post.canonical_url, post.title, post.raw_content, post.published_at) for post in posts] == [
+        ("https://eng.uber.com/blog/first", "First", "First excerpt.", datetime(2026, 6, 18)),
+        ("https://eng.uber.com/blog/second", "Second", "Second excerpt.", datetime(2026, 6, 18)),
+    ]
+    assert [_json.loads(post.ingest_metadata)["date_source"] for post in posts] == ["uber_card", "uber_card"]
+    assert requested_urls == ["https://eng.uber.com", "https://eng.uber.com"]
+
+
+def test_changed_uber_layout_fails_only_that_source() -> None:
+    engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session_factory = create_session_factory(engine)
+    with session_scope(session_factory) as session:
+        session.add_all(
+            [
+                Source(
+                    display_name="Uber Engineering",
+                    original_url="https://eng.uber.com",
+                    strategy_kind="known_site",
+                    strategy_config='{"listing_url":"https://eng.uber.com","parser_id":"uber_engineering"}',
+                    status="ready",
+                    active=True,
+                ),
+                Source(
+                    display_name="Valid Feed",
+                    original_url="https://valid.example",
+                    feed_url="https://valid.example/feed.xml",
+                    strategy_kind="feed",
+                    strategy_config="{}",
+                    status="ready",
+                    active=True,
+                ),
+            ]
+        )
+
+    processed = sync_active_sources(
+        session_factory=session_factory,
+        responses={
+            "https://eng.uber.com": "<div class='new-layout'>No blog cards</div>",
+            "https://valid.example/feed.xml": (
+                "<rss><channel><item><title>Still works</title>"
+                "<link>https://valid.example/post</link><description>Content.</description>"
+                "</item></channel></rss>"
+            ),
+        },
+        now=datetime(2026, 6, 21, tzinfo=UTC),
+    )
+
+    with session_scope(session_factory) as session:
+        uber = session.get(Source, 1)
+        posts = session.scalars(select(Post)).all()
+
+    assert processed == [2]
+    assert uber is not None and uber.consecutive_failures == 1
+    assert [post.canonical_url for post in posts] == ["https://valid.example/post"]
+
+
 def test_sync_active_sources_skips_inactive_sources() -> None:
     engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)

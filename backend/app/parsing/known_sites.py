@@ -24,6 +24,7 @@ class KnownSiteListingItem:
     title: str
     published_at: datetime | None
     published_at_source: str
+    raw_content: str | None = None
 
 
 KNOWN_SITE_DEFINITIONS = {
@@ -39,6 +40,12 @@ KNOWN_SITE_DEFINITIONS = {
         normalized_url="https://www.anthropic.com/engineering",
         display_name="Anthropic Engineering",
         article_path_prefixes=("/engineering/",),
+    ),
+    "https://eng.uber.com": KnownSiteDefinition(
+        parser_id="uber_engineering",
+        normalized_url="https://eng.uber.com",
+        display_name="Uber Engineering",
+        article_path_prefixes=("/",),
     ),
 }
 
@@ -68,6 +75,11 @@ def parse_known_site_listing(
     parser_id: str,
     document: str,
 ) -> list[KnownSiteListingItem]:
+    if parser_id == "uber_engineering":
+        from app.parsing.uber_engineering import parse_uber_engineering
+
+        return parse_uber_engineering(document)
+
     definition = known_site_for_parser_id(parser_id)
     if definition is None:
         return []
