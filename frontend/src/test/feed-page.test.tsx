@@ -178,18 +178,19 @@ test("feed page lets the user save feedback on a post and shows the persisted st
 
   expect(await screen.findByText("Newer")).toBeInTheDocument();
 
-  // [1] skips the filter tab button; PostCard feedback button comes second in DOM order
-  fireEvent.click(screen.getAllByRole("button", { name: "Interesting" })[1]);
+  const recentCard = screen.getByText("Newer").closest("article");
+  expect(recentCard).not.toBeNull();
+  fireEvent.click(within(recentCard as HTMLElement).getByRole("button", { name: "Interesting" }));
 
-  await waitFor(() => {
-    expect(screen.getAllByRole("button", { name: "Interesting" })[1]).toHaveAttribute("aria-pressed", "true");
-  });
+  await waitFor(() => expect(within(recentCard as HTMLElement).getByRole("button", { name: "Interesting" })).toHaveAttribute("aria-pressed", "true"));
 
   firstRender.unmount();
   render(<AppShell />);
 
+  const reloadedCard = (await screen.findByText("Newer")).closest("article");
+  expect(reloadedCard).not.toBeNull();
   await waitFor(() => {
-    expect(screen.getAllByRole("button", { name: "Interesting" })[1]).toHaveAttribute("aria-pressed", "true");
+    expect(within(reloadedCard as HTMLElement).getByRole("button", { name: "Interesting" })).toHaveAttribute("aria-pressed", "true");
   });
 
   await waitFor(() => {
