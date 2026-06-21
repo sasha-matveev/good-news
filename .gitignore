@@ -10,3 +10,4 @@ backend/.pytest_cache/
 backend/pytest-cache-files-*/
 frontend/node_modules/
 frontend/dist/
+backend-java/target/
