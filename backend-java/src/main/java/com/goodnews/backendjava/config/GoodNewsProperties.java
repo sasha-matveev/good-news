@@ -76,29 +76,14 @@ public class GoodNewsProperties {
         return isLocalEnvironment() || hasText(database.getUrl()) || hasText(database.getPostgresPassword());
     }
 
-    @AssertTrue(message = "Non-local environments must set GOOD_NEWS_APP_MASTER_KEY.")
-    public boolean isAppMasterKeyConfigured() {
-        return isLocalEnvironment() || hasText(email.getAppMasterKey());
+    @AssertTrue(message = "When GOOD_NEWS_FIREBASE_PROJECT_ID is set, GOOD_NEWS_ALLOWED_EMAILS must also be set.")
+    public boolean isFirebaseAuthConfigured() {
+        return !hasText(auth.getFirebaseProjectId()) || hasText(auth.getAllowedEmails());
     }
 
-    @AssertTrue(message = "Non-local environments must set GOOD_NEWS_GEMINI_API_KEY.")
-    public boolean isGeminiApiKeyConfigured() {
-        return isLocalEnvironment() || hasText(gemini.getApiKey());
-    }
-
-    @AssertTrue(message = "Non-local environments must set GOOD_NEWS_PUBLIC_CONTENT_API_ORIGIN and GOOD_NEWS_PUBLIC_FRONTEND_ORIGIN.")
-    public boolean isPublicOriginsConfigured() {
-        return isLocalEnvironment()
-            || (hasText(email.getPublicContentApiOrigin()) && hasText(email.getPublicFrontendOrigin()));
-    }
-
-    @AssertTrue(message = "Non-local environments must set GOOD_NEWS_FIREBASE_PROJECT_ID, GOOD_NEWS_ALLOWED_EMAILS, GOOD_NEWS_SCHEDULER_INVOKER, and GOOD_NEWS_OIDC_AUDIENCE.")
-    public boolean isAuthConfigured() {
-        return isLocalEnvironment()
-            || (hasText(auth.getFirebaseProjectId())
-            && hasText(auth.getAllowedEmails())
-            && hasText(scheduler.getInvoker())
-            && hasText(auth.getOidcAudience()));
+    @AssertTrue(message = "Set both GOOD_NEWS_SCHEDULER_INVOKER and GOOD_NEWS_OIDC_AUDIENCE, or leave both unset.")
+    public boolean isSchedulerOidcConfigured() {
+        return hasText(scheduler.getInvoker()) == hasText(auth.getOidcAudience());
     }
 
     private boolean hasText(String value) {
