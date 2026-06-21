@@ -37,13 +37,3 @@ npm test -- --run src/test/feed-page.test.tsx
 ```
 
 You can do the same for any other test file under `src/test/`.
-
-## Why `npm test run` is wrong here
-
-`npm test run` appends `run` to the existing test command, so npm executes:
-
-```bash
-vitest run run
-```
-
-That second `run` becomes a Vitest filter instead of a command, which is why Vitest reports that it cannot find matching test files.
