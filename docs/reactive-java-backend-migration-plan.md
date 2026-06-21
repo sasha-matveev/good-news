@@ -128,11 +128,17 @@ Introduce a minimal Java backend module that builds and starts.
 - Keep this PR boring. Do not add business logic yet.
 - Merge PR-03 immediately after this phase and do not start Java feature work before the dedicated Java CI job exists.
 
-### PR-03. Add GitHub CI for `backend-java`
+### PR-03. Add GitHub CI for `backend-java` [Completed on master]
 
 **Goal**
 
 Introduce first-class GitHub CI for the Java backend before feature migration begins.
+
+**Status**
+
+- Completed on `master`.
+- Artifact: `.github/workflows/ci.yml`, including the `backend-java` GitHub Actions job with Maven verification and Maven dependency caching.
+- Reviewed implementation basis for this plan update: current `master` CI state after commits `2fbe8e2` (`ci: add backend-java CI job`) and `d133af1` (`fix: restore unconditional backend and frontend ci`).
 
 **Exact changes**
 
