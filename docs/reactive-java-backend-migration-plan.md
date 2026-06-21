@@ -81,11 +81,17 @@ Create a single source of truth for what the Java backend must replace.
 
 - Skipping this phase is the fastest way to lose scheduler/auth/integration behavior during the rewrite.
 
-### PR-02. Create the `backend-java` Maven Skeleton
+### PR-02. Create the `backend-java` Maven Skeleton [Completed on master]
 
 **Goal**
 
 Introduce a minimal Java backend module that builds and starts.
+
+**Status**
+
+- Completed on `master`.
+- Artifact: `backend-java/` Maven skeleton, including `backend-java/pom.xml`, `backend-java/src/main/java/com/goodnews/backendjava/BackendJavaApplication.java`, and `backend-java/src/test/java/com/goodnews/backendjava/BackendJavaApplicationTests.java`.
+- Reviewed implementation basis for this plan update: commit `100046d` (`feat: create backend-java maven skeleton`).
 
 **Exact changes**
 
