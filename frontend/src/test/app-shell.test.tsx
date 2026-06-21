@@ -93,3 +93,27 @@ test("app shell lands directly on want to read for deep-link paths", async () =>
   expect(await screen.findByText("No collected posts yet.")).toBeInTheDocument();
   expect(window.location.pathname).toBe("/feed");
 });
+
+test("app shell constrains the main content column so long page content cannot widen the layout", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify([]), {
+        status: 200
+      })
+    )
+  );
+
+  const { container } = render(<AppShell />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Sources" }));
+
+  await screen.findByText("No sources yet.");
+
+  const nav = screen.getByRole("navigation", { name: "Primary navigation" });
+  const shellGrid = nav.parentElement;
+  const contentColumn = nav.nextElementSibling;
+
+  expect(shellGrid).toHaveStyle({ gridTemplateColumns: "220px minmax(0, 1fr)" });
+  expect(contentColumn).toHaveStyle({ minWidth: "0" });
+});

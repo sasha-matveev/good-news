@@ -394,7 +394,7 @@ export function SourcesPage() {
       ) : sources.length === 0 ? (
         <p>No sources yet.</p>
       ) : (
-        <div style={{ display: "grid", gap: "12px" }}>
+        <div style={{ display: "grid", gap: "12px", gridTemplateColumns: "minmax(0, 1fr)" }}>
           {sources.map((source) => {
             const isDiscovering = source.status === "discovering";
             const syncNeeded = source.status === "ready" && source.post_count === 0 && !source.last_success_at;
