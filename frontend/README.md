@@ -1,16 +1,22 @@
 # Frontend Tests
 
+Run the commands below from the `frontend` directory.
+
+This frontend now requires Node `^20.19.0 || >=22.12.0`.
+
 ## Install dependencies
 
-Run this once after cloning the repo or after dependency changes:
+For a clean install that matches `package-lock.json`:
 
 ```bash
-npm install
+npm ci
 ```
+
+Use `npm install` only when you intentionally update dependencies and need to refresh `package-lock.json`.
 
 ## Run the full frontend test suite
 
-From the `frontend` directory:
+After dependencies are installed:
 
 ```bash
 npm test
