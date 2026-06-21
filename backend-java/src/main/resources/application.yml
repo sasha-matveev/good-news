@@ -1,0 +1,52 @@
+spring:
+  application:
+    name: backend-java
+
+# Local override pattern:
+# 1. Export GOOD_NEWS_* variables in your shell, or place them in a local .env file that your launcher loads.
+# 2. For Java-only tweaks, create an untracked src/main/resources/application-local.yml and run with
+#    SPRING_PROFILES_ACTIVE=local. Environment variables still win and the deploy contract stays unchanged.
+good-news:
+  app:
+    environment: ${GOOD_NEWS_ENV:dev}
+    content-api-service-host: ${GOOD_NEWS_CONTENT_API_SERVICE_HOST:localhost}
+    content-api-service-port: ${GOOD_NEWS_CONTENT_API_SERVICE_PORT:8000}
+    frontend-port: ${GOOD_NEWS_FRONTEND_PORT:5173}
+    analysis-service-host: ${GOOD_NEWS_ANALYSIS_SERVICE_HOST:localhost}
+    analysis-service-port: ${GOOD_NEWS_ANALYSIS_SERVICE_PORT:8100}
+    source-ingestion-service-host: ${GOOD_NEWS_SOURCE_INGESTION_SERVICE_HOST:localhost}
+    source-ingestion-service-port: ${GOOD_NEWS_SOURCE_INGESTION_SERVICE_PORT:8200}
+    delivery-service-host: ${GOOD_NEWS_DELIVERY_SERVICE_HOST:localhost}
+    delivery-service-port: ${GOOD_NEWS_DELIVERY_SERVICE_PORT:8300}
+    analysis-stub-response-json: ${GOOD_NEWS_ANALYSIS_STUB_RESPONSE_JSON:}
+    ingestion-responses-json: ${GOOD_NEWS_INGESTION_RESPONSES_JSON:}
+  database:
+    url: ${GOOD_NEWS_DATABASE_URL:}
+    postgres-host: ${GOOD_NEWS_POSTGRES_HOST:localhost}
+    postgres-port: ${GOOD_NEWS_POSTGRES_PORT:5432}
+    postgres-database: ${GOOD_NEWS_POSTGRES_DATABASE:good_news}
+    postgres-user: ${GOOD_NEWS_POSTGRES_USER:good_news}
+    postgres-password: ${GOOD_NEWS_POSTGRES_PASSWORD:}
+  auth:
+    firebase-project-id: ${GOOD_NEWS_FIREBASE_PROJECT_ID:}
+    allowed-emails: ${GOOD_NEWS_ALLOWED_EMAILS:}
+    oidc-audience: ${GOOD_NEWS_OIDC_AUDIENCE:}
+  scheduler:
+    source-sync-interval-minutes: ${GOOD_NEWS_SOURCE_SYNC_INTERVAL_MINUTES:30}
+    source-failure-threshold: ${GOOD_NEWS_SOURCE_FAILURE_THRESHOLD:3}
+    invoker: ${GOOD_NEWS_SCHEDULER_INVOKER:}
+  gemini:
+    api-key: ${GOOD_NEWS_GEMINI_API_KEY:}
+    model: ${GOOD_NEWS_GEMINI_MODEL:gemini-3.1-flash-lite}
+    batch-size: ${GOOD_NEWS_GEMINI_BATCH_SIZE:10}
+    max-rpm: ${GOOD_NEWS_GEMINI_MAX_RPM:8}
+    max-retries: ${GOOD_NEWS_GEMINI_MAX_RETRIES:4}
+  email:
+    app-master-key: ${GOOD_NEWS_APP_MASTER_KEY:}
+    public-content-api-origin: ${GOOD_NEWS_PUBLIC_CONTENT_API_ORIGIN:}
+    public-frontend-origin: ${GOOD_NEWS_PUBLIC_FRONTEND_ORIGIN:}
+  observability:
+    grafana-origin: ${GOOD_NEWS_OBSERVABILITY_GRAFANA_ORIGIN:}
+    grafana-host: ${GOOD_NEWS_OBSERVABILITY_GRAFANA_HOST:127.0.0.1}
+    grafana-host-port: ${GOOD_NEWS_OBSERVABILITY_GRAFANA_HOST_PORT:3000}
+    daily-report-time: ${GOOD_NEWS_OBSERVABILITY_DAILY_REPORT_TIME:18:00}
