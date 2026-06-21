@@ -63,7 +63,7 @@ test("preference profile page loads aggregate explanations from the API", async 
   expect(screen.getByText("Not interesting: 1")).toBeInTheDocument();
 
   await waitFor(() => {
-    expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=all&sort=date&limit=50", { method: "GET" });
+    expect(fetchMock).toHaveBeenCalledWith("/api/posts?window=last_month&sort=date&limit=50", { method: "GET" });
     expect(fetchMock).toHaveBeenCalledWith("/api/preferences", { method: "GET" });
   });
 });

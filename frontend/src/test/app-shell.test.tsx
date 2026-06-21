@@ -37,7 +37,7 @@ test("renders the approved shell navigation and header summary skeleton", async 
     expect(screen.getByText(label)).toBeInTheDocument();
   }
 
-  expect(await screen.findByText("No collected posts yet.")).toBeInTheDocument();
+  expect(await screen.findByText("No collected posts in the last month.")).toBeInTheDocument();
 });
 
 test("app shell lands directly on want to read for deep-link paths", async () => {
@@ -90,6 +90,6 @@ test("app shell lands directly on want to read for deep-link paths", async () =>
 
   fireEvent.click(screen.getByRole("button", { name: "Feed" }));
 
-  expect(await screen.findByText("No collected posts yet.")).toBeInTheDocument();
+  expect(await screen.findByText("No collected posts in the last month.")).toBeInTheDocument();
   expect(window.location.pathname).toBe("/feed");
 });
