@@ -9,16 +9,24 @@
 - Existing backend behavior is the source of truth at first: keep current API shapes, auth rules, DB semantics, scheduler entrypoints, and operational topology before attempting cleanup.
 - Existing deployment model matters: production today is a FastAPI monolith on Cloud Run, migrations run through a Cloud Run job, CI is in `.github/workflows/ci.yml`, and deploy is in `.github/workflows/deploy.yml`. The repo still contains legacy split-service runtimes and tests such as `source_ingestion_service`, `analysis_llm_service`, `delivery_service`, and `content_api_service`; those traces must be inventoried explicitly instead of being mistaken for the active production topology.
 - Keep the new backend in a separate module such as `backend-java/` until cutover is complete.
+- During the parallel-run window, Python and Java must both be able to operate against the same source-of-truth database. Their DB schema expectations, persisted-data semantics, auth behavior, CORS/public-origin handling, and frontend-visible API contracts must remain compatible for as long as parallel operation exists.
+- Frontend backend selection is a migration-time internal validation mechanism, not a permanent production end-user feature. It must switch all browser API requests between Python and Java without introducing page-specific request wiring.
 - Cloud Run, Firebase Auth, Gemini, Gmail SMTP, Secret Manager, and Neon Postgres all need explicit migration steps. None of them should be treated as "will wire later".
 - Blocking libraries may still exist at the edges, especially SMTP, HTML parsing, and some crypto operations. If blocking code cannot be avoided, isolate it explicitly away from the Netty event loop and document the scheduler choice in the PR.
 
 ## PR Phases
 
-### PR-01. Freeze Migration Scope and Current Contracts
+### PR-01. Freeze Migration Scope and Current Contracts [Completed on master]
 
 **Goal**
 
 Create a single source of truth for what the Java backend must replace.
+
+**Status**
+
+- Completed on `master`.
+- Artifact: `docs/reactive-java-backend-pr-01-inventory.md`.
+- Reviewed artifact source for this plan update: `C:\Users\ytype\dev\projects\good-news\docs\reactive-java-backend-pr-01-inventory.md`.
 
 **Exact changes**
 
@@ -1069,31 +1077,99 @@ Make the daily observability report branch of `/internal/jobs/digests` explicit 
 
 - This is not just another digest variant; making it explicit prevents it from being forgotten during cutover.
 
-### PR-40. Add Frontend-to-Java Local Switch and Smoke Coverage
+### PR-40. Add Shared Frontend Backend-Target Routing
 
 **Goal**
 
-Make local and preview verification practical before shared environments are switched.
+Introduce one shared frontend mechanism that can route all API calls to either the Python backend or the Java backend.
 
 **Exact changes**
 
-- Add a backend target switch for frontend development so the React app can point to `backend-java`.
-- Add or update smoke tests/scripts so core frontend flows can be exercised against Java for already-ported routes.
-- Document the local dual-backend workflow during migration.
+- Update `frontend/src/lib/api.ts`, where the API root is currently derived from `VITE_CONTENT_API_ORIGIN`, so the frontend can resolve two backend origins:
+  - Python backend origin
+  - Java backend origin
+- Keep request routing centralized in the shared API layer. Do not introduce page-specific backend-selection logic.
+- Add a shared runtime backend-target state source that switches all frontend API requests together.
+- Make backend-target changes trigger a full UI retargeting mechanism, for example by remounting the app subtree or invalidating all page-level data loads, so already-open pages refetch from the newly selected backend instead of mixing stale data from the previous target.
+- Preserve a safe default so the existing Python backend path remains the default until later cutover phases.
+- Document the constraint that both backends must remain schema-compatible and frontend-contract-compatible with the same source-of-truth database for as long as this selector exists.
+- Add explicit verification that both backends accept the same frontend origin set and Firebase-authenticated browser requests while selector-based switching is enabled.
 
 **Definition of done**
 
-- Developers can run the frontend against the Java backend locally without breaking the existing Python local path.
+- The frontend has one shared backend-target abstraction that can route all requests to either backend without touching individual pages.
+- Switching the target causes the already-open UI to refresh from the newly selected backend as one application-level transition rather than leaving page data partially stale.
 
 **Verification**
 
-- Frontend smoke run against Java for Feed, Sources, Preferences, Settings, Digest, and Monitoring pages as routes become available.
+- Frontend tests for API-root selection and request routing behavior from the shared API layer.
+- Frontend tests for full-app retargeting behavior after a backend-target change.
+- Verification against both backends that the same frontend origin(s) and Firebase-authenticated requests are accepted.
 
 **Risks/notes**
 
-- Keep the switch explicit. Silent target flips during migration will confuse local debugging.
+- This phase must stay in shared wiring only. Per-page implementations would create permanent drift and defeat the point of the selector.
 
-### PR-41. Add Python-vs-Java Contract Test Harness
+### PR-41. Add Global AppShell Backend Selector
+
+**Goal**
+
+Expose the backend-target switch once, globally, in the shared app chrome visible on every page for internal, staging, debug, and controlled migration validation use.
+
+**Exact changes**
+
+- Update `frontend/src/app/AppShell.tsx`, where the header currently renders three top summary cards.
+- Add the backend selector as the fourth header block visible on every page.
+- Make the selector switch the shared backend-target state created in PR-40 so every request goes to the selected backend.
+- Ensure a backend-target change refreshes the whole visible UI from the newly selected backend, not just header-level data such as monitoring summary.
+- Persist the selected target in a simple, explicit way suitable for debugging and side-by-side validation.
+- Gate the selector so it is presented as an internal validation control during migration, not as a normal long-term product choice for end users.
+
+**Definition of done**
+
+- The header shows a fourth global block for backend selection on every page.
+- Changing the selector flips all frontend API traffic between Python and Java through the shared API layer.
+- Changing the selector causes the already-open page subtree to reload its data from the newly selected backend.
+
+**Verification**
+
+- Frontend interaction tests for selector rendering, persistence, and full-app request retargeting.
+- Manual smoke check that changing the selector in the header affects Feed, Sources, Preferences, Settings, Digests, Want To Read, and Monitoring without page-specific wiring.
+
+**Risks/notes**
+
+- Keep the selector explicit and visible where migration validation needs it, but do not redefine normal production UX around backend choice.
+
+### PR-42. Add Local Dual-Backend Smoke Coverage and Workflow Docs
+
+**Goal**
+
+Make local and preview verification practical once the shared selector exists.
+
+**Exact changes**
+
+- Add or update smoke tests/scripts so core frontend flows can be exercised against both backends through the shared selector.
+- Document the local migration workflow:
+  - run frontend once
+  - run Python and Java backends in parallel
+  - switch the selector in `AppShell`
+  - verify both backends operate correctly against the same database
+- Include local checks that both backends accept the same frontend origin and Firebase-authenticated browser requests when selected through the shared frontend.
+- Keep the workflow repo-specific and grounded in the current frontend structure.
+
+**Definition of done**
+
+- Developers can run one frontend build and switch it between Python and Java locally while both backends point at the same database.
+
+**Verification**
+
+- Frontend smoke run against both backends for Feed, Sources, Preferences, Settings, Digests, Want To Read, and Monitoring as routes become available.
+
+**Risks/notes**
+
+- The point of this phase is not just convenience. It proves the selector model, full-app retargeting behavior, and dual-backend compatibility before shared-environment use.
+
+### PR-43. Add Python-vs-Java Contract Test Harness
 
 **Goal**
 
@@ -1111,6 +1187,7 @@ Create an automated safety net that compares both implementations before cutover
   - digests
   - monitoring
 - Add comparison helpers for status, response shape, ordering-sensitive fields, and key business values.
+- Make schema- and contract-compatibility drift during the parallel-run window a release-blocking concern, not just an informational warning.
 
 **Definition of done**
 
@@ -1124,7 +1201,7 @@ Create an automated safety net that compares both implementations before cutover
 
 - This should be treated as a release-quality safety layer, not as optional test polish.
 
-### PR-42. Add Java Image Build and Publish Path in GitHub Actions
+### PR-44. Add Java Image Build and Publish Path in GitHub Actions
 
 **Goal**
 
@@ -1150,7 +1227,7 @@ Make `backend-java` buildable and publishable in GitHub Actions before wiring de
 
 - Splitting build/publish from deploy keeps failures smaller and easier to debug in one session.
 
-### PR-43. Add Java Flyway Migration Path in GitHub Actions
+### PR-45. Add Java Flyway Migration Path in GitHub Actions
 
 **Goal**
 
@@ -1173,7 +1250,7 @@ Wire database migration execution for Java as a standalone deploy concern.
 
 - Keeping migrations separate from service deploy is safer because schema failures deserve their own review surface.
 
-### PR-44. Add Non-Production Cloud Run Deploy Path for `backend-java`
+### PR-46. Add Non-Production Cloud Run Deploy Path for `backend-java`
 
 **Goal**
 
@@ -1192,6 +1269,7 @@ Prepare the Java service for deployable preview and staging environments before 
     - scheduler invoker
     - public origins
 - Preserve the existing Python production deploy path while Java is still parallel.
+- Verify that Python and Java are both configured to accept the same allowed frontend origin set and the same Firebase-authenticated browser request pattern needed by selector-driven switching.
 
 **Definition of done**
 
@@ -1201,37 +1279,40 @@ Prepare the Java service for deployable preview and staging environments before 
 
 - Successful workflow run that deploys the Java service to a non-production Cloud Run target.
 - Smoke check of `/api/health` on the deployed Java service.
+- Explicit CORS/public-origin and authenticated-browser-request smoke checks against both backend targets.
 
 **Risks/notes**
 
 - Keep the Java service isolated from the current production Cloud Run target until cutover phases explicitly begin.
 
-### PR-45. Add Staging Hosting or Preview-Channel Frontend Path
+### PR-47. Add Staging Hosting or Preview-Channel Frontend Path for the Shared Selector
 
 **Goal**
 
-Create an executable staging frontend path for the Java backend despite `VITE_CONTENT_API_ORIGIN` being baked at build time.
+Create an executable staging frontend path that can switch between Python and Java backends through the shared selector.
 
 **Exact changes**
 
-- Add a staging Hosting target or Firebase preview-channel deployment path that can be built with a staging `VITE_CONTENT_API_ORIGIN` pointing at the Java backend.
-- Document the build-time variable flow and how staging hosting differs from production hosting.
+- Add a staging Hosting target or Firebase preview-channel deployment path that can be built with both staging backend origins available to the shared selector.
+- Update the build-time variable plan so it no longer assumes one baked `VITE_CONTENT_API_ORIGIN` for all staging validation.
+- Document how the shared selector is configured in staging and how staging hosting differs from production hosting.
+- Keep the selector scoped to internal/staging validation use rather than positioning it as a normal user-facing product control.
 - Keep the current production hosting path unchanged.
 
 **Definition of done**
 
-- The repo has a documented and automatable way to publish a staging frontend build that targets the Java backend.
+- The repo has a documented and automatable way to publish a staging frontend build whose shared selector can target either staging backend.
 
 **Verification**
 
-- Successful staging or preview-channel frontend deployment with the baked Java backend origin.
-- Manual smoke check that the staged frontend calls the Java backend rather than production FastAPI.
+- Successful staging or preview-channel frontend deployment with both backend origins configured for the selector.
+- Manual smoke check that the staged frontend can switch between the staging Python backend and the staging Java backend.
 
 **Risks/notes**
 
-- Without this phase, "switch staging frontend" is not actually executable in one PR because the frontend API origin is compiled in.
+- Without this phase, the shared selector exists only locally and "switch staging frontend" is not actually executable in one PR.
 
-### PR-46. Deploy Java Backend to Staging
+### PR-48. Deploy Java Backend to Staging
 
 **Goal**
 
@@ -1255,30 +1336,33 @@ Run the Java backend as a real service in a shared environment before any produc
 
 - Do not treat "it starts" as sufficient. The point of staging is system behavior, not only boot success.
 
-### PR-47. Deploy Staging Frontend Against the Java Backend
+### PR-49. Deploy Staging Frontend With the Shared Backend Selector
 
 **Goal**
 
-Use staging to validate realistic UI behavior against the Java backend before scheduler cutover.
+Use staging to validate realistic UI behavior while the same frontend can target either backend against the same staging database.
 
 **Exact changes**
 
-- Deploy the staging Hosting target or preview channel created in PR-45 with `VITE_CONTENT_API_ORIGIN` baked to the staging Java backend.
+- Deploy the staging Hosting target or preview channel created in PR-47 with the shared backend selector enabled.
+- Configure the selector so staging users can switch between the staging Python backend and the staging Java backend.
 - Keep rollback instructions explicit for the staging frontend only.
+- Verify that both staging backends accept the same staging frontend origin and Firebase-authenticated browser requests during selector-driven validation.
 
 **Definition of done**
 
-- Staging UI flows run against Java rather than Python.
+- Staging UI exposes the shared backend selector and can exercise both backends against the same staging database.
 
 **Verification**
 
-- End-to-end smoke of Feed, Sources sync, Preferences recompute, Settings test email, Digest history, and Monitoring in staging.
+- End-to-end smoke of Feed, Sources sync, Preferences recompute, Settings test email, Digest history, and Monitoring in staging against both selector targets.
+- Explicit smoke checks for full-page retargeting after a selector change and for equivalent CORS/auth acceptance on both staging backends.
 
 **Risks/notes**
 
-- This is the first UI-facing rehearsal. Keep scheduler cutover separate so failures are easier to isolate.
+- This is the first shared-environment proof that both backends can operate in parallel while the frontend chooses the target.
 
-### PR-48. Point Staging Scheduler to Java Internal Jobs
+### PR-50. Point Staging Scheduler to Java Internal Jobs
 
 **Goal**
 
@@ -1301,55 +1385,62 @@ Complete the staging rehearsal by moving scheduled automation after backend and 
 
 - This split is deliberate. Combining backend deploy, frontend deploy, and scheduler cutover in one PR is too large for one session.
 
-### PR-49. Shift Production Read Traffic to Java
+### PR-51. Deploy Production Frontend With the Shared Backend Selector
 
 **Goal**
 
-Start production cutover with the lowest-risk traffic class.
+Ship the selector-driven frontend path to production only as a controlled migration-validation mechanism while keeping Python as the default backend target for normal users.
 
 **Exact changes**
 
-- Route production read-heavy endpoints to Java while leaving higher-risk write and job paths on Python.
-- Keep rollback controls simple and documented.
+- Deploy the shared backend selector to the production frontend.
+- Configure production frontend builds with both production backend origins available to the shared selector.
+- Keep Python as the default selected target at first.
+- Gate access to the selector for internal/support/controlled-validation use during migration instead of treating it as a general user-facing choice.
+- Make the rollback behavior explicit: controlled validation sessions can still route all browser requests back to Python during the soak period.
+- Verify that both production backends accept the same production frontend origin set and Firebase-authenticated browser requests needed for controlled selector use.
 
 **Definition of done**
 
-- Production read endpoints are served by Java with acceptable correctness, latency, and error rates.
+- The production frontend contains the shared selector path for controlled migration validation, while ordinary production UX still defaults to Python without redefining backend choice as a normal user control.
 
 **Verification**
 
-- Runtime dashboards for error rate and latency.
-- Manual smoke checks of feed, source list, digest history, preferences, and monitoring.
+- Manual smoke checks of selector-driven traffic to both backends in controlled production-validation sessions.
+- Runtime dashboards for error rate and latency on both production backend targets.
 
 **Risks/notes**
 
-- Read traffic is safer than writes, but contract mismatches still surface here first.
+- Because the selector switches all browser requests together, this phase is a better controlled validation step than trying to split read traffic from write traffic inside the same UI flow.
 
-### PR-50. Shift Production Write Traffic to Java
+### PR-52. Switch the Production Frontend Default Target to Java
 
 **Goal**
 
-Move user state-changing flows after read stability is proven.
+Make Java the default backend for browser traffic after parallel validation is complete.
 
 **Exact changes**
 
-- Route feedback, want-to-read, settings updates, and sources CRUD writes to Java.
-- Preserve rollback options per route group if infrastructure allows.
+- Change the production frontend default backend target from Python to Java.
+- Keep the shared selector available only for internal/support/controlled rollback validation during the soak period.
+- Confirm that all browser-driven routes now work correctly when the Java backend is the default selected target.
+- Keep the requirement explicit that Python remains schema- and contract-compatible enough for rollback until the selector/parallel-run window is closed.
 
 **Definition of done**
 
-- User writes go to Java successfully and persist correctly.
+- Production browser traffic defaults to Java, and controlled rollback validation to Python remains available during the confidence window without turning backend choice into a permanent end-user control.
 
 **Verification**
 
-- Business smoke checks for each write path.
-- Monitoring for increased 4xx/5xx or write-latency regressions.
+- Business smoke checks across both read and write UI flows with Java as the default selected backend.
+- Monitoring for increased 4xx/5xx, latency regressions, and data-consistency issues while both backends still operate against the same database.
 
 **Risks/notes**
 
-- This is a much higher-risk cutover than read traffic because state consistency becomes visible immediately.
+- This phase intentionally flips all browser-driven traffic together because the selector model is all-or-nothing per session, not per route group.
+- Do not close the selector/parallel-run window until rollback validation proves Python still works against the shared schema and data.
 
-### PR-51. Shift Production Internal Jobs and Digest Delivery
+### PR-53. Shift Production Internal Jobs and Digest Delivery
 
 **Goal**
 
@@ -1375,7 +1466,7 @@ Complete the backend cutover by moving automated production behavior to Java.
 
 - This is the most operationally sensitive production switch because failures may not be user-driven or instantly visible.
 
-### PR-52. Retire Python Backend from the Active Production Path
+### PR-54. Retire Python Backend from the Active Production Path
 
 **Goal**
 
@@ -1408,3 +1499,4 @@ Finish the migration and remove the old backend from normal delivery flow.
 - Every PR ends with relevant verification run locally and in CI. For Java backend work, PR-03 establishes the dedicated GitHub Actions coverage that all later Java phases are expected to use; PR-02 is the only bootstrap exception and should merge immediately before PR-03.
 - Every PR gets review focused on correctness, contract compatibility, and reactive-stack discipline.
 - No PR should defer critical behavior with comments like "wire later" when that behavior is already part of the live Python backend contract.
+- Frontend backend-target work stays centralized in shared wiring such as `frontend/src/lib/api.ts` and `frontend/src/app/AppShell.tsx`; do not split that migration into separate per-page implementations.
