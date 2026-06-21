@@ -163,11 +163,13 @@ test("long source identity is constrained so actions remain visible", async () =
   fireEvent.click(screen.getByRole("button", { name: "Sources" }));
 
   const title = await screen.findByText(longSource.display_name);
+  const listGrid = title.closest("article")?.parentElement;
   const textContainer = title.parentElement;
   const identityGroup = textContainer?.parentElement;
   const sourceUrl = screen.getByRole("link", { name: longSource.original_url });
   const actionGroup = screen.getByRole("button", { name: `Sync ${longSource.display_name}` }).parentElement;
 
+  expect(listGrid).toHaveStyle({ gridTemplateColumns: "minmax(0, 1fr)" });
   expect(identityGroup).toHaveStyle({ flex: "1 1 0", minWidth: "0", overflow: "hidden" });
   expect(textContainer).toHaveStyle({ flex: "1 1 0", minWidth: "0", overflow: "hidden" });
   expect(sourceUrl).toHaveStyle({

@@ -200,7 +200,7 @@ export function AppShell() {
           </div>
         </header>
 
-        <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", minHeight: "600px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "220px minmax(0, 1fr)", minHeight: "600px" }}>
           <nav
             aria-label="Primary navigation"
             style={{
@@ -248,7 +248,7 @@ export function AppShell() {
               </button>
             ))}
           </nav>
-          <div>
+          <div style={{ minWidth: 0 }}>
             {activeTab === "Feed" ? (
               <FeedPage />
             ) : activeTab === "Want To Read" ? (
