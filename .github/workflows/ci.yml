@@ -14,8 +14,6 @@ jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
-      backend: ${{ steps.filter.outputs.backend }}
-      frontend: ${{ steps.filter.outputs.frontend }}
       backend_java: ${{ steps.filter.outputs.backend_java }}
       shared: ${{ steps.filter.outputs.shared }}
     steps:
@@ -26,18 +24,12 @@ jobs:
         id: filter
         with:
           filters: |
-            backend:
-              - 'backend/**'
-            frontend:
-              - 'frontend/**'
             backend_java:
               - 'backend-java/**'
             shared:
               - '.github/workflows/ci.yml'
 
   backend:
-    needs: changes
-    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.shared == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -50,8 +42,6 @@ jobs:
         run: pytest backend/tests/unit backend/tests/api -q
 
   frontend:
-    needs: changes
-    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.shared == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
