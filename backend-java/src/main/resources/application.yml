@@ -3,6 +3,9 @@ spring:
     name: backend-java
 
 management:
+  health:
+    r2dbc:
+      enabled: false
   endpoints:
     web:
       exposure:
