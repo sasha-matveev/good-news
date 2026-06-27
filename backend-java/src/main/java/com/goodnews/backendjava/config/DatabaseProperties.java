@@ -17,6 +17,11 @@ public record DatabaseProperties(
     static final String DEFAULT_USER = "good_news";
 
     boolean isExplicitlyConfigured() {
-        return StringUtils.hasText(url) || StringUtils.hasText(postgresPassword);
+        return StringUtils.hasText(url)
+            || StringUtils.hasText(postgresPassword)
+            || !DEFAULT_HOST.equals(postgresHost)
+            || !Integer.valueOf(DEFAULT_PORT).equals(postgresPort)
+            || !DEFAULT_DATABASE.equals(postgresDatabase)
+            || !DEFAULT_USER.equals(postgresUser);
     }
 }

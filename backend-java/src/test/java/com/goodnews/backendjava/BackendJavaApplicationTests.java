@@ -1,5 +1,6 @@
 package com.goodnews.backendjava;
 
+import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
@@ -19,6 +20,7 @@ class BackendJavaApplicationTests {
             assertThat(readNestedValue(properties, "app", "environment")).isEqualTo("dev");
             assertThat(readNestedValue(properties, "app", "contentApiServiceHost")).isEqualTo("localhost");
             assertThat(readNestedValue(properties, "scheduler", "sourceSyncIntervalMinutes")).isEqualTo(30);
+            assertThat(context.getBeansOfType(Flyway.class)).isEmpty();
         }
     }
 

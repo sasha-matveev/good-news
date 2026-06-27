@@ -27,6 +27,34 @@ class ReactiveDatabaseConfigTest {
     }
 
     @Test
+    void treatsPasswordlessStructuredOverridesAsExplicitDatabaseConfiguration() {
+        DatabaseProperties properties = new DatabaseProperties(
+            null,
+            "db.internal",
+            5432,
+            "good_news",
+            DatabaseProperties.DEFAULT_USER,
+            null
+        );
+
+        assertThat(properties.isExplicitlyConfigured()).isTrue();
+    }
+
+    @Test
+    void treatsPureDefaultsAsNoExplicitDatabaseConfiguration() {
+        DatabaseProperties properties = new DatabaseProperties(
+            null,
+            DatabaseProperties.DEFAULT_HOST,
+            Integer.valueOf(DatabaseProperties.DEFAULT_PORT),
+            DatabaseProperties.DEFAULT_DATABASE,
+            DatabaseProperties.DEFAULT_USER,
+            null
+        );
+
+        assertThat(properties.isExplicitlyConfigured()).isFalse();
+    }
+
+    @Test
     void normalizesLegacySqlAlchemyUrlOverridesToReactiveOptions() {
         DatabaseProperties properties = new DatabaseProperties(
             "postgresql+psycopg://legacy_user:legacy-pass@db.example:5544/good_news?sslmode=require",
