@@ -3,8 +3,10 @@ package com.goodnews.backendjava.config;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.util.TestPropertyValues;
 import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.context.annotation.Configuration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -12,10 +14,9 @@ class GoodNewsPropertiesBindingTest {
 
     @Test
     void bindsRemainingGoodNewsEnvironmentVariablesIntoRecords() {
-        try (ConfigurableApplicationContext context = new SpringApplicationBuilder(loadApplicationClass())
+        try (ConfigurableApplicationContext context = new SpringApplicationBuilder(TestConfiguration.class)
             .web(WebApplicationType.NONE)
             .properties(
-                "spring.flyway.enabled=false",
                 "GOOD_NEWS_ENV=prod",
                 "GOOD_NEWS_CONTENT_API_SERVICE_HOST=content-api.internal",
                 "GOOD_NEWS_CONTENT_API_SERVICE_PORT=9000",
@@ -50,7 +51,7 @@ class GoodNewsPropertiesBindingTest {
                 "GOOD_NEWS_PUBLIC_FRONTEND_ORIGIN=https://good-news.example.com"
             )
             .run()) {
-            Object properties = context.getBean(loadPropertiesClass());
+            GoodNewsProperties properties = context.getBean(GoodNewsProperties.class);
 
             assertThat(readNestedValue(properties, "app", "environment")).isEqualTo("prod");
             assertThat(readNestedValue(properties, "app", "contentApiServiceHost")).isEqualTo("content-api.internal");
@@ -94,10 +95,9 @@ class GoodNewsPropertiesBindingTest {
 
     @Test
     void explicitGoodNewsPropertiesOverrideLegacyGoodNewsEnvironmentAliases() {
-        try (ConfigurableApplicationContext context = new SpringApplicationBuilder(loadApplicationClass())
+        try (ConfigurableApplicationContext context = new SpringApplicationBuilder(TestConfiguration.class)
             .web(WebApplicationType.NONE)
             .properties(
-                "spring.flyway.enabled=false",
                 "GOOD_NEWS_ENV=prod",
                 "GOOD_NEWS_GEMINI_MODEL=gemini-2.5-flash-lite"
             )
@@ -106,26 +106,10 @@ class GoodNewsPropertiesBindingTest {
                 "good-news.gemini.model=gemini-explicit"
             ).applyTo(applicationContext))
             .run()) {
-            Object properties = context.getBean(loadPropertiesClass());
+            GoodNewsProperties properties = context.getBean(GoodNewsProperties.class);
 
             assertThat(readNestedValue(properties, "app", "environment")).isEqualTo("test");
             assertThat(readNestedValue(properties, "gemini", "model")).isEqualTo("gemini-explicit");
-        }
-    }
-
-    private Class<?> loadApplicationClass() {
-        return loadClass("com.goodnews.backendjava.BackendJavaApplication");
-    }
-
-    private Class<?> loadPropertiesClass() {
-        return loadClass("com.goodnews.backendjava.config.GoodNewsProperties");
-    }
-
-    private Class<?> loadClass(String className) {
-        try {
-            return Class.forName(className);
-        } catch (ClassNotFoundException exception) {
-            throw new IllegalStateException("Missing class " + className, exception);
         }
     }
 
@@ -139,5 +123,10 @@ class GoodNewsPropertiesBindingTest {
         } catch (ReflectiveOperationException exception) {
             throw new IllegalStateException("Failed to invoke " + methodName, exception);
         }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    @EnableConfigurationProperties(GoodNewsProperties.class)
+    static class TestConfiguration {
     }
 }
