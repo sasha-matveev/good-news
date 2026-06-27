@@ -9,9 +9,6 @@ import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
 import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.util.StringUtils;
 
-import java.net.URI;
-import java.net.URISyntaxException;
-
 import static io.r2dbc.spi.ConnectionFactoryOptions.DATABASE;
 import static io.r2dbc.spi.ConnectionFactoryOptions.DRIVER;
 import static io.r2dbc.spi.ConnectionFactoryOptions.HOST;
@@ -65,7 +62,7 @@ public class ReactiveDatabaseConfig {
         ConnectionFactoryOptions baseOptions = ConnectionFactoryOptions.parse(normalizedUrl);
         ConnectionFactoryOptions.Builder builder = ConnectionFactoryOptions.builder().from(baseOptions);
 
-        if (StringUtils.hasText(properties.postgresUser())) {
+        if (hasExplicitUserOverride(properties)) {
             builder.option(USER, properties.postgresUser());
         }
         if (StringUtils.hasText(properties.postgresPassword())) {
@@ -75,7 +72,7 @@ public class ReactiveDatabaseConfig {
         return builder.build();
     }
 
-    private static String normalizeUrl(String url) {
+    static String normalizeUrl(String url) {
         if (url.startsWith("r2dbc:")) {
             return url;
         }
@@ -92,31 +89,24 @@ public class ReactiveDatabaseConfig {
     }
 
     private static String rewriteSqlAlchemyStyleUrl(String url) {
-        try {
-            URI uri = new URI(url);
-            StringBuilder builder = new StringBuilder("r2dbc:postgresql://");
+        int schemeSeparatorIndex = url.indexOf("://");
+        if (schemeSeparatorIndex < 0) {
+            throw new IllegalArgumentException("Invalid GOOD_NEWS_DATABASE_URL value: " + url);
+        }
 
-            if (StringUtils.hasText(uri.getUserInfo())) {
-                builder.append(uri.getUserInfo()).append('@');
-            }
+        String authorityAndPath = url.substring(schemeSeparatorIndex + 3);
+        String[] baseAndQuery = authorityAndPath.split("\\?", 2);
+        StringBuilder builder = new StringBuilder("r2dbc:postgresql://")
+            .append(baseAndQuery[0]);
 
-            builder.append(uri.getHost());
-
-            if (uri.getPort() != -1) {
-                builder.append(':').append(uri.getPort());
-            }
-
-            builder.append(uri.getPath());
-
-            String query = toReactiveQuery(uri.getQuery());
+        if (baseAndQuery.length == 2) {
+            String query = toReactiveQuery(baseAndQuery[1]);
             if (StringUtils.hasText(query)) {
                 builder.append('?').append(query);
             }
-
-            return builder.toString();
-        } catch (URISyntaxException exception) {
-            throw new IllegalArgumentException("Invalid GOOD_NEWS_DATABASE_URL value", exception);
         }
+
+        return builder.toString();
     }
 
     private static String toReactiveQuery(String query) {
@@ -138,5 +128,10 @@ public class ReactiveDatabaseConfig {
             builder.append(normalizedPart);
         }
         return builder.toString();
+    }
+
+    private static boolean hasExplicitUserOverride(DatabaseProperties properties) {
+        return StringUtils.hasText(properties.postgresUser())
+            && !DatabaseProperties.DEFAULT_USER.equals(properties.postgresUser());
     }
 }

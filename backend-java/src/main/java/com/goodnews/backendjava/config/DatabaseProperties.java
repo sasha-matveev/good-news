@@ -10,8 +10,8 @@ public record DatabaseProperties(
     @DefaultValue(DEFAULT_USER) String postgresUser,
     String postgresPassword
 ) {
-    private static final String DEFAULT_HOST = "localhost";
-    private static final String DEFAULT_PORT = "5432";
-    private static final String DEFAULT_DATABASE = "good_news";
-    private static final String DEFAULT_USER = "good_news";
+    static final String DEFAULT_HOST = "localhost";
+    static final String DEFAULT_PORT = "5432";
+    static final String DEFAULT_DATABASE = "good_news";
+    static final String DEFAULT_USER = "good_news";
 }

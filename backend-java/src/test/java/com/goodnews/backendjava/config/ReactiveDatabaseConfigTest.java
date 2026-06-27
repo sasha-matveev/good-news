@@ -47,6 +47,31 @@ class ReactiveDatabaseConfigTest {
     }
 
     @Test
+    void preservesUrlCredentialsWhenOnlyDefaultStructuredUserIsPresent() {
+        DatabaseProperties properties = new DatabaseProperties(
+            "postgresql+psycopg://legacy_user:legacy-pass@db.example:5544/good_news",
+            "localhost",
+            5432,
+            "good_news",
+            DatabaseProperties.DEFAULT_USER,
+            null
+        );
+
+        String options = ReactiveDatabaseConfig.resolveConnectionFactoryOptions(properties).toString();
+
+        assertThat(options).contains("user=legacy_user");
+    }
+
+    @Test
+    void preservesPercentEncodedCredentialsDuringSqlAlchemyUrlNormalization() {
+        assertThat(
+            ReactiveDatabaseConfig.normalizeUrl(
+                "postgresql+psycopg://legacy_user:p%40ss@db.example:5544/good_news?sslmode=require"
+            )
+        ).isEqualTo("r2dbc:postgresql://legacy_user:p%40ss@db.example:5544/good_news?ssl=true");
+    }
+
+    @Test
     void rejectsUnsupportedUrlSchemesEarly() {
         DatabaseProperties properties = new DatabaseProperties(
             "mysql://db.example/good_news",
