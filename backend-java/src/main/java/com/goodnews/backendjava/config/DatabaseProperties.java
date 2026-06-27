@@ -1,6 +1,7 @@
 package com.goodnews.backendjava.config;
 
 import org.springframework.boot.context.properties.bind.DefaultValue;
+import org.springframework.util.StringUtils;
 
 public record DatabaseProperties(
     String url,
@@ -14,4 +15,8 @@ public record DatabaseProperties(
     static final String DEFAULT_PORT = "5432";
     static final String DEFAULT_DATABASE = "good_news";
     static final String DEFAULT_USER = "good_news";
+
+    boolean isExplicitlyConfigured() {
+        return StringUtils.hasText(url) || StringUtils.hasText(postgresPassword);
+    }
 }

@@ -3,7 +3,6 @@ package com.goodnews.backendjava.config;
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.ReactiveHealthIndicator;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 import reactor.core.publisher.Mono;
 
 @Component("postgres")
@@ -19,7 +18,7 @@ public class ReactiveDatabaseHealthIndicator implements ReactiveHealthIndicator 
 
     @Override
     public Mono<Health> health() {
-        if (!isDatabaseExplicitlyConfigured(properties.database())) {
+        if (!properties.database().isExplicitlyConfigured()) {
             return Mono.just(Health.up().withDetail("database", "not-configured").build());
         }
 
@@ -30,9 +29,5 @@ public class ReactiveDatabaseHealthIndicator implements ReactiveHealthIndicator 
             .onErrorResume(exception -> Mono.just(
                 Health.down(exception).withDetail("database", "unreachable").build()
             ));
-    }
-
-    private boolean isDatabaseExplicitlyConfigured(DatabaseProperties properties) {
-        return StringUtils.hasText(properties.url()) || StringUtils.hasText(properties.postgresPassword());
     }
 }
