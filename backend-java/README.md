@@ -18,8 +18,10 @@ The backend exposes these unauthenticated Actuator endpoints on the main applica
 Quick verification from the repo root:
 
 ```powershell
-mvn -f backend-java\pom.xml test
+mvn -f backend-java\pom.xml verify
 ```
+
+`verify` covers the unit test suite plus the Testcontainers-backed integration phase that exercises Flyway migrations when Docker is available.
 
 Manual endpoint check on the default application port:
 
