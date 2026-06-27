@@ -244,11 +244,17 @@ Stand up the minimum operational surface expected from the backend.
 
 - Do not replace the current public health contract with a default actuator payload if existing consumers depend on the current route.
 
-### PR-06. Establish Reactive Postgres Connectivity
+### PR-06. Establish Reactive Postgres Connectivity [Completed on master]
 
 **Goal**
 
 Connect Java to Postgres the reactive way before any domain migration.
+
+**Status**
+
+- Completed on `master`.
+- Artifact: reactive database connectivity under `backend-java/src/main/java/com/goodnews/backendjava/config/`, including `ReactiveDatabaseConfig.java`, `ReactiveDatabaseSmokeProbe.java`, and `ReactiveDatabaseHealthIndicator.java`, plus integration and configuration coverage in `backend-java/src/test/java/com/goodnews/backendjava/`.
+- Reviewed implementation basis for this plan update: current `master` connectivity state after commits `392ba19` (`feat: establish reactive postgres connectivity`) and `f3a1a80` (`fix: preserve reactive postgres url semantics`).
 
 **Exact changes**
 
