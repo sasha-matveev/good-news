@@ -1,6 +1,7 @@
 package com.goodnews.backendjava.config;
 
 import org.flywaydb.core.Flyway;
+import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.context.annotation.Condition;
 import org.springframework.context.annotation.ConditionContext;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -29,12 +30,16 @@ class DatabaseConfiguredCondition implements Condition {
 
     @Override
     public boolean matches(ConditionContext context, AnnotatedTypeMetadata metadata) {
-        String url = context.getEnvironment().getProperty("good-news.database.url");
-        String password = context.getEnvironment().getProperty("good-news.database.postgres-password");
-        return hasText(url) || hasText(password);
-    }
-
-    private boolean hasText(String value) {
-        return value != null && !value.isBlank();
+        DatabaseProperties properties = Binder.get(context.getEnvironment())
+            .bind("good-news.database", DatabaseProperties.class)
+            .orElseGet(() -> new DatabaseProperties(
+                null,
+                DatabaseProperties.DEFAULT_HOST,
+                Integer.valueOf(DatabaseProperties.DEFAULT_PORT),
+                DatabaseProperties.DEFAULT_DATABASE,
+                DatabaseProperties.DEFAULT_USER,
+                null
+            ));
+        return properties.isExplicitlyConfigured();
     }
 }
