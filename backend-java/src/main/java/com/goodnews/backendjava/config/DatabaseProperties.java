@@ -1,59 +1,17 @@
 package com.goodnews.backendjava.config;
 
-public class DatabaseProperties {
+import org.springframework.boot.context.properties.bind.DefaultValue;
 
-    private String url;
-    private String postgresHost = "localhost";
-    private int postgresPort = 5432;
-    private String postgresDatabase = "good_news";
-    private String postgresUser = "good_news";
-    private String postgresPassword;
-
-    public String getUrl() {
-        return url;
-    }
-
-    public void setUrl(String url) {
-        this.url = url;
-    }
-
-    public String getPostgresHost() {
-        return postgresHost;
-    }
-
-    public void setPostgresHost(String postgresHost) {
-        this.postgresHost = postgresHost;
-    }
-
-    public int getPostgresPort() {
-        return postgresPort;
-    }
-
-    public void setPostgresPort(int postgresPort) {
-        this.postgresPort = postgresPort;
-    }
-
-    public String getPostgresDatabase() {
-        return postgresDatabase;
-    }
-
-    public void setPostgresDatabase(String postgresDatabase) {
-        this.postgresDatabase = postgresDatabase;
-    }
-
-    public String getPostgresUser() {
-        return postgresUser;
-    }
-
-    public void setPostgresUser(String postgresUser) {
-        this.postgresUser = postgresUser;
-    }
-
-    public String getPostgresPassword() {
-        return postgresPassword;
-    }
-
-    public void setPostgresPassword(String postgresPassword) {
-        this.postgresPassword = postgresPassword;
-    }
+public record DatabaseProperties(
+    String url,
+    @DefaultValue(DEFAULT_HOST) String postgresHost,
+    @DefaultValue(DEFAULT_PORT) Integer postgresPort,
+    @DefaultValue(DEFAULT_DATABASE) String postgresDatabase,
+    @DefaultValue(DEFAULT_USER) String postgresUser,
+    String postgresPassword
+) {
+    private static final String DEFAULT_HOST = "localhost";
+    private static final String DEFAULT_PORT = "5432";
+    private static final String DEFAULT_DATABASE = "good_news";
+    private static final String DEFAULT_USER = "good_news";
 }
