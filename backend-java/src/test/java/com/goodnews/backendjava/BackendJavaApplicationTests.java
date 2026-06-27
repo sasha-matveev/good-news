@@ -10,14 +10,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 class BackendJavaApplicationTests {
 
     @Test
-    void contextLoads() {
+    void contextLoadsWithJavaSideDefaults() {
         try (ConfigurableApplicationContext context = new SpringApplicationBuilder(loadApplicationClass())
             .web(WebApplicationType.NONE)
             .run()) {
             Object properties = context.getBean(loadPropertiesClass());
 
-            assertThat(invoke(properties, "isLocalEnvironment")).isEqualTo(true);
-            assertThat(readNestedValue(properties, "getApp", "getEnvironment")).isEqualTo("dev");
+            assertThat(readNestedValue(properties, "app", "environment")).isEqualTo("dev");
+            assertThat(readNestedValue(properties, "app", "contentApiServiceHost")).isEqualTo("localhost");
+            assertThat(readNestedValue(properties, "scheduler", "sourceSyncIntervalMinutes")).isEqualTo(30);
         }
     }
 
@@ -37,8 +38,8 @@ class BackendJavaApplicationTests {
         }
     }
 
-    private Object readNestedValue(Object target, String firstGetter, String secondGetter) {
-        return invoke(invoke(target, firstGetter), secondGetter);
+    private Object readNestedValue(Object target, String firstAccessor, String secondAccessor) {
+        return invoke(invoke(target, firstAccessor), secondAccessor);
     }
 
     private Object invoke(Object target, String methodName) {

@@ -1,113 +1,26 @@
 package com.goodnews.backendjava.config;
 
-public class AppProperties {
+import org.springframework.boot.context.properties.bind.DefaultValue;
 
-    private String environment = "dev";
-    private String contentApiServiceHost = "localhost";
-    private int contentApiServicePort = 8000;
-    private int frontendPort = 5173;
-    private String analysisServiceHost = "localhost";
-    private int analysisServicePort = 8100;
-    private String sourceIngestionServiceHost = "localhost";
-    private int sourceIngestionServicePort = 8200;
-    private String deliveryServiceHost = "localhost";
-    private int deliveryServicePort = 8300;
-    private String analysisStubResponseJson;
-    private String ingestionResponsesJson;
-
-    public String getEnvironment() {
-        return environment;
-    }
-
-    public void setEnvironment(String environment) {
-        this.environment = environment;
-    }
-
-    public String getContentApiServiceHost() {
-        return contentApiServiceHost;
-    }
-
-    public void setContentApiServiceHost(String contentApiServiceHost) {
-        this.contentApiServiceHost = contentApiServiceHost;
-    }
-
-    public int getContentApiServicePort() {
-        return contentApiServicePort;
-    }
-
-    public void setContentApiServicePort(int contentApiServicePort) {
-        this.contentApiServicePort = contentApiServicePort;
-    }
-
-    public int getFrontendPort() {
-        return frontendPort;
-    }
-
-    public void setFrontendPort(int frontendPort) {
-        this.frontendPort = frontendPort;
-    }
-
-    public String getAnalysisServiceHost() {
-        return analysisServiceHost;
-    }
-
-    public void setAnalysisServiceHost(String analysisServiceHost) {
-        this.analysisServiceHost = analysisServiceHost;
-    }
-
-    public int getAnalysisServicePort() {
-        return analysisServicePort;
-    }
-
-    public void setAnalysisServicePort(int analysisServicePort) {
-        this.analysisServicePort = analysisServicePort;
-    }
-
-    public String getSourceIngestionServiceHost() {
-        return sourceIngestionServiceHost;
-    }
-
-    public void setSourceIngestionServiceHost(String sourceIngestionServiceHost) {
-        this.sourceIngestionServiceHost = sourceIngestionServiceHost;
-    }
-
-    public int getSourceIngestionServicePort() {
-        return sourceIngestionServicePort;
-    }
-
-    public void setSourceIngestionServicePort(int sourceIngestionServicePort) {
-        this.sourceIngestionServicePort = sourceIngestionServicePort;
-    }
-
-    public String getDeliveryServiceHost() {
-        return deliveryServiceHost;
-    }
-
-    public void setDeliveryServiceHost(String deliveryServiceHost) {
-        this.deliveryServiceHost = deliveryServiceHost;
-    }
-
-    public int getDeliveryServicePort() {
-        return deliveryServicePort;
-    }
-
-    public void setDeliveryServicePort(int deliveryServicePort) {
-        this.deliveryServicePort = deliveryServicePort;
-    }
-
-    public String getAnalysisStubResponseJson() {
-        return analysisStubResponseJson;
-    }
-
-    public void setAnalysisStubResponseJson(String analysisStubResponseJson) {
-        this.analysisStubResponseJson = analysisStubResponseJson;
-    }
-
-    public String getIngestionResponsesJson() {
-        return ingestionResponsesJson;
-    }
-
-    public void setIngestionResponsesJson(String ingestionResponsesJson) {
-        this.ingestionResponsesJson = ingestionResponsesJson;
-    }
+public record AppProperties(
+    @DefaultValue(DEFAULT_ENVIRONMENT) String environment,
+    @DefaultValue(DEFAULT_HOST) String contentApiServiceHost,
+    @DefaultValue(DEFAULT_CONTENT_API_SERVICE_PORT) Integer contentApiServicePort,
+    @DefaultValue(DEFAULT_FRONTEND_PORT) Integer frontendPort,
+    @DefaultValue(DEFAULT_HOST) String analysisServiceHost,
+    @DefaultValue(DEFAULT_ANALYSIS_SERVICE_PORT) Integer analysisServicePort,
+    @DefaultValue(DEFAULT_HOST) String sourceIngestionServiceHost,
+    @DefaultValue(DEFAULT_SOURCE_INGESTION_SERVICE_PORT) Integer sourceIngestionServicePort,
+    @DefaultValue(DEFAULT_HOST) String deliveryServiceHost,
+    @DefaultValue(DEFAULT_DELIVERY_SERVICE_PORT) Integer deliveryServicePort,
+    String analysisStubResponseJson,
+    String ingestionResponsesJson
+) {
+    private static final String DEFAULT_ENVIRONMENT = "dev";
+    private static final String DEFAULT_HOST = "localhost";
+    private static final String DEFAULT_CONTENT_API_SERVICE_PORT = "8000";
+    private static final String DEFAULT_FRONTEND_PORT = "5173";
+    private static final String DEFAULT_ANALYSIS_SERVICE_PORT = "8100";
+    private static final String DEFAULT_SOURCE_INGESTION_SERVICE_PORT = "8200";
+    private static final String DEFAULT_DELIVERY_SERVICE_PORT = "8300";
 }
