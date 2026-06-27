@@ -15,6 +15,7 @@ class GoodNewsPropertiesBindingTest {
         try (ConfigurableApplicationContext context = new SpringApplicationBuilder(loadApplicationClass())
             .web(WebApplicationType.NONE)
             .properties(
+                "spring.flyway.enabled=false",
                 "GOOD_NEWS_ENV=prod",
                 "GOOD_NEWS_CONTENT_API_SERVICE_HOST=content-api.internal",
                 "GOOD_NEWS_CONTENT_API_SERVICE_PORT=9000",
@@ -96,6 +97,7 @@ class GoodNewsPropertiesBindingTest {
         try (ConfigurableApplicationContext context = new SpringApplicationBuilder(loadApplicationClass())
             .web(WebApplicationType.NONE)
             .properties(
+                "spring.flyway.enabled=false",
                 "GOOD_NEWS_ENV=prod",
                 "GOOD_NEWS_GEMINI_MODEL=gemini-2.5-flash-lite"
             )

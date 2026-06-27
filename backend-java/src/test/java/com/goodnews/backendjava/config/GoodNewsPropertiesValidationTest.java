@@ -14,7 +14,10 @@ class GoodNewsPropertiesValidationTest {
     void allowsDatabaseToBeUnsetWithoutLocalModeSpecialCasing() {
         try (var context = new SpringApplicationBuilder(loadApplicationClass())
             .web(WebApplicationType.NONE)
-            .properties("GOOD_NEWS_ENV=prod")
+            .properties(
+                "spring.flyway.enabled=false",
+                "GOOD_NEWS_ENV=prod"
+            )
             .run()) {
             assertThat(context).isNotNull();
         }
@@ -45,6 +48,7 @@ class GoodNewsPropertiesValidationTest {
         try (var context = new SpringApplicationBuilder(loadApplicationClass())
             .web(WebApplicationType.NONE)
             .properties(
+                "spring.flyway.enabled=false",
                 "GOOD_NEWS_SCHEDULER_INVOKER=scheduler@example.iam.gserviceaccount.com",
                 "GOOD_NEWS_OIDC_AUDIENCE=https://good-news.example.com"
             )
@@ -56,7 +60,7 @@ class GoodNewsPropertiesValidationTest {
     private void assertValidationFailure(String[] properties, String expectedMessageFragment) {
         assertThatThrownBy(() -> new SpringApplicationBuilder(loadApplicationClass())
             .web(WebApplicationType.NONE)
-            .properties(properties)
+            .properties(withFlywayDisabled(properties))
             .run())
             .hasRootCauseInstanceOf(BindValidationException.class)
             .satisfies(exception -> {
@@ -75,5 +79,12 @@ class GoodNewsPropertiesValidationTest {
         } catch (ClassNotFoundException exception) {
             throw new IllegalStateException("Missing application class", exception);
         }
+    }
+
+    private String[] withFlywayDisabled(String[] properties) {
+        String[] result = new String[properties.length + 1];
+        result[0] = "spring.flyway.enabled=false";
+        System.arraycopy(properties, 0, result, 1, properties.length);
+        return result;
     }
 }

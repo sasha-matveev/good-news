@@ -57,6 +57,22 @@ public class ReactiveDatabaseConfig {
         return builder.build();
     }
 
+    static JdbcDatabaseConnection resolveJdbcConnection(DatabaseProperties properties) {
+        if (StringUtils.hasText(properties.url())) {
+            return normalizeJdbcConnection(properties);
+        }
+
+        return new JdbcDatabaseConnection(
+            "jdbc:postgresql://%s:%s/%s".formatted(
+                properties.postgresHost(),
+                properties.postgresPort(),
+                properties.postgresDatabase()
+            ),
+            properties.postgresUser(),
+            properties.postgresPassword()
+        );
+    }
+
     private static ConnectionFactoryOptions normalizeUrlOptions(DatabaseProperties properties) {
         String normalizedUrl = normalizeUrl(properties.url());
         ConnectionFactoryOptions baseOptions = ConnectionFactoryOptions.parse(normalizedUrl);
@@ -88,6 +104,22 @@ public class ReactiveDatabaseConfig {
         throw new IllegalArgumentException("Unsupported GOOD_NEWS_DATABASE_URL scheme: " + url);
     }
 
+    static String normalizeJdbcUrl(String url) {
+        if (url.startsWith("jdbc:postgresql://")) {
+            return url;
+        }
+        if (url.startsWith("r2dbc:postgresql://")) {
+            return "jdbc:postgresql://" + url.substring("r2dbc:postgresql://".length());
+        }
+        if (url.startsWith("postgresql+")) {
+            return rewriteJdbcSqlAlchemyStyleUrl(url);
+        }
+        if (url.startsWith("postgresql://")) {
+            return "jdbc:postgresql://" + url.substring("postgresql://".length());
+        }
+        throw new IllegalArgumentException("Unsupported GOOD_NEWS_DATABASE_URL scheme: " + url);
+    }
+
     private static String rewriteSqlAlchemyStyleUrl(String url) {
         int schemeSeparatorIndex = url.indexOf("://");
         if (schemeSeparatorIndex < 0) {
@@ -107,6 +139,15 @@ public class ReactiveDatabaseConfig {
         }
 
         return builder.toString();
+    }
+
+    private static String rewriteJdbcSqlAlchemyStyleUrl(String url) {
+        int schemeSeparatorIndex = url.indexOf("://");
+        if (schemeSeparatorIndex < 0) {
+            throw new IllegalArgumentException("Invalid GOOD_NEWS_DATABASE_URL value: " + url);
+        }
+
+        return "jdbc:postgresql://" + url.substring(schemeSeparatorIndex + 3);
     }
 
     private static String toReactiveQuery(String query) {
@@ -134,4 +175,32 @@ public class ReactiveDatabaseConfig {
         return StringUtils.hasText(properties.postgresUser())
             && !DatabaseProperties.DEFAULT_USER.equals(properties.postgresUser());
     }
+
+    private static JdbcDatabaseConnection normalizeJdbcConnection(DatabaseProperties properties) {
+        ConnectionFactoryOptions baseOptions = ConnectionFactoryOptions.parse(normalizeUrl(properties.url()));
+
+        String user = optionAsString(baseOptions, USER);
+        if (hasExplicitUserOverride(properties)) {
+            user = properties.postgresUser();
+        }
+
+        String password = optionAsString(baseOptions, PASSWORD);
+        if (StringUtils.hasText(properties.postgresPassword())) {
+            password = properties.postgresPassword();
+        }
+
+        return new JdbcDatabaseConnection(
+            normalizeJdbcUrl(properties.url()),
+            user,
+            password
+        );
+    }
+
+    private static String optionAsString(ConnectionFactoryOptions options, io.r2dbc.spi.Option<?> option) {
+        Object value = options.getValue(option);
+        return value == null ? null : value.toString();
+    }
+}
+
+record JdbcDatabaseConnection(String url, String user, String password) {
 }

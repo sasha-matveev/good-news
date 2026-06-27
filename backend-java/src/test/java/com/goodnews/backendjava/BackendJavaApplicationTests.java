@@ -13,6 +13,7 @@ class BackendJavaApplicationTests {
     void contextLoadsWithJavaSideDefaults() {
         try (ConfigurableApplicationContext context = new SpringApplicationBuilder(loadApplicationClass())
             .web(WebApplicationType.NONE)
+            .properties("spring.flyway.enabled=false")
             .run()) {
             Object properties = context.getBean(loadPropertiesClass());
 
