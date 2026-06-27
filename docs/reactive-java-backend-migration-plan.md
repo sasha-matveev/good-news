@@ -208,11 +208,19 @@ Reproduce the current backend config surface in Spring configuration classes.
 
 - Do not rename env vars during migration. Config churn here multiplies operational risk later.
 
-### PR-05. Add Health, Actuator, and Observability Baseline
+### PR-05. Add Health, Actuator, and Observability Baseline [Completed on master]
 
 **Goal**
 
 Stand up the minimum operational surface expected from the backend.
+
+**Status**
+
+- Completed on `master`.
+- Artifact: `backend-java/src/main/java/com/goodnews/backendjava/config/ActuatorSecurityConfig.java`, `backend-java/src/main/resources/application.yml`, `backend-java/src/test/java/com/goodnews/backendjava/ActuatorEndpointsTest.java`, and `backend-java/README.md`.
+- Reviewed implementation basis for this plan update: current `master` observability baseline in commit `d7af24d` (`feat: add backend-java observability baseline`).
+- Scope note: the Grafana / observability-dashboard-specific slice was intentionally excluded from this step and is not part of the completion mark for `PR-05`.
+- Scope note: the current `master` implementation exposes the public health baseline through `/actuator/health` and `/actuator/prometheus`.
 
 **Exact changes**
 
