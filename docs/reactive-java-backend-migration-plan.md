@@ -166,11 +166,18 @@ Introduce first-class GitHub CI for the Java backend before feature migration be
 
 - This phase is intentionally early so the per-PR rule about local and CI verification is enforceable for the rest of the Java migration backlog.
 
-### PR-04. Port Configuration and Environment Contract
+### PR-04. Port Configuration and Environment Contract [Completed on master]
 
 **Goal**
 
 Reproduce the current backend config surface in Spring configuration classes.
+
+**Status**
+
+- Completed on `master`.
+- Artifact: `backend-java` configuration contract under `backend-java/src/main/java/com/goodnews/backendjava/config/`, plus binding and validation coverage in `backend-java/src/test/java/com/goodnews/backendjava/config/`.
+- Reviewed implementation basis for this plan update: current `master` config state after commits `a83189b` (`feat: add spring port config contract`), `e3cb9ab` (`fix: align config validation with python contract`), and `fff06cc` (`refactor: narrow backend-java config contract`).
+- Scope note: the Grafana / observability-specific configuration slice was intentionally excluded from this step and is not part of the completion mark for `PR-04`.
 
 **Exact changes**
 
