@@ -1,5 +1,15 @@
 # backend-java observability
 
+## Database migrations
+
+Flyway SQL migrations live in `src/main/resources/db/migration` and are driven from the existing `good-news.database.*` properties at application startup.
+
+Alembic-to-Flyway translation notes:
+
+- Alembic downgrade functions are not ported because Flyway in this module is used as a forward-only migration runner.
+- Integer primary keys are expressed as PostgreSQL identity columns. This preserves the generated-ID behavior without introducing schema redesign.
+- Alembic `server_default` expressions are translated directly into PostgreSQL SQL defaults such as `CURRENT_TIMESTAMP`, `TRUE`, `FALSE`, and string literals.
+
 The backend exposes these unauthenticated Actuator endpoints on the main application port:
 
 - `/actuator/health`

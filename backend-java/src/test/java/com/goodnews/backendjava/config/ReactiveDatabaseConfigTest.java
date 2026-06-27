@@ -72,6 +72,35 @@ class ReactiveDatabaseConfigTest {
     }
 
     @Test
+    void preservesQueryParametersDuringJdbcUrlNormalization() {
+        assertThat(
+            ReactiveDatabaseConfig.normalizeJdbcUrl(
+                "postgresql+psycopg://legacy_user:p%40ss@db.example:5544/good_news?sslmode=require"
+            )
+        ).isEqualTo("jdbc:postgresql://legacy_user:p%40ss@db.example:5544/good_news?sslmode=require");
+    }
+
+    @Test
+    void derivesJdbcConnectionOverridesFromLegacyUrlAndStructuredProperties() {
+        DatabaseProperties properties = new DatabaseProperties(
+            "postgresql+psycopg://legacy_user:legacy-pass@db.example:5544/good_news?sslmode=require",
+            "localhost",
+            5432,
+            "good_news",
+            "service_user",
+            "top-secret"
+        );
+
+        JdbcDatabaseConnection connection = ReactiveDatabaseConfig.resolveJdbcConnection(properties);
+
+        assertThat(connection.url()).isEqualTo(
+            "jdbc:postgresql://legacy_user:legacy-pass@db.example:5544/good_news?sslmode=require"
+        );
+        assertThat(connection.user()).isEqualTo("service_user");
+        assertThat(connection.password()).isEqualTo("top-secret");
+    }
+
+    @Test
     void rejectsUnsupportedUrlSchemesEarly() {
         DatabaseProperties properties = new DatabaseProperties(
             "mysql://db.example/good_news",
