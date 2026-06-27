@@ -277,21 +277,27 @@ Connect Java to Postgres the reactive way before any domain migration.
 
 - Reject any shortcut that introduces JPA entities or JDBC repositories into runtime code.
 
-### PR-07. Port Core Content Schema to Flyway
+### PR-07. Port Core Content Schema to Flyway [Completed on master]
 
 **Goal**
 
-Start Flyway migration parity with the smallest high-value table group.
+Start Flyway migration parity with the core content tables that unlock the first API slices.
+
+**Status**
+
+- Completed on `master`.
+- Artifact: `backend-java/src/main/resources/db/migration/V1__core_schema.sql`, `backend-java/src/main/resources/db/migration/V2__posts_and_feedback.sql`, and `backend-java/src/test/java/com/goodnews/backendjava/FlywaySchemaMigrationIT.java`.
+- Reviewed implementation basis for this plan update: current `master` Flyway schema state after commit `9348aeb` (`feat: port alembic schema to flyway`) and follow-up Flyway fixes `c35bce0`, `5b21f03`, `df7aed0`, and `4409911`.
+- Scope note: `master` implemented `PR-07`..`PR-09` as one broader Flyway parity slice rather than three separate PRs.
 
 **Exact changes**
 
-- Translate only the core content-related Alembic schema into ordered Flyway migrations under `backend-java/src/main/resources/db/migration/`.
-- Preserve tables and relationships used by:
+- Translate the Alembic schema needed for:
   - sources
   - posts
   - feedback
   - preference profiles
-- Document any Alembic behavior that does not translate one-to-one and how it is handled.
+- Preserve keys, relationships, and table semantics expected by the Python backend.
 
 **Definition of done**
 
@@ -300,43 +306,57 @@ Start Flyway migration parity with the smallest high-value table group.
 **Verification**
 
 - Testcontainers migration test on an empty DB.
-- Schema assertion tests for sources, posts, feedback, and preference-related tables.
+- Schema assertion coverage in `FlywaySchemaMigrationIT`.
 
 **Risks/notes**
 
 - Avoid trying to "improve" the schema during the port. Stack migration and schema redesign together is a bad trade.
 
-### PR-08. Port Settings and Read-Later Schema to Flyway
+### PR-08. Port Settings and Read-Later Schema to Flyway [Completed on master]
 
 **Goal**
 
-Add the user-settings tables needed for later settings and want-to-read migration work.
+Add the user-settings tables needed for settings and want-to-read flows.
+
+**Status**
+
+- Completed on `master`.
+- Artifact: `backend-java/src/main/resources/db/migration/V4__read_later.sql` and shared Flyway verification in `backend-java/src/test/java/com/goodnews/backendjava/FlywaySchemaMigrationIT.java`.
+- Reviewed implementation basis for this plan update: current `master` Flyway schema state after commit `9348aeb` (`feat: port alembic schema to flyway`) and follow-up Flyway fixes `c35bce0`, `5b21f03`, `df7aed0`, and `4409911`.
+- Scope note: `master` implemented `PR-07`..`PR-09` as one broader Flyway parity slice rather than three separate PRs.
 
 **Exact changes**
 
 - Translate the Alembic schema for:
   - settings
   - read later
-- Preserve keys, nullability, defaults, and any uniqueness rules currently relied on by the Python service.
+- Preserve keys, nullability, defaults, and uniqueness rules relied on by the Python service.
 
 **Definition of done**
 
-- A clean database can be created with settings and read-later tables on top of the core content schema from PR-07.
+- A clean database can be created with settings and read-later tables on top of the core content schema.
 
 **Verification**
 
 - Testcontainers migration test on an empty DB.
-- Schema assertion tests for settings and read-later tables.
+- Schema assertion coverage in `FlywaySchemaMigrationIT`.
 
 **Risks/notes**
 
-- Keep this separate from digest and analysis tables so the PR stays reviewable and executable in one session.
+- Keep Java and Python schema expectations aligned while both backends operate against the same database.
 
-### PR-09. Port Digest and Analysis Schema to Flyway
+### PR-09. Port Digest and Analysis Schema to Flyway [Completed on master]
 
 **Goal**
 
-Finish schema parity for the remaining digest and analysis features without bundling unrelated route work.
+Finish Flyway schema parity for digest and analysis features.
+
+**Status**
+
+- Completed on `master`.
+- Artifact: `backend-java/src/main/resources/db/migration/V3__digests.sql` and shared Flyway verification in `backend-java/src/test/java/com/goodnews/backendjava/FlywaySchemaMigrationIT.java`.
+- Reviewed implementation basis for this plan update: current `master` Flyway schema state after commit `9348aeb` (`feat: port alembic schema to flyway`) and follow-up Flyway fixes `c35bce0`, `5b21f03`, `df7aed0`, and `4409911`.
+- Scope note: `master` implemented `PR-07`..`PR-09` as one broader Flyway parity slice rather than three separate PRs.
 
 **Exact changes**
 
@@ -344,7 +364,7 @@ Finish schema parity for the remaining digest and analysis features without bund
   - digests
   - digest items
   - post analysis
-- Preserve foreign keys and any retention/history assumptions currently visible to the Python backend and UI.
+- Preserve foreign keys and retention/history assumptions currently visible to the Python backend and UI.
 
 **Definition of done**
 
@@ -353,865 +373,319 @@ Finish schema parity for the remaining digest and analysis features without bund
 **Verification**
 
 - Testcontainers migration test on an empty DB.
-- Schema assertion tests for digest, digest item, and post-analysis tables.
+- Schema assertion coverage in `FlywaySchemaMigrationIT`.
 
 **Risks/notes**
 
-- This split is intentional: one mega-schema PR is too large for the one-session, one-PR rule.
+- Schema parity is now good enough to support the rest of the Java migration against the shared database.
 
-### PR-10. Build Reactive Security Foundation
-
-**Goal**
-
-Reproduce the current auth and invoker model in WebFlux.
-
-**Exact changes**
-
-- Read `backend/app/core/request_auth.py` and port the auth flow into Spring Security WebFlux.
-- Support Firebase token verification and backend email allowlist behavior.
-- Support the Cloud Scheduler OIDC invoker checks used for `/internal/jobs/*`.
-- Declare which endpoints remain public and which require user auth or scheduler auth.
-
-**Definition of done**
-
-- User-authenticated routes, public routes, and internal-job routes follow the same access rules as the Python backend.
-
-**Verification**
-
-- Security integration tests for:
-  - public health access
-  - authenticated user access
-  - rejected user token
-  - rejected allowlist email
-  - accepted scheduler invoker
-  - rejected scheduler invoker
-
-**Risks/notes**
-
-- This needs to come early. Retrofitting auth after controllers are built creates repeated rework.
-
-### PR-11. Define User-Facing DTO Contract
+### PR-10. Build Reactive Security, DTO, and Error-Contract Foundation
 
 **Goal**
 
-Port only the first wave of user-facing request and response shapes needed by the early API moves.
+Establish the shared contract layer once so later API ports can be mostly domain work rather than repeated plumbing.
 
 **Exact changes**
 
+- Port the current auth model from `backend/app/core/request_auth.py` into Spring Security WebFlux.
+- Support:
+  - Firebase token verification
+  - backend email allowlist behavior
+  - Cloud Scheduler OIDC invoker checks for `/internal/jobs/*`
 - Port the active Pydantic request and response shapes from `backend/app/schemas/` into Java DTOs for:
   - posts
   - feedback
   - preferences
   - settings
   - want to read
-- Add validation annotations to mirror existing FastAPI validation for those route groups.
-
-**Definition of done**
-
-- DTOs exist for the earliest user-facing route groups and are ready to support PR-14 through PR-21.
-
-**Verification**
-
-- Serialization tests for the DTOs above.
-- Validation tests for representative valid and invalid payloads.
-
-**Risks/notes**
-
-- Keep this phase narrow. The goal is to unblock early routes, not to port every schema at once.
-
-### PR-12. Define Sources, Digests, Monitoring, and Internal DTO Contract
-
-**Goal**
-
-Port the remaining DTO surface that supports source management, digests, monitoring, and internal-job entrypoints.
-
-**Exact changes**
-
-- Port the active Pydantic request and response shapes into Java DTOs for:
   - sources
   - digests
   - monitoring
-  - internal job payloads or response wrappers that are part of the current contract
-- Add validation annotations to mirror existing FastAPI validation for those route groups.
+  - internal job payloads and wrappers that are part of the current contract
+- Add validation annotations to mirror current FastAPI behavior.
+- Add shared exception mapping so Java returns the same class of HTTP errors the frontend and internal callers already expect.
 
 **Definition of done**
 
-- DTOs exist for the remaining route groups that are not covered by PR-11.
+- Security rules, DTO serialization, validation, and global error handling are in place for all currently known route groups.
 
 **Verification**
 
-- Serialization tests.
-- Validation tests.
+- Security integration tests for public, user-authenticated, and scheduler-authenticated flows.
+- Serialization and validation tests across representative DTOs.
+- Exception-handler contract tests.
 
 **Risks/notes**
 
-- Keep legacy internal-service contract DTO decisions explicit here if any of those HTTP boundaries are temporarily retained.
+- This phase is intentionally broader than before because splitting auth, DTOs, and validation produced too much overhead and too little executable value.
 
-### PR-13. Define Shared Error and Validation Contract
+### PR-11. Port Feed, Feedback, and Want-to-Read APIs
 
 **Goal**
 
-Centralize error and validation behavior after the DTO surface has been split into manageable phases.
+Move the first complete set of user-facing feed interactions into Java.
 
 **Exact changes**
 
-- Add global exception mapping for the expected HTTP status patterns.
-- Document deliberately preserved quirks in current API behavior.
-- Ensure validation failures for DTOs from PR-11 and PR-12 match current backend expectations closely enough for the frontend and internal callers.
+- Port `/api/posts` read behavior from `backend/app/api/routes/posts.py` and related services.
+- Preserve sorting semantics such as "By match" and "By date", plus filtering, pagination, and response enrichment.
+- Port feedback read/write behavior from `backend/app/api/routes/feedback.py`.
+- Port want-to-read read/write behavior from `backend/app/api/routes/want_to_read.py`.
+- Preserve idempotency and state-transition semantics used by the current frontend.
 
 **Definition of done**
 
-- Error handling is centralized and consistent with the current backend contract.
+- The main feed, explicit feedback flows, and want-to-read flows work through Java without frontend changes.
 
 **Verification**
 
-- Exception handler integration tests.
-- Validation failure contract tests.
+- Integration tests with seeded data for feed reads, feedback updates, and read-later add/remove/list flows.
+- Contract comparison against Python for representative scenarios.
 
 **Risks/notes**
 
-- "Cleaner" Spring errors are not the goal yet. Contract compatibility is.
+- This is the first real frontend-visible parity slice, so response ordering and state semantics matter more than internal code elegance.
 
-### PR-14. Port `/api/posts` Read Path
+### PR-12. Port Preferences and Settings Domain End to End
 
 **Goal**
 
-Move the main feed listing endpoint into Java with reactive data access.
+Move user preference and settings ownership into Java, including secret compatibility and test-email behavior.
 
 **Exact changes**
 
-- Read `backend/app/api/routes/posts.py` and `backend/app/services/post_listing.py`.
-- Implement reactive query logic for the posts feed.
-- Preserve sorting semantics such as "By match" and "By date".
-- Preserve any filtering, pagination, and enrichment currently returned to the React frontend.
+- Port preferences read and recompute flows from `backend/app/api/routes/preferences.py` and related services.
+- Preserve the dependency chain between posts, feedback, and persisted preference output.
+- Port settings read and update behavior from `backend/app/api/routes/settings.py` and `backend/app/services/settings_service.py`.
+- Port app master key handling and SMTP credential encryption/decryption compatibility from `backend/app/core/secrets.py`.
+- Port the Settings "send test email" action behind a dedicated SMTP adapter.
+- Explicitly isolate blocking SMTP work away from the Netty event loop.
 
 **Definition of done**
 
-- The Java `/api/posts` endpoint returns compatible feed responses for the current UI.
+- Preferences and settings screens can fully operate through Java, including recompute, SMTP credential compatibility, and test-email sending.
 
 **Verification**
 
-- Integration tests seeded from a test database.
-- Contract comparison against the Python route for representative scenarios.
+- Integration tests for preference reads and recompute.
+- API integration tests for valid and invalid settings updates.
+- Fixed-vector tests for cross-language secret compatibility.
+- Mock-SMTP tests for the test-email flow.
 
 **Risks/notes**
 
-- Ranking and date ordering are user-visible. Small mismatches will show up quickly.
+- This is intentionally one larger slice because settings without secret compatibility or test email is not actually deployable.
 
-### PR-15. Port Want-to-Read Endpoints
+### PR-13. Port Digest History and Source Management APIs
 
 **Goal**
 
-Move the saved-for-later feature into Java.
+Move the remaining interactive CRUD-style APIs needed by the existing frontend before deeper background workflows.
 
 **Exact changes**
 
-- Read `backend/app/api/routes/want_to_read.py` and `backend/app/services/read_later_service.py`.
-- Port read/write behavior for read-later state.
-- Preserve idempotency and existing response semantics.
+- Port digest history list/detail reads from `backend/app/api/routes/digests.py`.
+- Port source listing, detail/log reads, and full source CRUD from `backend/app/api/routes/sources.py`.
+- Preserve URL validation, duplicate handling, source status fields, and nested digest item response structures.
 
 **Definition of done**
 
-- Save-for-later flows work through Java and match the current frontend expectations.
+- Digests and Sources screens can read and manage their primary data through Java without frontend changes.
 
 **Verification**
 
-- Integration tests for add, remove, list, and repeat operations.
+- Integration tests for digest list/detail responses.
+- Integration tests for source list/detail/create/update/delete and duplicate URL handling.
 
 **Risks/notes**
 
-- This path is a good early write test because it is narrower than settings or source sync.
+- This phase deliberately stops before sync orchestration because CRUD and ingestion fail in different ways and should not be debugged together.
 
-### PR-16. Port Feedback Endpoints
+### PR-14. Port Source Ingestion Foundation and Single-Source Sync
 
 **Goal**
 
-Move explicit post feedback handling into Java.
+Build the reusable ingestion base and prove one end-to-end sync path.
 
 **Exact changes**
 
-- Read `backend/app/api/routes/feedback.py` and related services/models.
-- Port feedback read and write behavior.
-- Preserve all accepted feedback states and transitions.
+- Add a shared reactive `WebClient` layer with timeout, retry, error-mapping, and logging policy.
+- Port source discovery and parsing helpers from `backend/app/parsing/*`.
+- Preserve known-site adaptations that are still active.
+- Port single-source sync from `backend/app/services/source_sync.py`, including:
+  - fetch
+  - parse
+  - deduplicate
+  - persist posts
+  - update source state
+- Explicitly isolate CPU-heavy or blocking parsing work away from the event loop where needed.
 
 **Definition of done**
 
-- Feedback can be created, updated, and read through Java without UI changes.
+- Java can fetch and parse representative source content and successfully complete one source sync end to end.
 
 **Verification**
 
-- API integration tests for each feedback state.
-- Contract comparison with Python for representative payloads.
+- Unit tests for parsing fixtures and HTTP-client behavior.
+- Integration tests for single-source sync, duplicate post handling, and source status updates.
 
 **Risks/notes**
 
-- Feedback influences downstream preference and ranking logic, so state semantics must remain stable.
+- Keep concurrency intentionally simple here. The goal is correctness of the pipeline, not throughput tuning yet.
 
-### PR-17. Port Preferences Read API
+### PR-15. Port Bulk Source Sync, Reload Flows, and Monitoring API
 
 **Goal**
 
-Move preference profile retrieval into Java.
+Complete the ingestion and operational visibility slice as one coherent unit.
 
 **Exact changes**
 
-- Read `backend/app/api/routes/preferences.py` and `backend/app/services/preferences.py`.
-- Port the read-only preference profile endpoint first.
-- Preserve the shape used by the Preferences tab, including empty-state behavior.
+- Port bulk source sync with explicit concurrency limits and failure aggregation.
+- Port any reload-posts or rescan flows used by the Python backend.
+- Port monitoring summary, queue, and analyze-now behaviors from `backend/app/api/routes/monitoring.py` and related services.
+- Preserve monitoring-visible outcome data for sync jobs and source status reporting.
 
 **Definition of done**
 
-- The Preferences UI can fetch profile data from Java.
+- Java can run single-source and bulk-source sync safely, expose the related operational state, and support the current Monitoring tab behavior.
 
 **Verification**
 
-- Integration tests with seeded preference records and empty-profile cases.
+- Integration tests for multi-source sync and partial failures.
+- Stress-style checks for concurrency caps.
+- API integration tests for monitoring summary and queue views.
 
 **Risks/notes**
 
-- Do not conflate "no profile yet" with a hard error if Python currently treats it differently.
+- Reactive does not mean unlimited concurrency. The concurrency cap and scheduler choices must be explicit in this PR.
 
-### PR-18. Port Preferences Recompute Flow
+### PR-16. Port Analysis Pipeline and Gemini Integration
 
 **Goal**
 
-Move preference recalculation into Java.
+Move the analysis subsystem as one testable slice instead of splitting orchestration from transport.
 
 **Exact changes**
 
-- Port the recompute endpoint and its service orchestration.
-- Preserve the current dependency chain between posts, feedback, and preference output.
-- Keep the implementation fully reactive end to end.
+- Port analysis orchestration, persistence, and result mapping from `backend/app/services/analysis.py` and related models.
+- Port the Gemini client from `backend/app/ai/gemini_client.py` using the shared reactive HTTP layer.
+- Preserve model selection, request shaping, retries, stub/test behavior, and error translation expected by the current service layer.
 
 **Definition of done**
 
-- Preference recomputation works in Java and updates the same persisted state expected by the UI.
+- Java can execute the analysis pipeline end to end, including Gemini-backed calls and persisted analysis results.
 
 **Verification**
 
-- Integration tests for recompute with controlled source data.
-- Tests proving no `.block()` calls are used in the service path.
+- Unit tests for orchestration and persistence mapping.
+- Mocked HTTP client tests for Gemini success, retryable failure, and permanent failure cases.
+- Integration tests for the end-to-end analysis flow.
 
 **Risks/notes**
 
-- This is the first place where reactive composition discipline really matters.
+- The earlier split between domain orchestration and Gemini transport was too granular for the real amount of coupling here.
 
-### PR-19. Port Settings Read and Update API
-
-**Goal**
-
-Move digest and SMTP settings management into Java.
-
-**Exact changes**
-
-- Read `backend/app/api/routes/settings.py` and `backend/app/services/settings_service.py`.
-- Port settings retrieval and update flows.
-- Preserve validation and persistence semantics for delivery schedule, sender settings, and related fields.
-
-**Definition of done**
-
-- The Settings tab can read and save settings through Java.
-
-**Verification**
-
-- API integration tests for valid and invalid updates.
-
-**Risks/notes**
-
-- This PR must preserve the contract for later SMTP and digest-delivery steps.
-
-### PR-20. Port Secret Handling and SMTP Credential Compatibility
+### PR-17. Port Digest Generation, Rendering, and Delivery
 
 **Goal**
 
-Ensure Java can read and write the same encrypted SMTP credential data used today.
+Move digest creation and delivery as one complete operational feature.
 
 **Exact changes**
 
-- Read `backend/app/core/secrets.py` and the settings/email service code paths.
-- Port app master key handling and SMTP password encryption/decryption behavior.
-- Prove compatibility with already stored DB values or document a safe migration if exact compatibility is impossible.
+- Port digest generation from `backend/app/services/digest_service.py`.
+- Port digest email rendering and template assets for daily and weekly digests.
+- Connect digest generation to the SMTP delivery adapter.
+- Preserve recipient selection, batching, history linkage, and failure-reporting semantics.
+- Keep blocking SMTP work isolated away from the event loop.
 
 **Definition of done**
 
-- Existing encrypted SMTP settings remain usable after Java takes over.
-
-**Verification**
-
-- Unit tests using fixed vectors from the current Python implementation.
-- Cross-language compatibility checks where possible.
-
-**Risks/notes**
-
-- This is a high-risk compatibility step. A mismatch here breaks delivery for existing users.
-
-### PR-21. Port Test Email Flow
-
-**Goal**
-
-Move the Settings "send test email" action into Java.
-
-**Exact changes**
-
-- Read `backend/app/services/email_service.py` and any settings test-email route handling.
-- Implement SMTP send logic behind a dedicated adapter.
-- Explicitly isolate blocking SMTP client work away from the Netty event loop.
-
-**Definition of done**
-
-- The Java backend can send the same test email flow used by the Settings UI.
-
-**Verification**
-
-- Adapter tests.
-- Integration-like tests against a mock SMTP server.
-
-**Risks/notes**
-
-- Treat SMTP as a controlled blocking boundary rather than pretending it is natively reactive.
-
-### PR-22. Port Digest History Read API
-
-**Goal**
-
-Move digest history viewing into Java.
-
-**Exact changes**
-
-- Read `backend/app/api/routes/digests.py` and `backend/app/services/digest_history.py`.
-- Port digest list and digest detail read behavior.
-- Preserve ordering, payload shape, and nested digest item behavior.
-
-**Definition of done**
-
-- Digest screens can read history from Java without frontend changes.
-
-**Verification**
-
-- Integration tests for digest list and detail endpoints.
-
-**Risks/notes**
-
-- Nested response structures make this a good place for contract tests, not just happy-path assertions.
-
-### PR-23. Port Sources Read API
-
-**Goal**
-
-Move read-only source management views into Java.
-
-**Exact changes**
-
-- Read `backend/app/api/routes/sources.py`.
-- Port source listing and source log/detail reads first.
-- Preserve whatever source status data and audit fields the frontend already expects.
-
-**Definition of done**
-
-- The Sources UI can list sources and inspect source state via Java.
-
-**Verification**
-
-- Integration tests with seeded source records.
-
-**Risks/notes**
-
-- Splitting read from write keeps the PR manageable and reduces sync-risk early.
-
-### PR-24. Port Sources CRUD
-
-**Goal**
-
-Move source creation, update, and delete flows into Java.
-
-**Exact changes**
-
-- Port source create, edit, enable/disable, and delete behavior.
-- Preserve current validations around URLs, duplicates, and source state transitions.
-- Keep response shapes aligned with the existing frontend.
-
-**Definition of done**
-
-- Source management in the UI can write through Java.
-
-**Verification**
-
-- API integration tests covering create/update/delete and duplicate URL handling.
-
-**Risks/notes**
-
-- Avoid combining CRUD with sync in the same PR. They touch different failure modes.
-
-### PR-25. Create Shared Reactive External HTTP Client Layer
-
-**Goal**
-
-Standardize outbound HTTP before moving Gemini and source ingestion integrations.
-
-**Exact changes**
-
-- Add a shared WebClient configuration layer.
-- Define retry, timeout, error mapping, and logging policies.
-- Add client test utilities for mocked external services.
-
-**Definition of done**
-
-- All later outbound HTTP integrations can build on one shared reactive client foundation.
-
-**Verification**
-
-- Unit tests for retry and error translation behavior.
-
-**Risks/notes**
-
-- Do not duplicate raw WebClient setup across multiple services.
-
-### PR-26. Port Source Discovery and Parsing Foundation
-
-**Goal**
-
-Move reusable ingestion groundwork before full source-sync orchestration.
-
-**Exact changes**
-
-- Read `backend/app/parsing/discovery.py`, `known_sites.py`, `html_strategy.py`, and related parsing helpers.
-- Port source discovery and parsing utilities.
-- Preserve known-site adaptations such as Uber Engineering parsing behavior where still relevant.
-- Explicitly isolate parsing work if it is CPU-heavy or blocking.
-
-**Definition of done**
-
-- Java can fetch and parse representative source content at the helper/service level.
-
-**Verification**
-
-- Unit tests using the same or equivalent parsing fixtures as the Python backend.
-
-**Risks/notes**
-
-- Parsing code is a common place to accidentally block event-loop threads.
-
-### PR-27. Port Single-Source Sync
-
-**Goal**
-
-Move the simplest end-to-end ingestion path into Java.
-
-**Exact changes**
-
-- Read `backend/app/services/source_sync.py`, `source_onboarding.py`, and `ingestion_boundary.py`.
-- Port single-source sync flow: fetch, parse, deduplicate, persist posts, update source state.
-- Reproduce the current single-source sync route behavior from the Sources UI or admin path.
-
-**Definition of done**
-
-- One source can be synced end to end by the Java backend with results written to Postgres.
-
-**Verification**
-
-- Integration tests with fixture feeds.
-- Tests for duplicate post handling and source status updates.
-
-**Risks/notes**
-
-- Keep concurrency simple in this phase. Bulk orchestration comes later.
-
-### PR-28. Port Bulk Source Sync
-
-**Goal**
-
-Move the batch ingestion workflow into Java.
-
-**Exact changes**
-
-- Port the route or service path that syncs all eligible sources.
-- Add explicit concurrency limits and failure aggregation.
-- Preserve monitoring-relevant outcome data where the current backend exposes it.
-
-**Definition of done**
-
-- Java can perform bulk source sync safely and predictably.
-
-**Verification**
-
-- Integration tests for multiple sources.
-- Stress-style tests for concurrency caps and partial failures.
-
-**Risks/notes**
-
-- This PR must not create unbounded parallelism. Reactive does not mean unlimited concurrency.
-
-### PR-29. Port Reload/Refresh Source Post Flows
-
-**Goal**
-
-Move the specialized source refresh paths that go beyond normal sync.
-
-**Exact changes**
-
-- Port any dedicated reload-posts or rescan logic used by the Python backend.
-- Preserve semantics around re-fetching, replacing, or re-evaluating source content.
-
-**Definition of done**
-
-- Special source reload flows work in Java and match current admin/user expectations.
-
-**Verification**
-
-- Integration tests for reload behavior and duplicate-safe updates.
-
-**Risks/notes**
-
-- This logic is easy to get subtly wrong because it mixes ingestion and reconciliation.
-
-### PR-30. Port Analysis Domain Flow Without LLM
-
-**Goal**
-
-Move the orchestration around analysis before wiring the real Gemini client.
-
-**Exact changes**
-
-- Read `backend/app/services/analysis.py`, `analysis_service_client.py`, and related models.
-- Port analysis service orchestration and persistence of analysis results.
-- Keep the client behind an abstraction so the LLM transport is not mixed into domain logic.
-
-**Definition of done**
-
-- Java can run the non-transport parts of the analysis pipeline.
-
-**Verification**
-
-- Unit tests for analysis orchestration and result persistence mapping.
-
-**Risks/notes**
-
-- This separation will make the Gemini port much easier to test and review.
-
-### PR-31. Port Gemini Reactive Client
-
-**Goal**
-
-Move the LLM transport layer into Java.
-
-**Exact changes**
-
-- Read `backend/app/ai/gemini_client.py`.
-- Implement a Gemini client using WebClient.
-- Preserve model selection, request shaping, retry policy, and stub/test behavior used today.
-- Add response parsing and error translation that match current service expectations.
-
-**Definition of done**
-
-- Java can call Gemini for analysis and can run in a stubbed mode where the Python backend currently supports it.
-
-**Verification**
-
-- Mocked HTTP client tests.
-- Service integration tests for success, retryable failure, and permanent failure cases.
-
-**Risks/notes**
-
-- Rate limiting and retries need explicit design. Naive retries can amplify cost and latency.
-
-### PR-32. Port Monitoring API
-
-**Goal**
-
-Move monitoring and queue visibility endpoints into Java.
-
-**Exact changes**
-
-- Read `backend/app/api/routes/monitoring.py` and `backend/app/services/observability_report_service.py`.
-- Port monitoring summary, queue, and analyze-now behaviors.
-- Preserve the UI-facing operational summaries currently shown in the Monitoring tab.
-
-**Definition of done**
-
-- Monitoring routes serve compatible data from Java.
-
-**Verification**
-
-- API integration tests for summary and queue views.
-- Tests for analyze-now request handling if present.
-
-**Risks/notes**
-
-- Monitoring endpoints often accumulate special-case logic. Port the behavior before attempting cleanup.
-
-### PR-33. Port Digest Generation Domain Logic
-
-**Goal**
-
-Move digest creation into Java without yet sending emails.
-
-**Exact changes**
-
-- Read `backend/app/services/digest_service.py`.
-- Port digest selection, ranking inputs, item creation, and persistence.
-- Preserve the current linkage between generated digest records and digest history views.
-
-**Definition of done**
-
-- Java can generate digest records and digest items consistent with current downstream consumers.
+- Java can generate, render, and send daily and weekly digests end to end with behavior compatible enough for production soak use.
 
 **Verification**
 
 - Integration tests for generated digest contents and persistence.
+- Snapshot-style tests for rendered email output.
+- Mock-SMTP end-to-end tests covering generation plus send.
 
 **Risks/notes**
 
-- If digest generation semantics drift, delivery can still "work" while content quality regresses.
+- Digest generation and delivery are tightly coupled at the operational level, so separating them created more planning overhead than safety.
 
-### PR-34. Port Digest Email Template Rendering
-
-**Goal**
-
-Reproduce the digest email body generated today.
-
-**Exact changes**
-
-- Read `backend/app/email/templates/daily_digest.html.jinja2`.
-- Port the template to the Java backend with a suitable rendering approach.
-- Preserve links, sectioning, and key content decisions visible to end users.
-
-**Definition of done**
-
-- Java can render digest email HTML and any plain-text fallback needed by the mail flow.
-
-**Verification**
-
-- Render tests using representative digest fixtures.
-- Snapshot-style comparison for key HTML sections.
-
-**Risks/notes**
-
-- Byte-for-byte HTML identity is less important than preserving user-visible content and valid rendering.
-
-### PR-35. Port Digest Delivery Flow
+### PR-18. Port Internal Job Endpoints and Scheduler Behavior
 
 **Goal**
 
-Move the end-to-end digest email send path into Java.
+Reach backend parity for the current scheduled automation surface.
 
 **Exact changes**
 
-- Read `backend/app/services/delivery_boundary.py`, `delivery_service_client.py`, and email-related services.
-- Port digest delivery orchestration from generated digest through SMTP send and delivery recording.
-- Preserve current failure handling and retry semantics where they are explicit.
-
-**Definition of done**
-
-- Java can deliver a digest email end to end using existing settings and persisted digest data.
-
-**Verification**
-
-- Integration-like tests with mock SMTP.
-- Tests for delivery success and controlled failure paths.
-
-**Risks/notes**
-
-- SMTP remains a blocking edge. Keep the blocking boundary narrow and documented.
-
-### PR-36. Port Internal Source-Sync Job Endpoint
-
-**Goal**
-
-Move the Cloud Scheduler source-sync entrypoint into Java as a standalone production-critical slice.
-
-**Exact changes**
-
-- Read `backend/app/api/routes/internal_jobs.py`, `backend/app/jobs/source_jobs.py`, `digest_jobs.py`, and `analysis_jobs.py`.
 - Port `/internal/jobs/source-sync`.
-- Preserve auth checks, request semantics, and job orchestration flow for source sync only.
+- Port all branches behind `/internal/jobs/digests`, including:
+  - daily digest
+  - weekly digest
+  - daily observability report
+- Apply the scheduler invoker auth model from the security phase.
+- Preserve current trigger semantics, branching behavior, and scheduler-facing response contracts.
 
 **Definition of done**
 
-- Cloud Scheduler can target the Java source-sync job entrypoint with equivalent behavior.
-
-**Verification**
-
-- Integration tests for authorized and unauthorized scheduler invocations.
-- End-to-end tests for the source-sync job route using controlled fixtures.
-
-**Risks/notes**
-
-- These endpoints are production-critical because they drive the automated system behavior, not just the UI.
-
-### PR-37. Port Internal Daily Digest Job Path
-
-**Goal**
-
-Make the daily-digest branch of `/internal/jobs/digests` explicit and independently shippable.
-
-**Exact changes**
-
-- Port the daily-digest behavior currently dispatched behind `/internal/jobs/digests`.
-- Preserve the current request semantics, gating rules, digest-generation calls, and delivery orchestration for the daily cadence only.
-
-**Definition of done**
-
-- The Java backend can execute the daily-digest branch of `/internal/jobs/digests` with equivalent behavior.
+- Cloud Scheduler can invoke the Java backend for the full current internal-jobs surface with equivalent behavior.
 
 **Verification**
 
 - Integration tests for authorized and unauthorized invocations.
-- End-to-end tests for a controlled daily-digest run.
+- Controlled end-to-end runs for source sync, daily digest, weekly digest, and observability-report paths.
 
 **Risks/notes**
 
-- Keeping daily digests separate avoids hiding a large amount of production behavior inside a generic "digest job" phase.
+- This is the minimum useful unit for scheduler parity. Splitting the digest branches further created too much PR overhead relative to the code movement.
 
-### PR-38. Port Internal Weekly Digest Job Path
-
-**Goal**
-
-Make the weekly-digest branch of `/internal/jobs/digests` explicit and independently reviewable.
-
-**Exact changes**
-
-- Port the weekly-digest behavior currently dispatched behind `/internal/jobs/digests`.
-- Preserve cadence-specific filtering, recipient selection, and digest-generation rules used today.
-
-**Definition of done**
-
-- The Java backend can execute the weekly-digest branch of `/internal/jobs/digests` with equivalent behavior.
-
-**Verification**
-
-- Integration tests for authorized and unauthorized invocations.
-- End-to-end tests for a controlled weekly-digest run.
-
-**Risks/notes**
-
-- Weekly behavior is easy to under-test if it stays bundled into a generic digest-job phase.
-
-### PR-39. Port Internal Daily Observability Report Job Path
+### PR-19. Add Shared Frontend Backend Targeting and Global Selector
 
 **Goal**
 
-Make the daily observability report branch of `/internal/jobs/digests` explicit instead of hiding it under digest wording.
+Create one frontend-level switch that can move every page between Python and Java while both backends share the same database.
 
 **Exact changes**
 
-- Port the daily observability report behavior currently triggered behind `/internal/jobs/digests`.
-- Preserve any dependency on monitoring summaries, email rendering, and delivery cadence decisions.
-
-**Definition of done**
-
-- The Java backend can execute the daily observability report branch of `/internal/jobs/digests` with equivalent behavior.
-
-**Verification**
-
-- Integration tests for authorized and unauthorized invocations.
-- End-to-end tests for a controlled observability-report run.
-
-**Risks/notes**
-
-- This is not just another digest variant; making it explicit prevents it from being forgotten during cutover.
-
-### PR-40. Add Shared Frontend Backend-Target Routing
-
-**Goal**
-
-Introduce one shared frontend mechanism that can route all API calls to either the Python backend or the Java backend.
-
-**Exact changes**
-
-- Update `frontend/src/lib/api.ts`, where the API root is currently derived from `VITE_CONTENT_API_ORIGIN`, so the frontend can resolve two backend origins:
+- Update `frontend/src/lib/api.ts` so the frontend can resolve both:
   - Python backend origin
   - Java backend origin
-- Keep request routing centralized in the shared API layer. Do not introduce page-specific backend-selection logic.
-- Add a shared runtime backend-target state source that switches all frontend API requests together.
-- Make backend-target changes trigger a full UI retargeting mechanism, for example by remounting the app subtree or invalidating all page-level data loads, so already-open pages refetch from the newly selected backend instead of mixing stale data from the previous target.
-- Preserve a safe default so the existing Python backend path remains the default until later cutover phases.
-- Document the constraint that both backends must remain schema-compatible and frontend-contract-compatible with the same source-of-truth database for as long as this selector exists.
-- Add explicit verification that both backends accept the same frontend origin set and Firebase-authenticated browser requests while selector-based switching is enabled.
-
-**Definition of done**
-
-- The frontend has one shared backend-target abstraction that can route all requests to either backend without touching individual pages.
-- Switching the target causes the already-open UI to refresh from the newly selected backend as one application-level transition rather than leaving page data partially stale.
-
-**Verification**
-
-- Frontend tests for API-root selection and request routing behavior from the shared API layer.
-- Frontend tests for full-app retargeting behavior after a backend-target change.
-- Verification against both backends that the same frontend origin(s) and Firebase-authenticated requests are accepted.
-
-**Risks/notes**
-
-- This phase must stay in shared wiring only. Per-page implementations would create permanent drift and defeat the point of the selector.
-
-### PR-41. Add Global AppShell Backend Selector
-
-**Goal**
-
-Expose the backend-target switch once, globally, in the shared app chrome visible on every page for internal, staging, debug, and controlled migration validation use.
-
-**Exact changes**
-
+- Keep request routing centralized in shared API wiring.
+- Add shared runtime backend-target state that switches all frontend requests together.
+- Make backend-target changes trigger full UI retargeting so already-open pages refetch from the newly selected backend.
 - Update `frontend/src/app/AppShell.tsx`, where the header currently renders three top summary cards.
 - Add the backend selector as the fourth header block visible on every page.
-- Make the selector switch the shared backend-target state created in PR-40 so every request goes to the selected backend.
-- Ensure a backend-target change refreshes the whole visible UI from the newly selected backend, not just header-level data such as monitoring summary.
 - Persist the selected target in a simple, explicit way suitable for debugging and side-by-side validation.
-- Gate the selector so it is presented as an internal validation control during migration, not as a normal long-term product choice for end users.
+- Keep the selector scoped as an internal/staging/controlled migration tool rather than a permanent end-user feature.
 
 **Definition of done**
 
-- The header shows a fourth global block for backend selection on every page.
-- Changing the selector flips all frontend API traffic between Python and Java through the shared API layer.
-- Changing the selector causes the already-open page subtree to reload its data from the newly selected backend.
+- The frontend has one global backend-target abstraction and one global selector that reroutes all page traffic between Python and Java without page-specific wiring.
 
 **Verification**
 
-- Frontend interaction tests for selector rendering, persistence, and full-app request retargeting.
-- Manual smoke check that changing the selector in the header affects Feed, Sources, Preferences, Settings, Digests, Want To Read, and Monitoring without page-specific wiring.
+- Frontend tests for API-root selection, request routing, selector rendering, persistence, and full-app retargeting after target changes.
+- Manual smoke checks across Feed, Sources, Preferences, Settings, Digests, Want To Read, and Monitoring.
 
 **Risks/notes**
 
-- Keep the selector explicit and visible where migration validation needs it, but do not redefine normal production UX around backend choice.
+- Per-page backend switching would be a bad design here because it creates permanent drift and partial-stale-data bugs.
 
-### PR-42. Add Local Dual-Backend Smoke Coverage and Workflow Docs
-
-**Goal**
-
-Make local and preview verification practical once the shared selector exists.
-
-**Exact changes**
-
-- Add or update smoke tests/scripts so core frontend flows can be exercised against both backends through the shared selector.
-- Document the local migration workflow:
-  - run frontend once
-  - run Python and Java backends in parallel
-  - switch the selector in `AppShell`
-  - verify both backends operate correctly against the same database
-- Include local checks that both backends accept the same frontend origin and Firebase-authenticated browser requests when selected through the shared frontend.
-- Keep the workflow repo-specific and grounded in the current frontend structure.
-
-**Definition of done**
-
-- Developers can run one frontend build and switch it between Python and Java locally while both backends point at the same database.
-
-**Verification**
-
-- Frontend smoke run against both backends for Feed, Sources, Preferences, Settings, Digests, Want To Read, and Monitoring as routes become available.
-
-**Risks/notes**
-
-- The point of this phase is not just convenience. It proves the selector model, full-app retargeting behavior, and dual-backend compatibility before shared-environment use.
-
-### PR-43. Add Python-vs-Java Contract Test Harness
+### PR-20. Add Dual-Backend Local Validation and Python-vs-Java Contract Harness
 
 **Goal**
 
-Create an automated safety net that compares both implementations before cutover.
+Make the parallel-run period testable rather than trust-based.
 
 **Exact changes**
 
-- Build a contract test harness that runs representative API calls against both backends on the same test dataset.
-- Start with the highest-value routes:
+- Add local smoke scripts and workflow docs so one frontend can be run against Python and Java in parallel.
+- Document the repo-specific dual-backend workflow with one shared database.
+- Add automated contract tests that run representative API calls against both backends on the same dataset for:
   - posts
   - feedback
   - preferences
@@ -1219,311 +693,164 @@ Create an automated safety net that compares both implementations before cutover
   - sources
   - digests
   - monitoring
-- Add comparison helpers for status, response shape, ordering-sensitive fields, and key business values.
-- Make schema- and contract-compatibility drift during the parallel-run window a release-blocking concern, not just an informational warning.
+- Compare status, response shape, ordering-sensitive fields, and key business values.
+- Include explicit checks that both backends accept the same frontend origins and Firebase-authenticated browser requests while selector switching is enabled.
 
 **Definition of done**
 
-- The team can automatically detect meaningful contract drift between Python and Java on migrated routes.
+- Developers can validate both backends locally and CI can detect meaningful contract drift during the parallel-run window.
 
 **Verification**
 
-- Run the contract suite and inspect at least one intentionally mismatched case to prove failures are actionable.
+- Smoke run against both local backends through the selector.
+- Contract-suite execution with at least one intentional mismatch to prove failures are actionable.
 
 **Risks/notes**
 
-- This should be treated as a release-quality safety layer, not as optional test polish.
+- This is not test polish. Without it, the selector and shared-database strategy are much riskier than they look.
 
-### PR-44. Add Java Image Build and Publish Path in GitHub Actions
+### PR-21. Add Java Build, Migration, and Non-Production Deploy Pipeline
 
 **Goal**
 
-Make `backend-java` buildable and publishable in GitHub Actions before wiring deployment targets.
+Make `backend-java` fully buildable, migratable, and deployable before shared-environment validation begins.
 
 **Exact changes**
 
-- Extend `.github/workflows/deploy.yml` or add a dedicated Java deploy-support workflow.
-- Add:
-  - Java image build for `backend-java`
-  - image push to Artifact Registry
-- Preserve the existing Python production deploy path while Java is still parallel.
+- Extend GitHub Actions so `backend-java` can:
+  - build a Java image
+  - push it to Artifact Registry
+  - execute Flyway migrations in the deploy path
+  - deploy a separate non-production Cloud Run service
+- Wire env and secret handling for:
+  - database URL
+  - app master key
+  - Gemini API key
+  - Firebase project id
+  - allowed emails
+  - scheduler invoker
+  - public origins
+- Preserve the existing Python production deploy path during the parallel-run window.
 
 **Definition of done**
 
-- GitHub Actions can build and publish a Java backend image without deploying it anywhere yet.
+- GitHub Actions can build, publish, migrate, and deploy `backend-java` to a separate non-production Cloud Run target without affecting the active Python production service.
 
 **Verification**
 
-- Successful workflow run that builds and pushes the Java image.
+- Successful workflow run for image build and push.
+- Successful workflow run for Flyway execution against a non-production database.
+- Successful workflow run that deploys the Java service and passes `/api/health` smoke checks.
 
 **Risks/notes**
 
-- Splitting build/publish from deploy keeps failures smaller and easier to debug in one session.
+- Splitting build, migrate, and deploy into separate future PRs created too much process overhead for one operational concern.
 
-### PR-45. Add Java Flyway Migration Path in GitHub Actions
+### PR-22. Stand Up Full Staging Parallel-Run Validation
 
 **Goal**
 
-Wire database migration execution for Java as a standalone deploy concern.
+Prove the dual-backend design in a shared environment before any production exposure.
 
 **Exact changes**
 
-- Extend the Java deploy workflow path with a Flyway migration execution strategy suitable for Cloud Run deployment.
-- Reuse the same secret sources and DB wiring already used by the current Python migration job where possible.
+- Deploy the Java backend to staging.
+- Add a staging frontend path whose shared selector can target either staging backend.
+- Configure both staging backends to accept the same staging frontend origin set and the same Firebase-authenticated browser request pattern.
+- Expose the selector in staging for internal validation.
+- Point staging scheduler jobs at Java internal-job endpoints after backend and frontend staging paths are proven.
+- Keep rollback instructions explicit for staging backend, frontend, and scheduler changes.
 
 **Definition of done**
 
-- GitHub Actions can trigger Java-backed schema migration execution without also needing to complete the service deploy.
+- Staging runs one frontend with a global selector and two backends against the same staging database, and staged scheduler automation can run through Java.
 
 **Verification**
 
-- Successful workflow run against a non-production database target.
+- End-to-end smoke of Feed, Sources sync, Preferences recompute, Settings test email, Digest history, Monitoring, and internal jobs in staging against the Java target.
+- Manual selector-retargeting checks between staging Python and staging Java backends.
 
 **Risks/notes**
 
-- Keeping migrations separate from service deploy is safer because schema failures deserve their own review surface.
+- This phase is intentionally larger because splitting staging backend, staging frontend, and staging scheduler created overhead without much risk reduction.
 
-### PR-46. Add Non-Production Cloud Run Deploy Path for `backend-java`
+### PR-23. Roll Out Production Frontend Selector and Switch Default to Java
 
 **Goal**
 
-Prepare the Java service for deployable preview and staging environments before traffic cutover.
+Use the shared selector model to shift production browser traffic to Java in a controlled way.
 
 **Exact changes**
 
-- Extend the Java deploy path with:
-  - a Cloud Run deploy target for the Java service, separate from the production Python service
-  - env and secret wiring for:
-    - database URL
-    - app master key
-    - Gemini API key
-    - Firebase project id
-    - allowed emails
-    - scheduler invoker
-    - public origins
-- Preserve the existing Python production deploy path while Java is still parallel.
-- Verify that Python and Java are both configured to accept the same allowed frontend origin set and the same Firebase-authenticated browser request pattern needed by selector-driven switching.
+- Deploy the selector-enabled frontend to production with both backend origins configured.
+- Keep Python as the initial default for a controlled validation window.
+- Gate selector usage for internal/support/controlled migration validation rather than presenting it as a normal end-user feature.
+- After the soak window, switch the production frontend default target from Python to Java.
+- Keep Python available for controlled rollback validation until the parallel-run window closes.
 
 **Definition of done**
 
-- GitHub Actions can build and deploy a separate Java backend instance to Cloud Run without affecting the current production FastAPI service.
+- Production frontend can route to both backends during validation, and then defaults to Java once browser-flow parity is proven.
 
 **Verification**
 
-- Successful workflow run that deploys the Java service to a non-production Cloud Run target.
-- Smoke check of `/api/health` on the deployed Java service.
-- Explicit CORS/public-origin and authenticated-browser-request smoke checks against both backend targets.
+- Controlled production smoke checks against both selector targets.
+- Business-flow smoke checks after Java becomes the default target.
+- Monitoring for error-rate, latency, and data-consistency regressions while both backends remain active.
 
 **Risks/notes**
 
-- Keep the Java service isolated from the current production Cloud Run target until cutover phases explicitly begin.
+- The all-or-nothing per-session selector is actually a safer production migration tool than trying to split traffic route by route inside one UI session.
 
-### PR-47. Add Staging Hosting or Preview-Channel Frontend Path for the Shared Selector
-
-**Goal**
-
-Create an executable staging frontend path that can switch between Python and Java backends through the shared selector.
-
-**Exact changes**
-
-- Add a staging Hosting target or Firebase preview-channel deployment path that can be built with both staging backend origins available to the shared selector.
-- Update the build-time variable plan so it no longer assumes one baked `VITE_CONTENT_API_ORIGIN` for all staging validation.
-- Document how the shared selector is configured in staging and how staging hosting differs from production hosting.
-- Keep the selector scoped to internal/staging validation use rather than positioning it as a normal user-facing product control.
-- Keep the current production hosting path unchanged.
-
-**Definition of done**
-
-- The repo has a documented and automatable way to publish a staging frontend build whose shared selector can target either staging backend.
-
-**Verification**
-
-- Successful staging or preview-channel frontend deployment with both backend origins configured for the selector.
-- Manual smoke check that the staged frontend can switch between the staging Python backend and the staging Java backend.
-
-**Risks/notes**
-
-- Without this phase, the shared selector exists only locally and "switch staging frontend" is not actually executable in one PR.
-
-### PR-48. Deploy Java Backend to Staging
+### PR-24. Shift Production Scheduler and Digest Operations to Java
 
 **Goal**
 
-Run the Java backend as a real service in a shared environment before any production traffic shift.
-
-**Exact changes**
-
-- Create or wire a staging deployment target for `backend-java`.
-- Point staging env vars and secrets to safe staging resources.
-- Document staging URLs and operational checks.
-
-**Definition of done**
-
-- A shared staging environment exists where the Java backend runs independently and can be exercised end to end.
-
-**Verification**
-
-- Smoke tests for public health, authenticated API access, source sync, and digest history against staging.
-
-**Risks/notes**
-
-- Do not treat "it starts" as sufficient. The point of staging is system behavior, not only boot success.
-
-### PR-49. Deploy Staging Frontend With the Shared Backend Selector
-
-**Goal**
-
-Use staging to validate realistic UI behavior while the same frontend can target either backend against the same staging database.
-
-**Exact changes**
-
-- Deploy the staging Hosting target or preview channel created in PR-47 with the shared backend selector enabled.
-- Configure the selector so staging users can switch between the staging Python backend and the staging Java backend.
-- Keep rollback instructions explicit for the staging frontend only.
-- Verify that both staging backends accept the same staging frontend origin and Firebase-authenticated browser requests during selector-driven validation.
-
-**Definition of done**
-
-- Staging UI exposes the shared backend selector and can exercise both backends against the same staging database.
-
-**Verification**
-
-- End-to-end smoke of Feed, Sources sync, Preferences recompute, Settings test email, Digest history, and Monitoring in staging against both selector targets.
-- Explicit smoke checks for full-page retargeting after a selector change and for equivalent CORS/auth acceptance on both staging backends.
-
-**Risks/notes**
-
-- This is the first shared-environment proof that both backends can operate in parallel while the frontend chooses the target.
-
-### PR-50. Point Staging Scheduler to Java Internal Jobs
-
-**Goal**
-
-Complete the staging rehearsal by moving scheduled automation after backend and frontend staging paths are already proven.
-
-**Exact changes**
-
-- Point staging Cloud Scheduler or equivalent job triggers at Java internal-job endpoints.
-- Keep rollback instructions explicit for staging jobs.
-
-**Definition of done**
-
-- Staging scheduled jobs run against Java rather than Python.
-
-**Verification**
-
-- End-to-end smoke of source-sync, daily digest, weekly digest, and observability-report job paths in staging.
-
-**Risks/notes**
-
-- This split is deliberate. Combining backend deploy, frontend deploy, and scheduler cutover in one PR is too large for one session.
-
-### PR-51. Deploy Production Frontend With the Shared Backend Selector
-
-**Goal**
-
-Ship the selector-driven frontend path to production only as a controlled migration-validation mechanism while keeping Python as the default backend target for normal users.
-
-**Exact changes**
-
-- Deploy the shared backend selector to the production frontend.
-- Configure production frontend builds with both production backend origins available to the shared selector.
-- Keep Python as the default selected target at first.
-- Gate access to the selector for internal/support/controlled-validation use during migration instead of treating it as a general user-facing choice.
-- Make the rollback behavior explicit: controlled validation sessions can still route all browser requests back to Python during the soak period.
-- Verify that both production backends accept the same production frontend origin set and Firebase-authenticated browser requests needed for controlled selector use.
-
-**Definition of done**
-
-- The production frontend contains the shared selector path for controlled migration validation, while ordinary production UX still defaults to Python without redefining backend choice as a normal user control.
-
-**Verification**
-
-- Manual smoke checks of selector-driven traffic to both backends in controlled production-validation sessions.
-- Runtime dashboards for error rate and latency on both production backend targets.
-
-**Risks/notes**
-
-- Because the selector switches all browser requests together, this phase is a better controlled validation step than trying to split read traffic from write traffic inside the same UI flow.
-
-### PR-52. Switch the Production Frontend Default Target to Java
-
-**Goal**
-
-Make Java the default backend for browser traffic after parallel validation is complete.
-
-**Exact changes**
-
-- Change the production frontend default backend target from Python to Java.
-- Keep the shared selector available only for internal/support/controlled rollback validation during the soak period.
-- Confirm that all browser-driven routes now work correctly when the Java backend is the default selected target.
-- Keep the requirement explicit that Python remains schema- and contract-compatible enough for rollback until the selector/parallel-run window is closed.
-
-**Definition of done**
-
-- Production browser traffic defaults to Java, and controlled rollback validation to Python remains available during the confidence window without turning backend choice into a permanent end-user control.
-
-**Verification**
-
-- Business smoke checks across both read and write UI flows with Java as the default selected backend.
-- Monitoring for increased 4xx/5xx, latency regressions, and data-consistency issues while both backends still operate against the same database.
-
-**Risks/notes**
-
-- This phase intentionally flips all browser-driven traffic together because the selector model is all-or-nothing per session, not per route group.
-- Do not close the selector/parallel-run window until rollback validation proves Python still works against the shared schema and data.
-
-### PR-53. Shift Production Internal Jobs and Digest Delivery
-
-**Goal**
-
-Complete the backend cutover by moving automated production behavior to Java.
+Complete the production ownership transfer after browser traffic is already stable on Java.
 
 **Exact changes**
 
 - Point production Cloud Scheduler jobs at the Java backend.
-- Move digest generation and delivery ownership to Java.
-- Confirm Cloud Run service account, OIDC audience, and secret wiring are all correct on the Java side.
+- Move source sync, digest generation, digest delivery, and observability-report execution ownership to Java.
+- Confirm Cloud Run service accounts, OIDC audience, secrets, and operational dashboards are correct on the Java side.
 
 **Definition of done**
 
-- Source sync, digest generation, and digest delivery run in production through Java.
+- Automated production behavior runs through Java rather than Python.
 
 **Verification**
 
-- Successful source-sync job run.
-- Successful digest job run.
+- Successful controlled runs of source sync, daily digest, weekly digest, and observability-report paths in production.
 - Delivery confirmation for a controlled digest cycle.
 
 **Risks/notes**
 
-- This is the most operationally sensitive production switch because failures may not be user-driven or instantly visible.
+- This is the most operationally sensitive production cutover, so it should happen only after the browser-facing slice is already stable.
 
-### PR-54. Retire Python Backend from the Active Production Path
+### PR-25. Retire Python Backend from the Active Production Path
 
 **Goal**
 
-Finish the migration and remove the old backend from normal delivery flow.
+Finish the migration and make Java the sole active production backend.
 
 **Exact changes**
 
-- Remove the Python backend from the active Cloud Run production path after a stability window.
-- Update CI/CD and operational docs to make Java the primary backend.
+- Remove the Python backend from the active Cloud Run production path after the Java soak window.
+- Update CI/CD, deploy workflows, and operational docs to make Java the primary backend.
 - Keep rollback/archive strategy explicit according to team policy.
 
 **Definition of done**
 
-- Java is the sole active production backend path.
-- Team docs and deployment automation reflect the new reality.
+- Java is the sole active production backend path and repo automation reflects that reality.
 
 **Verification**
 
 - Full regression smoke.
-- Review of CI, deploy workflows, and README for consistency with the new architecture.
+- Review of CI, deploy workflows, and README for consistency with the final architecture.
 
 **Risks/notes**
 
-- Do not rush this phase. Keep the Python path available until the Java service has earned operational trust.
+- Do not rush this phase. Python should remain available until Java has earned operational trust across both browser and scheduled workloads.
 
 ## Per-PR Working Rules
 
