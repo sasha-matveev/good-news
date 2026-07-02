@@ -69,4 +69,4 @@ jobs:
           cache: maven
           cache-dependency-path: backend-java/pom.xml
       - name: Run backend-java tests
-        run: mvn -B verify
+        run: ./mvnw -B verify

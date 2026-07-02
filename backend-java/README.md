@@ -18,7 +18,7 @@ The backend exposes these unauthenticated Actuator endpoints on the main applica
 Quick verification from the repo root:
 
 ```powershell
-mvn -f backend-java\pom.xml verify
+backend-java\mvnw.cmd verify
 ```
 
 `verify` covers the unit test suite plus the Testcontainers-backed integration phase that exercises Flyway migrations when Docker is available.
@@ -26,7 +26,7 @@ mvn -f backend-java\pom.xml verify
 Manual endpoint check on the default application port:
 
 ```powershell
-mvn -f backend-java\pom.xml spring-boot:run
+backend-java\mvnw.cmd spring-boot:run
 curl.exe http://127.0.0.1:8080/actuator/health
 curl.exe http://127.0.0.1:8080/actuator/prometheus
 ```
