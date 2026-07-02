@@ -1,0 +1,126 @@
+package com.goodnews.backendjava.api;
+
+import com.goodnews.backendjava.api.contract.ApiErrorHandler;
+import com.goodnews.backendjava.api.contract.ApiHttpException;
+import com.goodnews.backendjava.api.dto.SettingsDtos;
+import jakarta.validation.Valid;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.security.config.web.server.ServerHttpSecurity;
+import org.springframework.security.web.server.SecurityWebFilterChain;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.test.web.reactive.server.WebTestClient;
+
+@SpringBootTest(
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+    classes = {
+        com.goodnews.backendjava.BackendJavaApplication.class,
+        ExceptionHandlerContractTest.ContractController.class,
+        ExceptionHandlerContractTest.TestSecurityConfiguration.class,
+        ApiErrorHandler.class
+    }
+)
+@AutoConfigureWebTestClient
+@TestPropertySource(properties = "spring.flyway.enabled=false")
+class ExceptionHandlerContractTest {
+
+    @Autowired
+    private WebTestClient webTestClient;
+
+    @Test
+    void validationErrorsUseFastApiCompatible422Shape() {
+        webTestClient.put()
+            .uri("/contract/settings")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue("""
+                {
+                  "daily_digest_time": "25:99",
+                  "weekly_digest_day_of_week": "funday",
+                  "weekly_digest_time": "12:00",
+                  "smtp_port": 587,
+                  "smtp_security_mode": "starttls",
+                  "daily_digest_enabled": true,
+                  "daily_digest_catch_up_enabled": true,
+                  "weekly_digest_enabled": false,
+                  "weekly_digest_catch_up_enabled": true,
+                  "analysis_summary_prompt": "",
+                  "analysis_verdict_reason_prompt": ""
+                }
+                """)
+            .exchange()
+            .expectStatus().isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY)
+            .expectBody()
+            .jsonPath("$.detail[?(@.loc[0]=='body' && @.loc[1]=='daily_digest_time' && @.msg=='daily_digest_time must use HH:MM format')]")
+            .exists();
+    }
+
+    @Test
+    void missingRequiredFieldsUse422EnvelopeInsteadOfSilentlyDefaulting() {
+        webTestClient.put()
+            .uri("/contract/settings")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue("""
+                {
+                  "daily_digest_time": "12:00",
+                  "weekly_digest_day_of_week": "fri",
+                  "weekly_digest_time": "16:30",
+                  "smtp_security_mode": "starttls",
+                  "analysis_summary_prompt": "",
+                  "analysis_verdict_reason_prompt": ""
+                }
+                """)
+            .exchange()
+            .expectStatus().isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY)
+            .expectBody()
+            .jsonPath("$.detail[?(@.loc[1]=='smtp_port')]").exists()
+            .jsonPath("$.detail[?(@.loc[1]=='daily_digest_enabled')]").exists();
+    }
+
+    @Test
+    void httpExceptionsExposeLegacyDetailEnvelope() {
+        webTestClient.post()
+            .uri("/contract/not-found")
+            .exchange()
+            .expectStatus().isNotFound()
+            .expectBody()
+            .jsonPath("$.detail").isEqualTo("Post not found");
+    }
+
+    @RestController
+    static class ContractController {
+
+        @PutMapping("/contract/settings")
+        SettingsDtos.SettingsUpdateRequest validateSettings(@Valid @RequestBody SettingsDtos.SettingsUpdateRequest request) {
+            return request;
+        }
+
+        @PostMapping("/contract/not-found")
+        void notFound() {
+            throw new ApiHttpException(HttpStatus.NOT_FOUND, "Post not found");
+        }
+    }
+
+    @TestConfiguration
+    static class TestSecurityConfiguration {
+
+        @Bean
+        SecurityWebFilterChain testSecurityWebFilterChain(ServerHttpSecurity http) {
+            return http
+                .csrf(ServerHttpSecurity.CsrfSpec::disable)
+                .authorizeExchange(exchanges -> exchanges.anyExchange().permitAll())
+                .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
+                .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
+                .build();
+        }
+    }
+}
