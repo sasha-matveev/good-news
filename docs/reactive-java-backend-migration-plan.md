@@ -379,11 +379,19 @@ Finish Flyway schema parity for digest and analysis features.
 
 - Schema parity is now good enough to support the rest of the Java migration against the shared database.
 
-### PR-10. Build Reactive Security, DTO, and Error-Contract Foundation
+### PR-10. Build Reactive Security, DTO, and Error-Contract Foundation [Completed on master]
 
 **Goal**
 
 Establish the shared contract layer once so later API ports can be mostly domain work rather than repeated plumbing.
+
+**Status**
+
+- Completed on `master`.
+- Artifact: reactive security, DTO, validation, and error-contract foundation under `backend-java/src/main/java/com/goodnews/backendjava/api/`, `backend-java/src/main/java/com/goodnews/backendjava/security/`, and `backend-java/src/main/java/com/goodnews/backendjava/validation/`, with contract coverage in `backend-java/src/test/java/com/goodnews/backendjava/api/` and `backend-java/src/test/java/com/goodnews/backendjava/security/`.
+- Reviewed implementation basis for this plan update: current `origin/master` head commit `26011df` (`feat: add reactive security dto and error foundation`).
+- Scope note: the DTO layer in `master` covers the listed contract groups by porting the active Python request/response shapes from `backend/app/schemas/` and the route-local contract shapes currently defined under `backend/app/api/routes/`.
+- Scope note: the current `master` security foundation keeps `/api/*` open when Firebase auth is not configured and returns `503` for `/internal/jobs/*` when the scheduler invoker is unset; both behaviors are covered by contract tests in the same phase.
 
 **Exact changes**
 
