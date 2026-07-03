@@ -1,16 +1,9 @@
 package com.goodnews.backendjava.security;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.goodnews.backendjava.api.contract.ApiHttpException;
 import com.goodnews.backendjava.config.GoodNewsProperties;
-import java.nio.charset.StandardCharsets;
-import java.util.Locale;
-import java.util.Map;
-import org.springframework.core.io.buffer.DataBuffer;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
@@ -26,7 +19,7 @@ public class SchedulerAuthenticationWebFilter implements WebFilter {
 
     private final GoodNewsProperties properties;
     private final GoogleOidcTokenVerifier tokenVerifier;
-    private final ObjectMapper objectMapper;
+    private final JsonAuthenticationFailureWriter failures;
 
     public SchedulerAuthenticationWebFilter(
         GoodNewsProperties properties,
@@ -35,7 +28,7 @@ public class SchedulerAuthenticationWebFilter implements WebFilter {
     ) {
         this.properties = properties;
         this.tokenVerifier = tokenVerifier;
-        this.objectMapper = objectMapper;
+        this.failures = new JsonAuthenticationFailureWriter(objectMapper);
     }
 
     @Override
@@ -44,21 +37,23 @@ public class SchedulerAuthenticationWebFilter implements WebFilter {
             return chain.filter(exchange);
         }
         if (isBlank(properties.scheduler().invoker())) {
-            return writeError(exchange, HttpStatus.SERVICE_UNAVAILABLE, "Scheduler invoker is not configured.");
+            return this.failures.write(exchange, HttpStatus.SERVICE_UNAVAILABLE, "Scheduler invoker is not configured.");
         }
         String token;
         try {
-            token = bearerToken(exchange);
+            token = new BearerToken(exchange).value();
         } catch (ApiHttpException exception) {
-            return writeError(exchange, exception.getStatus(), exception.getMessage());
+            return this.failures.write(exchange, exception.getStatus(), exception.getMessage());
         }
+        SchedulerInvoker schedulerInvoker = new SchedulerInvoker(this.properties.scheduler().invoker());
         return tokenVerifier.verify(token)
-            .onErrorResume(exception -> writeError(exchange, HttpStatus.UNAUTHORIZED, "Invalid token.").then(Mono.empty()))
+            .onErrorResume(
+                exception -> this.failures.write(exchange, HttpStatus.UNAUTHORIZED, "Invalid token.").then(Mono.empty())
+            )
             .flatMap(claims -> {
-                String email = claims.email() == null ? "" : claims.email().toLowerCase(Locale.ROOT);
-                String expected = properties.scheduler().invoker().toLowerCase(Locale.ROOT);
-                if (!claims.emailVerified() || !email.equals(expected)) {
-                    return writeError(exchange, HttpStatus.FORBIDDEN, "Not allowed.");
+                String email = new NormalizedEmailAddress(claims.email()).value();
+                if (!claims.emailVerified() || !schedulerInvoker.matches(claims)) {
+                    return this.failures.write(exchange, HttpStatus.FORBIDDEN, "Not allowed.");
                 }
                 UsernamePasswordAuthenticationToken authentication =
                     UsernamePasswordAuthenticationToken.authenticated(email, token, null);
@@ -73,35 +68,7 @@ public class SchedulerAuthenticationWebFilter implements WebFilter {
             && exchange.getRequest().getPath().value().startsWith("/internal/jobs/");
     }
 
-    private String bearerToken(ServerWebExchange exchange) {
-        String header = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
-        if (header == null || !header.startsWith("Bearer ")) {
-            throw new ApiHttpException(HttpStatus.UNAUTHORIZED, "Missing bearer token.");
-        }
-        String token = header.substring("Bearer ".length()).trim();
-        if (token.isEmpty()) {
-            throw new ApiHttpException(HttpStatus.UNAUTHORIZED, "Missing bearer token.");
-        }
-        return token;
-    }
-
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
-    }
-
-    private Mono<Void> writeError(ServerWebExchange exchange, HttpStatus status, String detail) {
-        exchange.getResponse().setStatusCode(status);
-        exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
-        byte[] payload = toJsonBytes(Map.of("detail", detail));
-        DataBuffer buffer = exchange.getResponse().bufferFactory().wrap(payload);
-        return exchange.getResponse().writeWith(Mono.just(buffer));
-    }
-
-    private byte[] toJsonBytes(Map<String, String> body) {
-        try {
-            return objectMapper.writeValueAsBytes(body);
-        } catch (JsonProcessingException exception) {
-            return ("{\"detail\":\"" + body.get("detail") + "\"}").getBytes(StandardCharsets.UTF_8);
-        }
     }
 }

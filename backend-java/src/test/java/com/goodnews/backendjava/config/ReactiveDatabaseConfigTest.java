@@ -17,7 +17,7 @@ class ReactiveDatabaseConfigTest {
             "top-secret"
         );
 
-        String options = ReactiveDatabaseConfig.resolveConnectionFactoryOptions(properties).toString();
+        String options = new ConfiguredDatabase(properties).connectionFactoryOptions().toString();
 
         assertThat(options).contains("driver=postgresql");
         assertThat(options).contains("host=db.internal");
@@ -65,7 +65,7 @@ class ReactiveDatabaseConfigTest {
             "top-secret"
         );
 
-        String options = ReactiveDatabaseConfig.resolveConnectionFactoryOptions(properties).toString();
+        String options = new ConfiguredDatabase(properties).connectionFactoryOptions().toString();
 
         assertThat(options).contains("driver=postgresql");
         assertThat(options).contains("host=db.example");
@@ -85,7 +85,7 @@ class ReactiveDatabaseConfigTest {
             null
         );
 
-        String options = ReactiveDatabaseConfig.resolveConnectionFactoryOptions(properties).toString();
+        String options = new ConfiguredDatabase(properties).connectionFactoryOptions().toString();
 
         assertThat(options).contains("user=legacy_user");
     }
@@ -93,18 +93,18 @@ class ReactiveDatabaseConfigTest {
     @Test
     void preservesPercentEncodedCredentialsDuringSqlAlchemyUrlNormalization() {
         assertThat(
-            ReactiveDatabaseConfig.normalizeUrl(
+            new DatabaseUrl(
                 "postgresql+psycopg://legacy_user:p%40ss@db.example:5544/good_news?sslmode=require"
-            )
+            ).reactive()
         ).isEqualTo("r2dbc:postgresql://legacy_user:p%40ss@db.example:5544/good_news?ssl=true");
     }
 
     @Test
     void preservesQueryParametersDuringJdbcUrlNormalization() {
         assertThat(
-            ReactiveDatabaseConfig.normalizeJdbcUrl(
+            new DatabaseUrl(
                 "postgresql+psycopg://legacy_user:p%40ss@db.example:5544/good_news?sslmode=require"
-            )
+            ).jdbc()
         ).isEqualTo("jdbc:postgresql://legacy_user:p%40ss@db.example:5544/good_news?sslmode=require");
     }
 
@@ -119,7 +119,7 @@ class ReactiveDatabaseConfigTest {
             "top-secret"
         );
 
-        JdbcDatabaseConnection connection = ReactiveDatabaseConfig.resolveJdbcConnection(properties);
+        JdbcDatabaseConnection connection = new ConfiguredDatabase(properties).jdbcConnection();
 
         assertThat(connection.url()).isEqualTo(
             "jdbc:postgresql://legacy_user:legacy-pass@db.example:5544/good_news?sslmode=require"
@@ -140,7 +140,7 @@ class ReactiveDatabaseConfigTest {
         );
 
         org.assertj.core.api.Assertions.assertThatThrownBy(
-            () -> ReactiveDatabaseConfig.resolveConnectionFactoryOptions(properties)
+            () -> new ConfiguredDatabase(properties).connectionFactoryOptions()
         ).isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("Unsupported GOOD_NEWS_DATABASE_URL scheme");
     }
