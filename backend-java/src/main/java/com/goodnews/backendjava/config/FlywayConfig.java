@@ -17,7 +17,7 @@ public class FlywayConfig {
 
     @Bean(initMethod = "migrate")
     Flyway flyway(GoodNewsProperties properties) {
-        JdbcDatabaseConnection connection = ReactiveDatabaseConfig.resolveJdbcConnection(properties.database());
+        JdbcDatabaseConnection connection = new ConfiguredDatabase(properties.database()).jdbcConnection();
 
         return Flyway.configure()
             .dataSource(connection.url(), connection.user(), connection.password())

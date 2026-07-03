@@ -24,4 +24,8 @@ public record DatabaseProperties(
             || !DEFAULT_DATABASE.equals(postgresDatabase)
             || !DEFAULT_USER.equals(postgresUser);
     }
+
+    boolean hasExplicitUserOverride() {
+        return StringUtils.hasText(postgresUser) && !DEFAULT_USER.equals(postgresUser);
+    }
 }

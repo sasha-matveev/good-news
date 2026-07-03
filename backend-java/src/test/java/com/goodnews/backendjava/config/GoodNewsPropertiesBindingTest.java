@@ -53,43 +53,43 @@ class GoodNewsPropertiesBindingTest {
             .run()) {
             GoodNewsProperties properties = context.getBean(GoodNewsProperties.class);
 
-            assertThat(readNestedValue(properties, "app", "environment")).isEqualTo("prod");
-            assertThat(readNestedValue(properties, "app", "contentApiServiceHost")).isEqualTo("content-api.internal");
-            assertThat(readNestedValue(properties, "app", "contentApiServicePort")).isEqualTo(9000);
-            assertThat(readNestedValue(properties, "app", "frontendPort")).isEqualTo(4173);
-            assertThat(readNestedValue(properties, "app", "analysisServiceHost")).isEqualTo("analysis.internal");
-            assertThat(readNestedValue(properties, "app", "analysisServicePort")).isEqualTo(9100);
-            assertThat(readNestedValue(properties, "app", "sourceIngestionServiceHost")).isEqualTo("ingestion.internal");
-            assertThat(readNestedValue(properties, "app", "sourceIngestionServicePort")).isEqualTo(9200);
-            assertThat(readNestedValue(properties, "app", "deliveryServiceHost")).isEqualTo("delivery.internal");
-            assertThat(readNestedValue(properties, "app", "deliveryServicePort")).isEqualTo(9300);
-            assertThat(readNestedValue(properties, "app", "analysisStubResponseJson")).isEqualTo("{\"mode\":\"stub\"}");
-            assertThat(readNestedValue(properties, "app", "ingestionResponsesJson")).isEqualTo("[{\"source\":\"demo\"}]");
+            assertThat(properties.app().environment()).isEqualTo("prod");
+            assertThat(properties.app().contentApiServiceHost()).isEqualTo("content-api.internal");
+            assertThat(properties.app().contentApiServicePort()).isEqualTo(9000);
+            assertThat(properties.app().frontendPort()).isEqualTo(4173);
+            assertThat(properties.app().analysisServiceHost()).isEqualTo("analysis.internal");
+            assertThat(properties.app().analysisServicePort()).isEqualTo(9100);
+            assertThat(properties.app().sourceIngestionServiceHost()).isEqualTo("ingestion.internal");
+            assertThat(properties.app().sourceIngestionServicePort()).isEqualTo(9200);
+            assertThat(properties.app().deliveryServiceHost()).isEqualTo("delivery.internal");
+            assertThat(properties.app().deliveryServicePort()).isEqualTo(9300);
+            assertThat(properties.app().analysisStubResponseJson()).isEqualTo("{\"mode\":\"stub\"}");
+            assertThat(properties.app().ingestionResponsesJson()).isEqualTo("[{\"source\":\"demo\"}]");
 
-            assertThat(readNestedValue(properties, "database", "url")).isEqualTo("r2dbc:postgresql://db.example/good_news");
-            assertThat(readNestedValue(properties, "database", "postgresHost")).isEqualTo("db.internal");
-            assertThat(readNestedValue(properties, "database", "postgresPort")).isEqualTo(6432);
-            assertThat(readNestedValue(properties, "database", "postgresDatabase")).isEqualTo("good_news_prod");
-            assertThat(readNestedValue(properties, "database", "postgresUser")).isEqualTo("service_user");
-            assertThat(readNestedValue(properties, "database", "postgresPassword")).isEqualTo("top-secret");
+            assertThat(properties.database().url()).isEqualTo("r2dbc:postgresql://db.example/good_news");
+            assertThat(properties.database().postgresHost()).isEqualTo("db.internal");
+            assertThat(properties.database().postgresPort()).isEqualTo(6432);
+            assertThat(properties.database().postgresDatabase()).isEqualTo("good_news_prod");
+            assertThat(properties.database().postgresUser()).isEqualTo("service_user");
+            assertThat(properties.database().postgresPassword()).isEqualTo("top-secret");
 
-            assertThat(readNestedValue(properties, "auth", "firebaseProjectId")).isEqualTo("demo-project");
-            assertThat(readNestedValue(properties, "auth", "allowedEmails")).isEqualTo("alice@example.com,bob@example.com");
-            assertThat(readNestedValue(properties, "auth", "oidcAudience")).isEqualTo("https://good-news.example.com");
+            assertThat(properties.auth().firebaseProjectId()).isEqualTo("demo-project");
+            assertThat(properties.auth().allowedEmails()).isEqualTo("alice@example.com,bob@example.com");
+            assertThat(properties.auth().oidcAudience()).isEqualTo("https://good-news.example.com");
 
-            assertThat(readNestedValue(properties, "scheduler", "sourceSyncIntervalMinutes")).isEqualTo(45);
-            assertThat(readNestedValue(properties, "scheduler", "sourceFailureThreshold")).isEqualTo(5);
-            assertThat(readNestedValue(properties, "scheduler", "invoker")).isEqualTo("scheduler@example.iam.gserviceaccount.com");
+            assertThat(properties.scheduler().sourceSyncIntervalMinutes()).isEqualTo(45);
+            assertThat(properties.scheduler().sourceFailureThreshold()).isEqualTo(5);
+            assertThat(properties.scheduler().invoker()).isEqualTo("scheduler@example.iam.gserviceaccount.com");
 
-            assertThat(readNestedValue(properties, "gemini", "apiKey")).isEqualTo("gemini-secret");
-            assertThat(readNestedValue(properties, "gemini", "model")).isEqualTo("gemini-2.5-flash-lite");
-            assertThat(readNestedValue(properties, "gemini", "batchSize")).isEqualTo(25);
-            assertThat(readNestedValue(properties, "gemini", "maxRpm")).isEqualTo(16);
-            assertThat(readNestedValue(properties, "gemini", "maxRetries")).isEqualTo(7);
+            assertThat(properties.gemini().apiKey()).isEqualTo("gemini-secret");
+            assertThat(properties.gemini().model()).isEqualTo("gemini-2.5-flash-lite");
+            assertThat(properties.gemini().batchSize()).isEqualTo(25);
+            assertThat(properties.gemini().maxRpm()).isEqualTo(16);
+            assertThat(properties.gemini().maxRetries()).isEqualTo(7);
 
-            assertThat(readNestedValue(properties, "email", "appMasterKey")).isEqualTo("master-key");
-            assertThat(readNestedValue(properties, "email", "publicContentApiOrigin")).isEqualTo("https://api.good-news.example.com");
-            assertThat(readNestedValue(properties, "email", "publicFrontendOrigin")).isEqualTo("https://good-news.example.com");
+            assertThat(properties.email().appMasterKey()).isEqualTo("master-key");
+            assertThat(properties.email().publicContentApiOrigin()).isEqualTo("https://api.good-news.example.com");
+            assertThat(properties.email().publicFrontendOrigin()).isEqualTo("https://good-news.example.com");
         }
     }
 
@@ -108,20 +108,8 @@ class GoodNewsPropertiesBindingTest {
             .run()) {
             GoodNewsProperties properties = context.getBean(GoodNewsProperties.class);
 
-            assertThat(readNestedValue(properties, "app", "environment")).isEqualTo("test");
-            assertThat(readNestedValue(properties, "gemini", "model")).isEqualTo("gemini-explicit");
-        }
-    }
-
-    private Object readNestedValue(Object target, String firstAccessor, String secondAccessor) {
-        return invoke(invoke(target, firstAccessor), secondAccessor);
-    }
-
-    private Object invoke(Object target, String methodName) {
-        try {
-            return target.getClass().getMethod(methodName).invoke(target);
-        } catch (ReflectiveOperationException exception) {
-            throw new IllegalStateException("Failed to invoke " + methodName, exception);
+            assertThat(properties.app().environment()).isEqualTo("test");
+            assertThat(properties.gemini().model()).isEqualTo("gemini-explicit");
         }
     }
 
