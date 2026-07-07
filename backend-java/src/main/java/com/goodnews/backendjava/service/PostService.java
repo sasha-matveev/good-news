@@ -9,8 +9,11 @@ import java.math.RoundingMode;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -160,10 +163,10 @@ public class PostService {
                 row.get("source_name", String.class),
                 row.get("canonical_url", String.class),
                 row.get("title", String.class),
-                row.get("published_at", OffsetDateTime.class),
+                offsetDateTime(row.get("published_at")),
                 row.get("raw_content", String.class),
                 row.get("feedback_state", String.class),
-                Boolean.TRUE.equals(row.get("read_later", Boolean.class)),
+                booleanValue(row.get("read_later")),
                 row.get("summary_ru", String.class),
                 row.get("analysis_metadata_json", String.class)
             ))
@@ -350,6 +353,38 @@ public class PostService {
 
     private long numberToLong(Object value) {
         return value instanceof Number number ? number.longValue() : Long.parseLong(String.valueOf(value));
+    }
+
+    private boolean booleanValue(Object value) {
+        if (value == null) {
+            return false;
+        }
+        if (value instanceof Boolean booleanValue) {
+            return booleanValue;
+        }
+        if (value instanceof Number number) {
+            return number.intValue() != 0;
+        }
+        return Boolean.parseBoolean(String.valueOf(value));
+    }
+
+    private OffsetDateTime offsetDateTime(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof OffsetDateTime offsetDateTime) {
+            return offsetDateTime;
+        }
+        if (value instanceof Instant instant) {
+            return instant.atOffset(ZoneOffset.UTC);
+        }
+        if (value instanceof ZonedDateTime zonedDateTime) {
+            return zonedDateTime.toOffsetDateTime();
+        }
+        if (value instanceof LocalDateTime localDateTime) {
+            return localDateTime.atOffset(ZoneOffset.UTC);
+        }
+        return OffsetDateTime.parse(String.valueOf(value));
     }
 
     private record FeedQuery(Long sourceId, String feedbackState, String window, Boolean readLater) {}
