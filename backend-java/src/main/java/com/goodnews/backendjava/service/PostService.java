@@ -276,7 +276,7 @@ public class PostService {
         long latestEpoch = inputs.stream().mapToLong(RankInput::publishedEpoch).max().orElse(0L);
         Map<Long, RankingResult> results = new HashMap<>();
         for (RankInput input : inputs) {
-            double feedbackScore = FEEDBACK_WEIGHTS.getOrDefault(input.feedbackState(), 0.0);
+            double feedbackScore = feedbackWeight(input.feedbackState());
             double sourceScore = sourceAffinity.getOrDefault(nullToEmpty(input.sourceName()), 0.0);
             double topicScore = input.topics().stream().mapToDouble(topic -> topicAffinity.getOrDefault(topic, 0.0)).max().orElse(0.0);
             double formatScore = formatAffinity.getOrDefault(nullToEmpty(input.format()), 0.0);
@@ -353,6 +353,13 @@ public class PostService {
 
     private long numberToLong(Object value) {
         return value instanceof Number number ? number.longValue() : Long.parseLong(String.valueOf(value));
+    }
+
+    private double feedbackWeight(String feedbackState) {
+        if (feedbackState == null) {
+            return 0.0;
+        }
+        return FEEDBACK_WEIGHTS.getOrDefault(feedbackState, 0.0);
     }
 
     private boolean booleanValue(Object value) {
