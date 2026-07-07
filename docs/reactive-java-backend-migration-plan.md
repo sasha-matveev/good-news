@@ -427,11 +427,17 @@ Establish the shared contract layer once so later API ports can be mostly domain
 
 - This phase is intentionally broader than before because splitting auth, DTOs, and validation produced too much overhead and too little executable value.
 
-### PR-11. Port Feed, Feedback, and Want-to-Read APIs
+### PR-11. Port Feed, Feedback, and Want-to-Read APIs [Completed on master]
 
 **Goal**
 
 Move the first complete set of user-facing feed interactions into Java.
+
+**Status**
+
+- Completed on `master`.
+- Artifact: `backend-java/src/main/java/com/goodnews/backendjava/api/PostsController.java`, `backend-java/src/main/java/com/goodnews/backendjava/api/FeedbackController.java`, `backend-java/src/main/java/com/goodnews/backendjava/api/WantToReadController.java`, related services under `backend-java/src/main/java/com/goodnews/backendjava/service/`, and integration coverage in `backend-java/src/test/java/com/goodnews/backendjava/api/FeedFeedbackWantToReadApiTest.java`.
+- Reviewed implementation basis for this plan update: current `master` API state after commit `156e6b1` (`feat: port backend-java feed and feedback api`) and follow-up fix `e177902` (`fix: harden post row mapping for postgres`).
 
 **Exact changes**
 
