@@ -2,6 +2,7 @@ package com.goodnews.backendjava.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.goodnews.backendjava.api.dto.MonitoringDtos;
+import com.goodnews.backendjava.api.dto.PreferenceDtos;
 import com.goodnews.backendjava.api.dto.PostDtos;
 import com.goodnews.backendjava.api.dto.SettingsDtos;
 import jakarta.validation.ConstraintViolation;
@@ -67,6 +68,23 @@ class DtoContractTest {
         assertThat(objectMapper.readValue(objectMapper.writeValueAsBytes(response), Map.class))
             .containsEntry("sources_active", 2)
             .containsEntry("last_sync_at", "2026-05-14T12:00:00Z");
+    }
+
+    @Test
+    void preferenceProfileResponseSerializesPythonCompatibleFieldNames() throws Exception {
+        PreferenceDtos.PreferenceProfileResponse response = new PreferenceDtos.PreferenceProfileResponse(
+            "Summary",
+            java.util.List.of("Positive"),
+            java.util.List.of("Negative"),
+            java.util.List.of("Proof"),
+            new PreferenceDtos.PreferenceFeedbackTotalsResponse(3, 1, 1, 1)
+        );
+
+        assertThat(objectMapper.writeValueAsString(response)).isEqualTo(
+            "{\"summary\":\"Summary\",\"positive_signals\":[\"Positive\"],\"negative_signals\":[\"Negative\"],"
+                + "\"learning_proof\":[\"Proof\"],\"feedback_totals\":{\"total\":3,\"interesting\":1,"
+                + "\"want_to_read\":1,\"not_interesting\":1}}"
+        );
     }
 
     @Test
