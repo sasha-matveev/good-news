@@ -48,7 +48,10 @@ class GoodNewsPropertiesBindingTest {
                 "GOOD_NEWS_GEMINI_MAX_RETRIES=7",
                 "GOOD_NEWS_APP_MASTER_KEY=master-key",
                 "GOOD_NEWS_PUBLIC_CONTENT_API_ORIGIN=https://api.good-news.example.com",
-                "GOOD_NEWS_PUBLIC_FRONTEND_ORIGIN=https://good-news.example.com"
+                "GOOD_NEWS_PUBLIC_FRONTEND_ORIGIN=https://good-news.example.com",
+                "GOOD_NEWS_OBSERVABILITY_GRAFANA_ORIGIN=https://grafana.good-news.example.com",
+                "GOOD_NEWS_OBSERVABILITY_GRAFANA_HOST=grafana.internal",
+                "GOOD_NEWS_OBSERVABILITY_GRAFANA_HOST_PORT=3300"
             )
             .run()) {
             GoodNewsProperties properties = context.getBean(GoodNewsProperties.class);
@@ -90,6 +93,9 @@ class GoodNewsPropertiesBindingTest {
             assertThat(properties.email().appMasterKey()).isEqualTo("master-key");
             assertThat(properties.email().publicContentApiOrigin()).isEqualTo("https://api.good-news.example.com");
             assertThat(properties.email().publicFrontendOrigin()).isEqualTo("https://good-news.example.com");
+            assertThat(properties.observability().grafanaOrigin()).isEqualTo("https://grafana.good-news.example.com");
+            assertThat(properties.observability().grafanaHost()).isEqualTo("grafana.internal");
+            assertThat(properties.observability().grafanaHostPort()).isEqualTo(3300);
         }
     }
 
