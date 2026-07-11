@@ -42,14 +42,30 @@ public final class SettingsDtos {
         @NotNull @Min(1) @Max(65535) Integer smtp_port,
         String smtp_username,
         @NotNull @ValidSmtpSecurityMode String smtp_security_mode,
-        @NotNull Boolean daily_digest_enabled,
-        @NotNull Boolean daily_digest_catch_up_enabled,
-        @NotNull Boolean weekly_digest_enabled,
-        @NotNull Boolean weekly_digest_catch_up_enabled,
+        Boolean daily_digest_enabled,
+        Boolean daily_digest_catch_up_enabled,
+        Boolean weekly_digest_enabled,
+        Boolean weekly_digest_catch_up_enabled,
         String smtp_password,
         @Size(max = 8000, message = "prompt must be at most 8000 characters") String analysis_summary_prompt,
         @Size(max = 8000, message = "prompt must be at most 8000 characters") String analysis_verdict_reason_prompt
     ) {
+        public Boolean daily_digest_enabled() {
+            return daily_digest_enabled == null ? Boolean.TRUE : daily_digest_enabled;
+        }
+
+        public Boolean daily_digest_catch_up_enabled() {
+            return daily_digest_catch_up_enabled == null ? Boolean.TRUE : daily_digest_catch_up_enabled;
+        }
+
+        public Boolean weekly_digest_enabled() {
+            return weekly_digest_enabled == null ? Boolean.FALSE : weekly_digest_enabled;
+        }
+
+        public Boolean weekly_digest_catch_up_enabled() {
+            return weekly_digest_catch_up_enabled == null ? Boolean.TRUE : weekly_digest_catch_up_enabled;
+        }
+
         public String normalizedDailyDigestTime() {
             return normalizeTime(daily_digest_time);
         }

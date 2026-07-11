@@ -65,7 +65,7 @@ class ExceptionHandlerContractTest {
     }
 
     @Test
-    void missingRequiredFieldsUse422EnvelopeInsteadOfSilentlyDefaulting() {
+    void missingRequiredFieldsStillUse422EnvelopeForTrulyRequiredFields() {
         webTestClient.put()
             .uri("/contract/settings")
             .contentType(MediaType.APPLICATION_JSON)
@@ -82,8 +82,32 @@ class ExceptionHandlerContractTest {
             .exchange()
             .expectStatus().isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY)
             .expectBody()
-            .jsonPath("$.detail[?(@.loc[1]=='smtp_port')]").exists()
-            .jsonPath("$.detail[?(@.loc[1]=='daily_digest_enabled')]").exists();
+            .jsonPath("$.detail[?(@.loc[1]=='smtp_port')]").exists();
+    }
+
+    @Test
+    void omittedDigestBooleansDefaultInsteadOfReturning422() {
+        webTestClient.put()
+            .uri("/contract/settings")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue("""
+                {
+                  "daily_digest_time": "12:00",
+                  "weekly_digest_day_of_week": "fri",
+                  "weekly_digest_time": "16:30",
+                  "smtp_port": 587,
+                  "smtp_security_mode": "starttls",
+                  "analysis_summary_prompt": "",
+                  "analysis_verdict_reason_prompt": ""
+                }
+                """)
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.daily_digest_enabled").isEqualTo(true)
+            .jsonPath("$.daily_digest_catch_up_enabled").isEqualTo(true)
+            .jsonPath("$.weekly_digest_enabled").isEqualTo(false)
+            .jsonPath("$.weekly_digest_catch_up_enabled").isEqualTo(true);
     }
 
     @Test

@@ -207,6 +207,45 @@ class PreferencesSettingsApiTest {
     }
 
     @Test
+    void settingsApiDefaultsOmittedDigestBooleansWithoutChangingPromptBehavior() {
+        webTestClient.put()
+            .uri("/api/settings")
+            .bodyValue(new PayloadBuilder()
+                .with("daily_digest_time", "08:45")
+                .with("weekly_digest_day_of_week", "fri")
+                .with("weekly_digest_time", "16:30")
+                .with("recipient_email", "reader@example.com")
+                .with("sender_identity", "Good News Digest <digest@example.com>")
+                .with("smtp_host", "smtp.example.com")
+                .with("smtp_port", 465)
+                .with("smtp_username", "digest-user")
+                .with("smtp_security_mode", "ssl")
+                .with("analysis_summary_prompt", "")
+                .with("analysis_verdict_reason_prompt", "")
+                .build())
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody()
+            .jsonPath("$.daily_digest_enabled").isEqualTo(true)
+            .jsonPath("$.daily_digest_catch_up_enabled").isEqualTo(true)
+            .jsonPath("$.weekly_digest_enabled").isEqualTo(false)
+            .jsonPath("$.weekly_digest_catch_up_enabled").isEqualTo(true)
+            .jsonPath("$.analysis_summary_prompt").isEqualTo(DEFAULT_SUMMARY_INSTRUCTIONS)
+            .jsonPath("$.analysis_verdict_reason_prompt").isEqualTo(DEFAULT_VERDICT_REASON_INSTRUCTIONS);
+
+        assertThat(queryForString("SELECT value FROM settings WHERE key = 'daily_digest_enabled'")).isEqualTo("true");
+        assertThat(queryForString("SELECT value FROM settings WHERE key = 'daily_digest_catch_up_enabled'")).isEqualTo("true");
+        assertThat(queryForString("SELECT value FROM settings WHERE key = 'weekly_digest_enabled'")).isEqualTo("false");
+        assertThat(queryForString("SELECT value FROM settings WHERE key = 'weekly_digest_catch_up_enabled'")).isEqualTo("true");
+        assertThat(queryForString(
+            "SELECT COALESCE(value, '__NULL__') FROM settings WHERE key = 'analysis_summary_prompt'"
+        )).isEqualTo("__NULL__");
+        assertThat(queryForString(
+            "SELECT COALESCE(value, '__NULL__') FROM settings WHERE key = 'analysis_verdict_reason_prompt'"
+        )).isEqualTo("__NULL__");
+    }
+
+    @Test
     void settingsApiRejectsInvalidUpdates() {
         webTestClient.put()
             .uri("/api/settings")
