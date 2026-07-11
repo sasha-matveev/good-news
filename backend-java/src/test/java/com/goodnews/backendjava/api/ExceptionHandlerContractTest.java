@@ -3,6 +3,7 @@ package com.goodnews.backendjava.api;
 import com.goodnews.backendjava.api.contract.ApiErrorHandler;
 import com.goodnews.backendjava.api.contract.ApiHttpException;
 import com.goodnews.backendjava.api.dto.SettingsDtos;
+import com.goodnews.backendjava.ingestion.application.SourceNotFoundException;
 import jakarta.validation.Valid;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -137,6 +138,19 @@ class ExceptionHandlerContractTest {
                 .isEqualTo("Post not found");
     }
 
+    @Test
+    void missingSourceApplicationFailureMapsTo404() {
+        webTestClient
+                .post()
+                .uri("/contract/source-not-found")
+                .exchange()
+                .expectStatus()
+                .isNotFound()
+                .expectBody()
+                .jsonPath("$.detail")
+                .isEqualTo("Source not found");
+    }
+
     @RestController
     static class ContractController {
 
@@ -149,6 +163,11 @@ class ExceptionHandlerContractTest {
         @PostMapping("/contract/not-found")
         void notFound() {
             throw new ApiHttpException(HttpStatus.NOT_FOUND, "Post not found");
+        }
+
+        @PostMapping("/contract/source-not-found")
+        void sourceNotFound() {
+            throw new SourceNotFoundException(17L);
         }
     }
 
