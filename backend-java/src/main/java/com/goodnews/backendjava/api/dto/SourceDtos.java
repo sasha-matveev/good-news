@@ -1,6 +1,7 @@
 package com.goodnews.backendjava.api.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import java.util.List;
 import java.util.Map;
 
@@ -10,7 +11,7 @@ public final class SourceDtos {
 
     public record SourceCreateRequest(@NotBlank String url) {}
 
-    public record SourceUpdateRequest(boolean active) {}
+    public record SourceUpdateRequest(@NotNull Boolean active) {}
 
     public record SourceResponse(
         long id,
