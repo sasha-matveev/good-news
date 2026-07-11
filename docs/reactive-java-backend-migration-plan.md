@@ -460,11 +460,17 @@ Move the first complete set of user-facing feed interactions into Java.
 
 - This is the first real frontend-visible parity slice, so response ordering and state semantics matter more than internal code elegance.
 
-### PR-12. Port Preferences and Settings Domain End to End
+### PR-12. Port Preferences and Settings Domain End to End [Completed on master]
 
 **Goal**
 
 Move user preference and settings ownership into Java, including secret compatibility and test-email behavior.
+
+**Status**
+
+- Completed on `master`.
+- Artifact: `backend-java/src/main/java/com/goodnews/backendjava/api/PreferencesController.java`, `backend-java/src/main/java/com/goodnews/backendjava/api/SettingsController.java`, `backend-java/src/main/java/com/goodnews/backendjava/service/PreferenceService.java`, `backend-java/src/main/java/com/goodnews/backendjava/service/SettingsService.java`, `backend-java/src/main/java/com/goodnews/backendjava/service/TestEmailService.java`, `backend-java/src/main/java/com/goodnews/backendjava/service/JakartaMailSmtpEmailAdapter.java`, and coverage in `backend-java/src/test/java/com/goodnews/backendjava/api/PreferencesSettingsApiTest.java` plus `backend-java/src/test/java/com/goodnews/backendjava/service/SettingsServiceCryptoCompatibilityTest.java`.
+- Reviewed implementation basis for this plan update: current `master` preferences/settings state after commit `03f52d4` (`feat: port preferences and settings domain`) and follow-up fix `0b3b243` (`fix: restore settings defaults and master key resolution`).
 
 **Exact changes**
 
