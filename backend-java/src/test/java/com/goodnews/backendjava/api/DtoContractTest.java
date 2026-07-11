@@ -172,4 +172,32 @@ class DtoContractTest {
             "must not be null"
         );
     }
+
+    @Test
+    void settingsUpdateRequestDefaultsOmittedDigestBooleansLikePython() {
+        SettingsDtos.SettingsUpdateRequest request = new SettingsDtos.SettingsUpdateRequest(
+            "12:00",
+            "fri",
+            "16:30",
+            null,
+            null,
+            null,
+            587,
+            null,
+            "starttls",
+            null,
+            null,
+            null,
+            null,
+            null,
+            "",
+            ""
+        );
+
+        assertThat(validator.validate(request)).isEmpty();
+        assertThat(request.daily_digest_enabled()).isTrue();
+        assertThat(request.daily_digest_catch_up_enabled()).isTrue();
+        assertThat(request.weekly_digest_enabled()).isFalse();
+        assertThat(request.weekly_digest_catch_up_enabled()).isTrue();
+    }
 }

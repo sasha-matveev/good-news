@@ -42,10 +42,16 @@ public class SettingsService {
 
     private final DatabaseClient databaseClient;
     private final GoodNewsProperties properties;
+    private final AppMasterKeyResolver appMasterKeyResolver;
 
-    public SettingsService(DatabaseClient databaseClient, GoodNewsProperties properties) {
+    public SettingsService(
+        DatabaseClient databaseClient,
+        GoodNewsProperties properties,
+        AppMasterKeyResolver appMasterKeyResolver
+    ) {
         this.databaseClient = databaseClient;
         this.properties = properties;
+        this.appMasterKeyResolver = appMasterKeyResolver;
     }
 
     public Mono<SettingsDtos.SettingsResponse> getSettingsResponse() {
@@ -144,7 +150,7 @@ public class SettingsService {
             .then();
 
         Mono<Void> secretWrite = hasText(update.smtpPassword())
-            ? upsertSecretSetting("smtp_password", encryptSecret(update.smtpPassword(), requireAppMasterKey()))
+            ? upsertSecretSetting("smtp_password", encryptSecret(update.smtpPassword(), appMasterKeyResolver.require()))
             : Mono.empty();
 
         return writes.then(secretWrite).then(loadSettings());
@@ -155,7 +161,7 @@ public class SettingsService {
             .bind("key", "smtp_password")
             .map((row, metadata) -> row.get("encrypted_value", String.class))
             .one()
-            .map(encrypted -> decryptSecret(encrypted, requireAppMasterKey()));
+            .map(encrypted -> decryptSecret(encrypted, appMasterKeyResolver.require()));
     }
 
     static String encryptSecret(String plaintext, String masterKey) {
@@ -242,16 +248,6 @@ public class SettingsService {
             settings.smtpPasswordConfigured(),
             settings.analysisSummaryPrompt(),
             settings.analysisVerdictReasonPrompt()
-        );
-    }
-
-    private String requireAppMasterKey() {
-        String appMasterKey = properties.email().appMasterKey();
-        if (hasText(appMasterKey)) {
-            return appMasterKey;
-        }
-        throw new IllegalStateException(
-            "Missing app master key contract GOOD_NEWS_APP_MASTER_KEY; set it explicitly for SMTP secret encryption."
         );
     }
 
