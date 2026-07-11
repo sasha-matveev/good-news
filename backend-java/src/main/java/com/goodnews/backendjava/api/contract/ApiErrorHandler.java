@@ -1,5 +1,6 @@
 package com.goodnews.backendjava.api.contract;
 
+import com.goodnews.backendjava.ingestion.application.SourceNotFoundException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -26,6 +27,11 @@ public class ApiErrorHandler {
     @ExceptionHandler(ApiHttpException.class)
     public ResponseEntity<Map<String, Object>> handleApiHttpException(ApiHttpException exception) {
         return ResponseEntity.status(exception.getStatus()).body(Map.of("detail", exception.getMessage()));
+    }
+
+    @ExceptionHandler(SourceNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleSourceNotFoundException(SourceNotFoundException exception) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("detail", exception.getMessage()));
     }
 
     @ExceptionHandler(WebExchangeBindException.class)
