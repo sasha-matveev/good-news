@@ -496,11 +496,17 @@ Move user preference and settings ownership into Java, including secret compatib
 
 - This is intentionally one larger slice because settings without secret compatibility or test email is not actually deployable.
 
-### PR-13. Port Digest History and Source Management APIs
+### PR-13. Port Digest History and Source Management APIs [Completed on master]
 
 **Goal**
 
 Move the remaining interactive CRUD-style APIs needed by the existing frontend before deeper background workflows.
+
+**Status**
+
+- Completed on `master`.
+- Artifact: `backend-java/src/main/java/com/goodnews/backendjava/api/DigestsController.java`, `backend-java/src/main/java/com/goodnews/backendjava/api/SourcesController.java`, `backend-java/src/main/java/com/goodnews/backendjava/service/DigestHistoryService.java`, `backend-java/src/main/java/com/goodnews/backendjava/service/SourceManagementService.java`, and coverage in `backend-java/src/test/java/com/goodnews/backendjava/api/DigestSourceApiTest.java` plus `backend-java/src/test/java/com/goodnews/backendjava/service/SourceManagementServiceTest.java`.
+- Reviewed implementation basis for this plan update: current `master` digest/source API state after commit `cd38fc4` (`feat: port digest history and source APIs`).
 
 **Exact changes**
 
