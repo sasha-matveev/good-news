@@ -527,11 +527,17 @@ Move the remaining interactive CRUD-style APIs needed by the existing frontend b
 
 - This phase deliberately stops before sync orchestration because CRUD and ingestion fail in different ways and should not be debugged together.
 
-### PR-14. Port Source Ingestion Foundation and Single-Source Sync
+### PR-14. Port Source Ingestion Foundation and Single-Source Sync [Completed on master]
 
 **Goal**
 
 Build the reusable ingestion base and prove one end-to-end sync path.
+
+**Status**
+
+- Completed on `master`.
+- Artifact: ingestion foundation under `backend-java/src/main/java/com/goodnews/backendjava/ingestion/`, including `ingestion/infrastructure/http/WebClientSourceDocumentLoader.java`, parsing and known-site strategy packages, `backend-java/src/main/java/com/goodnews/backendjava/ingestion/application/SyncSingleSource.java`, the public sync route in `backend-java/src/main/java/com/goodnews/backendjava/api/SourcesController.java`, and coverage in `backend-java/src/test/java/com/goodnews/backendjava/ingestion/` plus `backend-java/src/test/java/com/goodnews/backendjava/service/SingleSourceSyncServiceIT.java`.
+- Reviewed implementation basis for this plan update: current `master` ingestion state after commit `f2e4429` (`feat: port source ingestion foundation`).
 
 **Exact changes**
 
