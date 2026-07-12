@@ -1,6 +1,8 @@
 package com.goodnews.backendjava.api;
 
 import com.goodnews.backendjava.api.dto.SourceDtos;
+import com.goodnews.backendjava.ingestion.application.ReloadSourcePosts;
+import com.goodnews.backendjava.ingestion.application.SyncActiveSources;
 import com.goodnews.backendjava.ingestion.application.SyncSingleSource;
 import com.goodnews.backendjava.service.SourceManagementService;
 import jakarta.validation.Valid;
@@ -14,10 +16,18 @@ import reactor.core.publisher.Mono;
 public class SourcesController {
     private final SourceManagementService service;
     private final SyncSingleSource syncService;
+    private final SyncActiveSources activeSyncService;
+    private final ReloadSourcePosts reloadService;
 
-    public SourcesController(SourceManagementService service, SyncSingleSource syncService) {
+    public SourcesController(
+            SourceManagementService service,
+            SyncSingleSource syncService,
+            SyncActiveSources activeSyncService,
+            ReloadSourcePosts reloadService) {
         this.service = service;
         this.syncService = syncService;
+        this.activeSyncService = activeSyncService;
+        this.reloadService = reloadService;
     }
 
     @GetMapping("/api/sources")
@@ -53,5 +63,17 @@ public class SourcesController {
         return syncService.sync(id).map(outcome -> new SourceSyncResponse(outcome.processedSourceIds()));
     }
 
+    @PostMapping("/api/sources/sync")
+    public Mono<SourceSyncResponse> syncActive() {
+        return activeSyncService.sync().map(outcome -> new SourceSyncResponse(outcome.processedSourceIds()));
+    }
+
+    @PostMapping("/api/sources/{id}/reload-posts")
+    public Mono<ReloadPostsResponse> reload(@PathVariable long id) {
+        return reloadService.reload(id).map(result -> new ReloadPostsResponse(result.deleted(), result.reloaded()));
+    }
+
     public record SourceSyncResponse(List<Long> processed_source_ids) {}
+
+    public record ReloadPostsResponse(int deleted, int reloaded) {}
 }

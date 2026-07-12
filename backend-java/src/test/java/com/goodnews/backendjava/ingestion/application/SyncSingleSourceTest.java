@@ -33,7 +33,7 @@ class SyncSingleSourceTest {
     @Test
     void missingSourceIsNotRecordedAsIngestionFailure() {
         RecordingWriter writer = new RecordingWriter();
-        SyncSingleSource useCase = useCase(id -> Mono.empty(), source -> Mono.just(List.of()), writer);
+        SyncSingleSource useCase = useCase(reader(id -> Mono.empty()), source -> Mono.just(List.of()), writer);
 
         StepVerifier.create(useCase.sync(7L))
                 .expectError(SourceNotFoundException.class)
@@ -46,7 +46,9 @@ class SyncSingleSourceTest {
     void expectedIngestionFailureRecordsFailure() {
         RecordingWriter writer = new RecordingWriter();
         SyncSingleSource useCase = useCase(
-                id -> Mono.just(SOURCE), source -> Mono.error(new SourceIngestionException("unreadable")), writer);
+                reader(id -> Mono.just(SOURCE)),
+                source -> Mono.error(new SourceIngestionException("unreadable")),
+                writer);
 
         StepVerifier.create(useCase.sync(7L))
                 .assertNext(outcome -> assertThat(outcome.processedSourceIds()).isEmpty())
@@ -58,8 +60,8 @@ class SyncSingleSourceTest {
     @Test
     void programmingOrDatabaseFailurePropagatesWithoutChangingSourceFailureState() {
         RecordingWriter writer = new RecordingWriter();
-        SyncSingleSource useCase =
-                useCase(id -> Mono.just(SOURCE), source -> Mono.error(new IllegalStateException("bug")), writer);
+        SyncSingleSource useCase = useCase(
+                reader(id -> Mono.just(SOURCE)), source -> Mono.error(new IllegalStateException("bug")), writer);
 
         StepVerifier.create(useCase.sync(7L))
                 .expectError(IllegalStateException.class)
@@ -72,7 +74,7 @@ class SyncSingleSourceTest {
     void malformedExternalListingHrefRecordsSourceFailure() {
         RecordingWriter writer = new RecordingWriter();
         SyncSingleSource useCase = useCase(
-                id -> Mono.just(SOURCE),
+                reader(id -> Mono.just(SOURCE)),
                 source -> {
                     new ClaudeBlogParser(new PublicationDateParser())
                             .parseListing("<article><a href='/blog/%zz'><h2>Broken</h2></a></article>");
@@ -101,6 +103,20 @@ class SyncSingleSourceTest {
         };
         return new SyncSingleSource(
                 reader, writer, new SourceIngestionStrategies(List.of(strategy)), Clock.fixed(NOW, ZoneOffset.UTC));
+    }
+
+    private static SourceReader reader(java.util.function.LongFunction<Mono<SourceDefinition>> find) {
+        return new SourceReader() {
+            @Override
+            public Mono<SourceDefinition> find(long sourceId) {
+                return find.apply(sourceId);
+            }
+
+            @Override
+            public reactor.core.publisher.Flux<Long> findActiveIdsOrdered() {
+                return reactor.core.publisher.Flux.empty();
+            }
+        };
     }
 
     @FunctionalInterface
