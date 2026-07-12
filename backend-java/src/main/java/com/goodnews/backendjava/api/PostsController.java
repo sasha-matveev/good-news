@@ -27,23 +27,21 @@ public class PostsController {
 
     @GetMapping("/api/posts")
     public Mono<java.util.List<PostDtos.PostResponse>> listPosts(
-        @RequestParam(name = "source_id", required = false) Long sourceId,
-        @RequestParam(name = "feedback_state", required = false) String feedbackState,
-        @RequestParam(name = "window", defaultValue = "last_month") String window,
-        @RequestParam(name = "sort", defaultValue = "match")
-        @Pattern(regexp = "match|date", message = "sort must be one of match, date") String sort,
-        @RequestParam(name = "limit", required = false) @Min(1) @Max(200) Integer limit,
-        @RequestParam(name = "offset", defaultValue = "0") @Min(0) int offset,
-        @RequestParam(name = "read_later", required = false) Boolean readLater
-    ) {
+            @RequestParam(name = "source_id", required = false) Long sourceId,
+            @RequestParam(name = "feedback_state", required = false) String feedbackState,
+            @RequestParam(name = "window", defaultValue = "last_month") String window,
+            @RequestParam(name = "sort", defaultValue = "match")
+                    @Pattern(regexp = "match|date", message = "sort must be one of match, date")
+                    String sort,
+            @RequestParam(name = "limit", required = false) @Min(1) @Max(200) Integer limit,
+            @RequestParam(name = "offset", defaultValue = "0") @Min(0) int offset,
+            @RequestParam(name = "read_later", required = false) Boolean readLater) {
         return postService.listPosts(sourceId, feedbackState, window, sort, limit, offset, readLater);
     }
 
     @PostMapping("/api/posts/{postId}/read-later")
     public Mono<PostDtos.ReadLaterResponse> updateReadLater(
-        @PathVariable long postId,
-        @Valid @RequestBody PostDtos.ReadLaterRequest request
-    ) {
+            @PathVariable long postId, @Valid @RequestBody PostDtos.ReadLaterRequest request) {
         return postService.updateReadLater(postId, request.saved());
     }
 

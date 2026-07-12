@@ -9,9 +9,5 @@ public final class InternalJobDtos {
     public record SourceSyncJobResponse(List<Long> processed_source_ids, boolean analyzed_pending) {}
 
     public record DigestJobResponse(
-        String daily_ran_for,
-        String weekly_ran_for,
-        String observability_ran_for,
-        List<String> errors
-    ) {}
+            String daily_ran_for, String weekly_ran_for, String observability_ran_for, List<String> errors) {}
 }

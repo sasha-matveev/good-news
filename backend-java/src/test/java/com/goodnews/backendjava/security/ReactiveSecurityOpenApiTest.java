@@ -12,12 +12,11 @@ import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
 @SpringBootTest(
-    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-    classes = {
-        com.goodnews.backendjava.BackendJavaApplication.class,
-        ReactiveSecurityOpenApiTest.OpenApiController.class
-    }
-)
+        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        classes = {
+            com.goodnews.backendjava.BackendJavaApplication.class,
+            ReactiveSecurityOpenApiTest.OpenApiController.class
+        })
 @AutoConfigureWebTestClient
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class ReactiveSecurityOpenApiTest {
@@ -27,12 +26,15 @@ class ReactiveSecurityOpenApiTest {
 
     @Test
     void apiStaysOpenWhenFirebaseAuthIsNotConfigured() {
-        webTestClient.get()
-            .uri("/api/test/open")
-            .exchange()
-            .expectStatus().isEqualTo(HttpStatus.OK)
-            .expectBody()
-            .jsonPath("$.status").isEqualTo("ok");
+        webTestClient
+                .get()
+                .uri("/api/test/open")
+                .exchange()
+                .expectStatus()
+                .isEqualTo(HttpStatus.OK)
+                .expectBody()
+                .jsonPath("$.status")
+                .isEqualTo("ok");
     }
 
     @RestController

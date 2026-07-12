@@ -9,14 +9,13 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 @ConfigurationProperties(prefix = "good-news")
 public record GoodNewsProperties(
-    @Valid @DefaultValue AppProperties app,
-    @Valid @DefaultValue DatabaseProperties database,
-    @Valid @DefaultValue AuthProperties auth,
-    @Valid @DefaultValue SchedulerProperties scheduler,
-    @Valid @DefaultValue GeminiProperties gemini,
-    @Valid @DefaultValue EmailProperties email,
-    @Valid @DefaultValue ObservabilityProperties observability
-) {
+        @Valid @DefaultValue AppProperties app,
+        @Valid @DefaultValue DatabaseProperties database,
+        @Valid @DefaultValue AuthProperties auth,
+        @Valid @DefaultValue SchedulerProperties scheduler,
+        @Valid @DefaultValue GeminiProperties gemini,
+        @Valid @DefaultValue EmailProperties email,
+        @Valid @DefaultValue ObservabilityProperties observability) {
 
     @AssertTrue(message = "When GOOD_NEWS_FIREBASE_PROJECT_ID is set, GOOD_NEWS_ALLOWED_EMAILS must also be set.")
     public boolean isFirebaseAuthConfigured() {

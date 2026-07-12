@@ -27,22 +27,23 @@ public class PreferenceService {
 
     @Transactional
     public Mono<PreferenceDtos.PreferenceProfileResponse> recomputePreferenceProfile() {
-        return databaseClient.sql("""
+        return databaseClient
+                .sql(
+                        """
                 SELECT s.display_name AS source_name, f.state AS feedback_state, pa.metadata_json
                 FROM feedback f
                 LEFT JOIN post_analysis pa ON pa.post_id = f.post_id
                 JOIN posts p ON p.id = f.post_id
                 JOIN sources s ON s.id = p.source_id
                 """)
-            .map((row, metadata) -> new PreferenceRow(
-                row.get("source_name", String.class),
-                row.get("feedback_state", String.class),
-                row.get("metadata_json", String.class)
-            ))
-            .all()
-            .collectList()
-            .map(this::buildProfile)
-            .flatMap(profile -> persistPreferenceProfile(profile).thenReturn(profile));
+                .map((row, metadata) -> new PreferenceRow(
+                        row.get("source_name", String.class),
+                        row.get("feedback_state", String.class),
+                        row.get("metadata_json", String.class)))
+                .all()
+                .collectList()
+                .map(this::buildProfile)
+                .flatMap(profile -> persistPreferenceProfile(profile).thenReturn(profile));
     }
 
     private Mono<Void> persistPreferenceProfile(PreferenceDtos.PreferenceProfileResponse profile) {
@@ -50,15 +51,18 @@ public class PreferenceService {
         metadata.put("positive_signals", profile.positive_signals());
         metadata.put("negative_signals", profile.negative_signals());
         metadata.put("learning_proof", profile.learning_proof());
-        metadata.put("feedback_totals", Map.of(
-            "interesting", profile.feedback_totals().interesting(),
-            "want_to_read", profile.feedback_totals().want_to_read(),
-            "not_interesting", profile.feedback_totals().not_interesting(),
-            "total", profile.feedback_totals().total()
-        ));
+        metadata.put(
+                "feedback_totals",
+                Map.of(
+                        "interesting", profile.feedback_totals().interesting(),
+                        "want_to_read", profile.feedback_totals().want_to_read(),
+                        "not_interesting", profile.feedback_totals().not_interesting(),
+                        "total", profile.feedback_totals().total()));
         try {
             String metadataJson = objectMapper.writeValueAsString(metadata);
-            return databaseClient.sql("""
+            return databaseClient
+                    .sql(
+                            """
                     INSERT INTO preference_profile (id, summary, metadata_json, updated_at)
                     VALUES (1, :summary, :metadataJson, CURRENT_TIMESTAMP)
                     ON CONFLICT (id) DO UPDATE
@@ -66,11 +70,11 @@ public class PreferenceService {
                         metadata_json = EXCLUDED.metadata_json,
                         updated_at = CURRENT_TIMESTAMP
                     """)
-                .bind("summary", profile.summary())
-                .bind("metadataJson", metadataJson)
-                .fetch()
-                .rowsUpdated()
-                .then();
+                    .bind("summary", profile.summary())
+                    .bind("metadataJson", metadataJson)
+                    .fetch()
+                    .rowsUpdated()
+                    .then();
         } catch (Exception exception) {
             return Mono.error(exception);
         }
@@ -83,12 +87,8 @@ public class PreferenceService {
         Map<String, Integer> depthCounts = new HashMap<>();
         Map<String, Integer> negativeTopicCounts = new HashMap<>();
         Map<String, Integer> negativeFormatCounts = new HashMap<>();
-        PreferenceDtos.PreferenceFeedbackTotalsResponse feedbackTotals = new PreferenceDtos.PreferenceFeedbackTotalsResponse(
-            0,
-            0,
-            0,
-            0
-        );
+        PreferenceDtos.PreferenceFeedbackTotalsResponse feedbackTotals =
+                new PreferenceDtos.PreferenceFeedbackTotalsResponse(0, 0, 0, 0);
 
         int total = 0;
         int interesting = 0;
@@ -131,7 +131,8 @@ public class PreferenceService {
             }
         }
 
-        feedbackTotals = new PreferenceDtos.PreferenceFeedbackTotalsResponse(total, interesting, wantToRead, notInteresting);
+        feedbackTotals =
+                new PreferenceDtos.PreferenceFeedbackTotalsResponse(total, interesting, wantToRead, notInteresting);
         CountedSignal topSource = topSignal(sourceCounts);
         CountedSignal topTopic = topSignal(topicCounts);
         CountedSignal topFormat = topSignal(formatCounts);
@@ -141,32 +142,32 @@ public class PreferenceService {
 
         List<String> positiveSignals = new ArrayList<>();
         if (topSource != null) {
-            positiveSignals.add(topSource.count() + " " + countLabel(topSource.count(), "positive signal") + " for source " + topSource.key());
+            positiveSignals.add(topSource.count() + " " + countLabel(topSource.count(), "positive signal")
+                    + " for source " + topSource.key());
         }
         if (topTopic != null) {
-            positiveSignals.add(topTopic.count() + " " + countLabel(topTopic.count(), "positive signal") + " for topic " + topicPhrase(topTopic.key()));
+            positiveSignals.add(topTopic.count() + " " + countLabel(topTopic.count(), "positive signal") + " for topic "
+                    + topicPhrase(topTopic.key()));
         }
         if (topFormat != null) {
-            positiveSignals.add(topFormat.count() + " " + countLabel(topFormat.count(), "positive signal") + " for format " + topFormat.key());
+            positiveSignals.add(topFormat.count() + " " + countLabel(topFormat.count(), "positive signal")
+                    + " for format " + topFormat.key());
         }
         if (topDepth != null) {
-            positiveSignals.add(
-                topDepth.count() + " " + countLabel(topDepth.count(), "positive signal") + " for " + topDepth.key() + " technical material"
-            );
+            positiveSignals.add(topDepth.count() + " " + countLabel(topDepth.count(), "positive signal") + " for "
+                    + topDepth.key() + " technical material");
         }
 
         List<String> negativeSignals = new ArrayList<>();
         if (topNegativeTopic != null) {
             negativeSignals.add(
-                topNegativeTopic.count() + " " + countLabel(topNegativeTopic.count(), "not-interesting signal")
-                    + " against topic " + topicPhrase(topNegativeTopic.key())
-            );
+                    topNegativeTopic.count() + " " + countLabel(topNegativeTopic.count(), "not-interesting signal")
+                            + " against topic " + topicPhrase(topNegativeTopic.key()));
         }
         if (topNegativeFormat != null) {
             negativeSignals.add(
-                topNegativeFormat.count() + " " + countLabel(topNegativeFormat.count(), "not-interesting signal")
-                    + " against format " + topNegativeFormat.key()
-            );
+                    topNegativeFormat.count() + " " + countLabel(topNegativeFormat.count(), "not-interesting signal")
+                            + " against format " + topNegativeFormat.key());
         }
 
         List<String> learningProof = new ArrayList<>();
@@ -175,12 +176,10 @@ public class PreferenceService {
             summary = "No feedback yet. Save reactions from the feed to teach this profile what to prioritize.";
             learningProof.add("0 feedback decisions recorded yet.");
         } else {
-            learningProof.add(
-                feedbackTotals.total() + " feedback decisions recorded: "
+            learningProof.add(feedbackTotals.total() + " feedback decisions recorded: "
                     + feedbackTotals.interesting() + " interesting, "
                     + feedbackTotals.want_to_read() + " want to read, "
-                    + feedbackTotals.not_interesting() + " not interesting."
-            );
+                    + feedbackTotals.not_interesting() + " not interesting.");
             List<String> strongestPositiveParts = new ArrayList<>();
             if (topSource != null) {
                 strongestPositiveParts.add("source " + topSource.key());
@@ -205,7 +204,8 @@ public class PreferenceService {
 
             String positiveFocus = "";
             if (topTopic != null && topFormat != null && topSource != null) {
-                positiveFocus = "toward " + topicPhrase(topTopic.key()) + " " + formatPlural(topFormat.key()) + " from " + topSource.key();
+                positiveFocus = "toward " + topicPhrase(topTopic.key()) + " " + formatPlural(topFormat.key()) + " from "
+                        + topSource.key();
             } else if (topTopic != null) {
                 positiveFocus = "toward " + topicPhrase(topTopic.key()) + " coverage";
             } else if (topSource != null) {
@@ -231,12 +231,11 @@ public class PreferenceService {
         }
 
         return new PreferenceDtos.PreferenceProfileResponse(
-            summary,
-            List.copyOf(positiveSignals),
-            List.copyOf(negativeSignals),
-            List.copyOf(learningProof),
-            feedbackTotals
-        );
+                summary,
+                List.copyOf(positiveSignals),
+                List.copyOf(negativeSignals),
+                List.copyOf(learningProof),
+                feedbackTotals);
     }
 
     private JsonNode parseMetadata(String metadataJson) {
@@ -252,9 +251,10 @@ public class PreferenceService {
 
     private CountedSignal topSignal(Map<String, Integer> counts) {
         return counts.entrySet().stream()
-            .min(Comparator.<Map.Entry<String, Integer>>comparingInt(entry -> -entry.getValue()).thenComparing(Map.Entry::getKey))
-            .map(entry -> new CountedSignal(entry.getKey(), entry.getValue()))
-            .orElse(null);
+                .min(Comparator.<Map.Entry<String, Integer>>comparingInt(entry -> -entry.getValue())
+                        .thenComparing(Map.Entry::getKey))
+                .map(entry -> new CountedSignal(entry.getKey(), entry.getValue()))
+                .orElse(null);
     }
 
     private String topicPhrase(String topic) {

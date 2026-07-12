@@ -22,10 +22,7 @@ public class SchedulerAuthenticationWebFilter implements WebFilter {
     private final JsonAuthenticationFailureWriter failures;
 
     public SchedulerAuthenticationWebFilter(
-        GoodNewsProperties properties,
-        GoogleOidcTokenVerifier tokenVerifier,
-        ObjectMapper objectMapper
-    ) {
+            GoodNewsProperties properties, GoogleOidcTokenVerifier tokenVerifier, ObjectMapper objectMapper) {
         this.properties = properties;
         this.tokenVerifier = tokenVerifier;
         this.failures = new JsonAuthenticationFailureWriter(objectMapper);
@@ -37,7 +34,8 @@ public class SchedulerAuthenticationWebFilter implements WebFilter {
             return chain.filter(exchange);
         }
         if (isBlank(properties.scheduler().invoker())) {
-            return this.failures.write(exchange, HttpStatus.SERVICE_UNAVAILABLE, "Scheduler invoker is not configured.");
+            return this.failures.write(
+                    exchange, HttpStatus.SERVICE_UNAVAILABLE, "Scheduler invoker is not configured.");
         }
         String token;
         try {
@@ -45,27 +43,29 @@ public class SchedulerAuthenticationWebFilter implements WebFilter {
         } catch (ApiHttpException exception) {
             return this.failures.write(exchange, exception.getStatus(), exception.getMessage());
         }
-        SchedulerInvoker schedulerInvoker = new SchedulerInvoker(this.properties.scheduler().invoker());
-        return tokenVerifier.verify(token)
-            .onErrorResume(
-                exception -> this.failures.write(exchange, HttpStatus.UNAUTHORIZED, "Invalid token.").then(Mono.empty())
-            )
-            .flatMap(claims -> {
-                String email = new NormalizedEmailAddress(claims.email()).value();
-                if (!claims.emailVerified() || !schedulerInvoker.matches(claims)) {
-                    return this.failures.write(exchange, HttpStatus.FORBIDDEN, "Not allowed.");
-                }
-                UsernamePasswordAuthenticationToken authentication =
-                    UsernamePasswordAuthenticationToken.authenticated(email, token, null);
-                SecurityContextImpl context = new SecurityContextImpl(authentication);
-                return chain.filter(exchange)
-                    .contextWrite(ReactiveSecurityContextHolder.withSecurityContext(Mono.just(context)));
-            });
+        SchedulerInvoker schedulerInvoker =
+                new SchedulerInvoker(this.properties.scheduler().invoker());
+        return tokenVerifier
+                .verify(token)
+                .onErrorResume(exception -> this.failures
+                        .write(exchange, HttpStatus.UNAUTHORIZED, "Invalid token.")
+                        .then(Mono.empty()))
+                .flatMap(claims -> {
+                    String email = new NormalizedEmailAddress(claims.email()).value();
+                    if (!claims.emailVerified() || !schedulerInvoker.matches(claims)) {
+                        return this.failures.write(exchange, HttpStatus.FORBIDDEN, "Not allowed.");
+                    }
+                    UsernamePasswordAuthenticationToken authentication =
+                            UsernamePasswordAuthenticationToken.authenticated(email, token, null);
+                    SecurityContextImpl context = new SecurityContextImpl(authentication);
+                    return chain.filter(exchange)
+                            .contextWrite(ReactiveSecurityContextHolder.withSecurityContext(Mono.just(context)));
+                });
     }
 
     private boolean requiresAuthentication(ServerWebExchange exchange) {
         return !HttpMethod.OPTIONS.equals(exchange.getRequest().getMethod())
-            && exchange.getRequest().getPath().value().startsWith("/internal/jobs/");
+                && exchange.getRequest().getPath().value().startsWith("/internal/jobs/");
     }
 
     private boolean isBlank(String value) {

@@ -14,9 +14,10 @@ public class ReactiveDatabaseSmokeProbe {
     }
 
     public Mono<Boolean> verifyConnectivity() {
-        return databaseClient.sql("SELECT 1 AS probe")
-            .map((row, metadata) -> row.get("probe", Integer.class))
-            .one()
-            .map(result -> result != null && result == 1);
+        return databaseClient
+                .sql("SELECT 1 AS probe")
+                .map((row, metadata) -> row.get("probe", Integer.class))
+                .one()
+                .map(result -> result != null && result == 1);
     }
 }

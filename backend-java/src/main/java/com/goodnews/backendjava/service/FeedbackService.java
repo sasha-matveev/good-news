@@ -26,39 +26,44 @@ public class FeedbackService {
 
     @Transactional
     public Mono<FeedbackDtos.FeedbackResponse> updateFeedback(long postId, String state) {
-        return postService.requirePostExists(postId)
-            .then(upsertFeedback(postId, state))
-            .map(savedState -> new FeedbackDtos.FeedbackResponse(postId, savedState));
+        return postService
+                .requirePostExists(postId)
+                .then(upsertFeedback(postId, state))
+                .map(savedState -> new FeedbackDtos.FeedbackResponse(postId, savedState));
     }
 
     @Transactional
     public Mono<ResponseEntity<Void>> saveFeedback(long postId, String state, String digestId) {
-        return postService.requirePostExists(postId)
-            .then(upsertFeedback(postId, state))
-            .flatMap(savedState -> maybeSaveReadLater(postId, savedState).thenReturn(savedState))
-            .map(savedState -> ResponseEntity.status(HttpStatus.TEMPORARY_REDIRECT)
-                .location(buildRedirectUri(postId, savedState, digestId))
-                .build()
-            );
+        return postService
+                .requirePostExists(postId)
+                .then(upsertFeedback(postId, state))
+                .flatMap(savedState -> maybeSaveReadLater(postId, savedState).thenReturn(savedState))
+                .map(savedState -> ResponseEntity.status(HttpStatus.TEMPORARY_REDIRECT)
+                        .location(buildRedirectUri(postId, savedState, digestId))
+                        .build());
     }
 
     Mono<String> currentFeedbackState(long postId) {
-        return databaseClient.sql("SELECT state FROM feedback WHERE post_id = :postId")
-            .bind("postId", postId)
-            .map((row, metadata) -> row.get("state", String.class))
-            .one();
+        return databaseClient
+                .sql("SELECT state FROM feedback WHERE post_id = :postId")
+                .bind("postId", postId)
+                .map((row, metadata) -> row.get("state", String.class))
+                .one();
     }
 
     Mono<Void> deleteFeedback(long postId) {
-        return databaseClient.sql("DELETE FROM feedback WHERE post_id = :postId")
-            .bind("postId", postId)
-            .fetch()
-            .rowsUpdated()
-            .then();
+        return databaseClient
+                .sql("DELETE FROM feedback WHERE post_id = :postId")
+                .bind("postId", postId)
+                .fetch()
+                .rowsUpdated()
+                .then();
     }
 
     private Mono<String> upsertFeedback(long postId, String state) {
-        return databaseClient.sql("""
+        return databaseClient
+                .sql(
+                        """
                 INSERT INTO feedback (post_id, state)
                 VALUES (:postId, :state)
                 ON CONFLICT (post_id) DO UPDATE
@@ -66,10 +71,10 @@ public class FeedbackService {
                     updated_at = CURRENT_TIMESTAMP
                 RETURNING state
                 """)
-            .bind("postId", postId)
-            .bind("state", state)
-            .map((row, metadata) -> row.get("state", String.class))
-            .one();
+                .bind("postId", postId)
+                .bind("state", state)
+                .map((row, metadata) -> row.get("state", String.class))
+                .one();
     }
 
     private Mono<Void> maybeSaveReadLater(long postId, String state) {
@@ -84,13 +89,13 @@ public class FeedbackService {
         if (digestId != null && !digestId.isBlank()) {
             String path = "want_to_read".equals(state) ? "/want-to-read" : "/digests";
             return UriComponentsBuilder.fromUriString(origin)
-                .path(path)
-                .queryParam("digest_id", digestId)
-                .queryParam("feedback", state)
-                .queryParam("from", "digest_email")
-                .queryParam("post_id", Long.toString(postId))
-                .build(true)
-                .toUri();
+                    .path(path)
+                    .queryParam("digest_id", digestId)
+                    .queryParam("feedback", state)
+                    .queryParam("from", "digest_email")
+                    .queryParam("post_id", Long.toString(postId))
+                    .build(true)
+                    .toUri();
         }
         String path = "want_to_read".equals(state) ? "/want-to-read" : "/feed";
         return UriComponentsBuilder.fromUriString(origin).path(path).build(true).toUri();
@@ -102,7 +107,6 @@ public class FeedbackService {
             return explicitOrigin.strip().replaceAll("/+$", "");
         }
         throw new IllegalStateException(
-            "Missing public origin contract GOOD_NEWS_PUBLIC_FRONTEND_ORIGIN; set it explicitly for user-facing absolute URLs."
-        );
+                "Missing public origin contract GOOD_NEWS_PUBLIC_FRONTEND_ORIGIN; set it explicitly for user-facing absolute URLs.");
     }
 }

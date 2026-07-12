@@ -11,12 +11,11 @@ import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
 @SpringBootTest(
-    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-    classes = {
-        com.goodnews.backendjava.BackendJavaApplication.class,
-        SchedulerSecurityUnavailableTest.InternalJobController.class
-    }
-)
+        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        classes = {
+            com.goodnews.backendjava.BackendJavaApplication.class,
+            SchedulerSecurityUnavailableTest.InternalJobController.class
+        })
 @AutoConfigureWebTestClient
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class SchedulerSecurityUnavailableTest {
@@ -26,12 +25,15 @@ class SchedulerSecurityUnavailableTest {
 
     @Test
     void internalJobIsUnavailableWithoutInvokerConfiguration() {
-        webTestClient.post()
-            .uri("/internal/jobs/test-unconfigured")
-            .exchange()
-            .expectStatus().isEqualTo(503)
-            .expectBody()
-            .jsonPath("$.detail").isEqualTo("Scheduler invoker is not configured.");
+        webTestClient
+                .post()
+                .uri("/internal/jobs/test-unconfigured")
+                .exchange()
+                .expectStatus()
+                .isEqualTo(503)
+                .expectBody()
+                .jsonPath("$.detail")
+                .isEqualTo("Scheduler invoker is not configured.");
     }
 
     @RestController

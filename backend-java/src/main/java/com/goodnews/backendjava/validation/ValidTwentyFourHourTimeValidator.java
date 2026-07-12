@@ -29,7 +29,7 @@ public class ValidTwentyFourHourTimeValidator implements ConstraintValidator<Val
     private boolean invalid(ConstraintValidatorContext context) {
         context.disableDefaultConstraintViolation();
         context.buildConstraintViolationWithTemplate(fieldName + " must use HH:MM format")
-            .addConstraintViolation();
+                .addConstraintViolation();
         return false;
     }
 

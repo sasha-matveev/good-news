@@ -3,10 +3,9 @@ package com.goodnews.backendjava.config;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
 public record ObservabilityProperties(
-    String grafanaOrigin,
-    @DefaultValue("127.0.0.1") String grafanaHost,
-    @DefaultValue("3000") int grafanaHostPort
-) {
+        String grafanaOrigin,
+        @DefaultValue("127.0.0.1") String grafanaHost,
+        @DefaultValue("3000") int grafanaHostPort) {
 
     public String grafanaBaseUrl() {
         String normalizedOrigin = normalize(grafanaOrigin);

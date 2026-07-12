@@ -15,21 +15,20 @@ import org.springframework.http.MediaType;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.test.web.reactive.server.WebTestClient;
 
 @SpringBootTest(
-    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-    classes = {
-        com.goodnews.backendjava.BackendJavaApplication.class,
-        ExceptionHandlerContractTest.ContractController.class,
-        ExceptionHandlerContractTest.TestSecurityConfiguration.class,
-        ApiErrorHandler.class
-    }
-)
+        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        classes = {
+            com.goodnews.backendjava.BackendJavaApplication.class,
+            ExceptionHandlerContractTest.ContractController.class,
+            ExceptionHandlerContractTest.TestSecurityConfiguration.class,
+            ApiErrorHandler.class
+        })
 @AutoConfigureWebTestClient
 @TestPropertySource(properties = "spring.flyway.enabled=false")
 class ExceptionHandlerContractTest {
@@ -39,10 +38,12 @@ class ExceptionHandlerContractTest {
 
     @Test
     void validationErrorsUseFastApiCompatible422Shape() {
-        webTestClient.put()
-            .uri("/contract/settings")
-            .contentType(MediaType.APPLICATION_JSON)
-            .bodyValue("""
+        webTestClient
+                .put()
+                .uri("/contract/settings")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(
+                        """
                 {
                   "daily_digest_time": "25:99",
                   "weekly_digest_day_of_week": "funday",
@@ -57,19 +58,23 @@ class ExceptionHandlerContractTest {
                   "analysis_verdict_reason_prompt": ""
                 }
                 """)
-            .exchange()
-            .expectStatus().isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY)
-            .expectBody()
-            .jsonPath("$.detail[?(@.loc[0]=='body' && @.loc[1]=='daily_digest_time' && @.msg=='daily_digest_time must use HH:MM format')]")
-            .exists();
+                .exchange()
+                .expectStatus()
+                .isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY)
+                .expectBody()
+                .jsonPath(
+                        "$.detail[?(@.loc[0]=='body' && @.loc[1]=='daily_digest_time' && @.msg=='daily_digest_time must use HH:MM format')]")
+                .exists();
     }
 
     @Test
     void missingRequiredFieldsStillUse422EnvelopeForTrulyRequiredFields() {
-        webTestClient.put()
-            .uri("/contract/settings")
-            .contentType(MediaType.APPLICATION_JSON)
-            .bodyValue("""
+        webTestClient
+                .put()
+                .uri("/contract/settings")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(
+                        """
                 {
                   "daily_digest_time": "12:00",
                   "weekly_digest_day_of_week": "fri",
@@ -79,18 +84,22 @@ class ExceptionHandlerContractTest {
                   "analysis_verdict_reason_prompt": ""
                 }
                 """)
-            .exchange()
-            .expectStatus().isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY)
-            .expectBody()
-            .jsonPath("$.detail[?(@.loc[1]=='smtp_port')]").exists();
+                .exchange()
+                .expectStatus()
+                .isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY)
+                .expectBody()
+                .jsonPath("$.detail[?(@.loc[1]=='smtp_port')]")
+                .exists();
     }
 
     @Test
     void omittedDigestBooleansDefaultInsteadOfReturning422() {
-        webTestClient.put()
-            .uri("/contract/settings")
-            .contentType(MediaType.APPLICATION_JSON)
-            .bodyValue("""
+        webTestClient
+                .put()
+                .uri("/contract/settings")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(
+                        """
                 {
                   "daily_digest_time": "12:00",
                   "weekly_digest_day_of_week": "fri",
@@ -101,30 +110,39 @@ class ExceptionHandlerContractTest {
                   "analysis_verdict_reason_prompt": ""
                 }
                 """)
-            .exchange()
-            .expectStatus().isOk()
-            .expectBody()
-            .jsonPath("$.daily_digest_enabled").isEqualTo(true)
-            .jsonPath("$.daily_digest_catch_up_enabled").isEqualTo(true)
-            .jsonPath("$.weekly_digest_enabled").isEqualTo(false)
-            .jsonPath("$.weekly_digest_catch_up_enabled").isEqualTo(true);
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody()
+                .jsonPath("$.daily_digest_enabled")
+                .isEqualTo(true)
+                .jsonPath("$.daily_digest_catch_up_enabled")
+                .isEqualTo(true)
+                .jsonPath("$.weekly_digest_enabled")
+                .isEqualTo(false)
+                .jsonPath("$.weekly_digest_catch_up_enabled")
+                .isEqualTo(true);
     }
 
     @Test
     void httpExceptionsExposeLegacyDetailEnvelope() {
-        webTestClient.post()
-            .uri("/contract/not-found")
-            .exchange()
-            .expectStatus().isNotFound()
-            .expectBody()
-            .jsonPath("$.detail").isEqualTo("Post not found");
+        webTestClient
+                .post()
+                .uri("/contract/not-found")
+                .exchange()
+                .expectStatus()
+                .isNotFound()
+                .expectBody()
+                .jsonPath("$.detail")
+                .isEqualTo("Post not found");
     }
 
     @RestController
     static class ContractController {
 
         @PutMapping("/contract/settings")
-        SettingsDtos.SettingsUpdateRequest validateSettings(@Valid @RequestBody SettingsDtos.SettingsUpdateRequest request) {
+        SettingsDtos.SettingsUpdateRequest validateSettings(
+                @Valid @RequestBody SettingsDtos.SettingsUpdateRequest request) {
             return request;
         }
 
@@ -139,12 +157,11 @@ class ExceptionHandlerContractTest {
 
         @Bean
         SecurityWebFilterChain testSecurityWebFilterChain(ServerHttpSecurity http) {
-            return http
-                .csrf(ServerHttpSecurity.CsrfSpec::disable)
-                .authorizeExchange(exchanges -> exchanges.anyExchange().permitAll())
-                .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
-                .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
-                .build();
+            return http.csrf(ServerHttpSecurity.CsrfSpec::disable)
+                    .authorizeExchange(exchanges -> exchanges.anyExchange().permitAll())
+                    .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
+                    .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
+                    .build();
         }
     }
 }

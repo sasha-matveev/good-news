@@ -1,11 +1,11 @@
 package com.goodnews.backendjava.config;
 
+import static io.r2dbc.spi.ConnectionFactoryOptions.PASSWORD;
+import static io.r2dbc.spi.ConnectionFactoryOptions.USER;
+
 import io.r2dbc.spi.ConnectionFactoryOptions;
 import io.r2dbc.spi.Option;
 import org.springframework.util.StringUtils;
-
-import static io.r2dbc.spi.ConnectionFactoryOptions.PASSWORD;
-import static io.r2dbc.spi.ConnectionFactoryOptions.USER;
 
 final class DatabaseUrl {
 
@@ -48,7 +48,8 @@ final class DatabaseUrl {
     }
 
     ConnectionFactoryOptions connectionFactoryOptions(String user, String password) {
-        ConnectionFactoryOptions.Builder builder = ConnectionFactoryOptions.builder().from(this.reactiveOptions());
+        ConnectionFactoryOptions.Builder builder =
+                ConnectionFactoryOptions.builder().from(this.reactiveOptions());
         if (StringUtils.hasText(user)) {
             builder.option(USER, user);
         }

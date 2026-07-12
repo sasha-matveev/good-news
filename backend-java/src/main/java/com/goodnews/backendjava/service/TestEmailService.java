@@ -17,15 +17,16 @@ public class TestEmailService {
     }
 
     public Mono<Map<String, String>> sendTestEmail() {
-        return settingsService.loadSettings()
-            .flatMap(settings -> settingsService.getSmtpPassword()
-                .defaultIfEmpty("")
-                .map(password -> buildCommand(settings, password))
-            )
-            .flatMap(command -> Mono.fromRunnable(() -> smtpEmailAdapter.send(command.message(), command.connectionSettings()))
-                .subscribeOn(Schedulers.boundedElastic())
-                .thenReturn(Map.of("status", "sent"))
-            );
+        return settingsService
+                .loadSettings()
+                .flatMap(settings -> settingsService
+                        .getSmtpPassword()
+                        .defaultIfEmpty("")
+                        .map(password -> buildCommand(settings, password)))
+                .flatMap(command -> Mono.fromRunnable(
+                                () -> smtpEmailAdapter.send(command.message(), command.connectionSettings()))
+                        .subscribeOn(Schedulers.boundedElastic())
+                        .thenReturn(Map.of("status", "sent")));
     }
 
     private SendTestEmailCommand buildCommand(SettingsService.AppSettings settings, String smtpPassword) {
@@ -33,20 +34,17 @@ public class TestEmailService {
             throw new IllegalStateException("Missing recipient_email or sender_identity");
         }
         return new SendTestEmailCommand(
-            new SmtpEmailAdapter.TestEmailMessage(
-                settings.senderIdentity(),
-                settings.recipientEmail(),
-                "Good News digest SMTP test",
-                "<p>SMTP settings look ready.</p>"
-            ),
-            new SmtpEmailAdapter.SmtpConnectionSettings(
-                defaultIfBlank(settings.smtpHost(), ""),
-                settings.smtpPort(),
-                settings.smtpUsername(),
-                smtpPassword,
-                settings.smtpSecurityMode()
-            )
-        );
+                new SmtpEmailAdapter.TestEmailMessage(
+                        settings.senderIdentity(),
+                        settings.recipientEmail(),
+                        "Good News digest SMTP test",
+                        "<p>SMTP settings look ready.</p>"),
+                new SmtpEmailAdapter.SmtpConnectionSettings(
+                        defaultIfBlank(settings.smtpHost(), ""),
+                        settings.smtpPort(),
+                        settings.smtpUsername(),
+                        smtpPassword,
+                        settings.smtpSecurityMode()));
     }
 
     private String defaultIfBlank(String value, String defaultValue) {
@@ -58,7 +56,5 @@ public class TestEmailService {
     }
 
     private record SendTestEmailCommand(
-        SmtpEmailAdapter.TestEmailMessage message,
-        SmtpEmailAdapter.SmtpConnectionSettings connectionSettings
-    ) {}
+            SmtpEmailAdapter.TestEmailMessage message, SmtpEmailAdapter.SmtpConnectionSettings connectionSettings) {}
 }

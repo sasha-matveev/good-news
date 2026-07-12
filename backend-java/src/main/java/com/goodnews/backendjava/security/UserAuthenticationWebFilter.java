@@ -22,10 +22,7 @@ public class UserAuthenticationWebFilter implements WebFilter {
     private final JsonAuthenticationFailureWriter failures;
 
     public UserAuthenticationWebFilter(
-        GoodNewsProperties properties,
-        FirebaseTokenVerifier tokenVerifier,
-        ObjectMapper objectMapper
-    ) {
+            GoodNewsProperties properties, FirebaseTokenVerifier tokenVerifier, ObjectMapper objectMapper) {
         this.properties = properties;
         this.tokenVerifier = tokenVerifier;
         this.failures = new JsonAuthenticationFailureWriter(objectMapper);
@@ -46,21 +43,22 @@ public class UserAuthenticationWebFilter implements WebFilter {
             return this.failures.write(exchange, exception.getStatus(), exception.getMessage());
         }
         AllowedEmails allowedEmails = new AllowedEmails(this.properties.auth().allowedEmails());
-        return tokenVerifier.verify(token)
-            .onErrorResume(
-                exception -> this.failures.write(exchange, HttpStatus.UNAUTHORIZED, "Invalid token.").then(Mono.empty())
-            )
-            .flatMap(claims -> {
-                String email = new NormalizedEmailAddress(claims.email()).value();
-                if (!claims.emailVerified() || !allowedEmails.contains(claims)) {
-                    return this.failures.write(exchange, HttpStatus.FORBIDDEN, "Not allowed.");
-                }
-                UsernamePasswordAuthenticationToken authentication =
-                    UsernamePasswordAuthenticationToken.authenticated(email, token, null);
-                SecurityContextImpl context = new SecurityContextImpl(authentication);
-                return chain.filter(exchange)
-                    .contextWrite(ReactiveSecurityContextHolder.withSecurityContext(Mono.just(context)));
-            });
+        return tokenVerifier
+                .verify(token)
+                .onErrorResume(exception -> this.failures
+                        .write(exchange, HttpStatus.UNAUTHORIZED, "Invalid token.")
+                        .then(Mono.empty()))
+                .flatMap(claims -> {
+                    String email = new NormalizedEmailAddress(claims.email()).value();
+                    if (!claims.emailVerified() || !allowedEmails.contains(claims)) {
+                        return this.failures.write(exchange, HttpStatus.FORBIDDEN, "Not allowed.");
+                    }
+                    UsernamePasswordAuthenticationToken authentication =
+                            UsernamePasswordAuthenticationToken.authenticated(email, token, null);
+                    SecurityContextImpl context = new SecurityContextImpl(authentication);
+                    return chain.filter(exchange)
+                            .contextWrite(ReactiveSecurityContextHolder.withSecurityContext(Mono.just(context)));
+                });
     }
 
     private boolean requiresAuthentication(ServerWebExchange exchange) {
