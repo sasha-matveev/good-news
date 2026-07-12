@@ -14,19 +14,18 @@ public final class SourceDtos {
     public record SourceUpdateRequest(@NotNull Boolean active) {}
 
     public record SourceResponse(
-        long id,
-        String display_name,
-        String original_url,
-        String feed_url,
-        String strategy_kind,
-        boolean active,
-        String status,
-        int post_count,
-        String last_success_at,
-        String last_failure_at,
-        boolean needs_readaptation,
-        String readaptation_reason
-    ) {}
+            long id,
+            String display_name,
+            String original_url,
+            String feed_url,
+            String strategy_kind,
+            boolean active,
+            String status,
+            int post_count,
+            String last_success_at,
+            String last_failure_at,
+            boolean needs_readaptation,
+            String readaptation_reason) {}
 
     public record SourceSyncResponse(List<Long> processed_source_ids) {}
 

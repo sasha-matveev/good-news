@@ -17,9 +17,7 @@ public class ReactiveDatabaseConfig {
 
     @Bean
     DatabaseClient databaseClient(ConnectionFactory connectionFactory) {
-        return DatabaseClient.builder()
-            .connectionFactory(connectionFactory)
-            .build();
+        return DatabaseClient.builder().connectionFactory(connectionFactory).build();
     }
 
     @Bean
@@ -28,5 +26,4 @@ public class ReactiveDatabaseConfig {
     }
 }
 
-record JdbcDatabaseConnection(String url, String user, String password) {
-}
+record JdbcDatabaseConnection(String url, String user, String password) {}

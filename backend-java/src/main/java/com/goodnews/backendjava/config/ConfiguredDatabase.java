@@ -1,14 +1,14 @@
 package com.goodnews.backendjava.config;
 
-import io.r2dbc.spi.ConnectionFactoryOptions;
-import org.springframework.util.StringUtils;
-
 import static io.r2dbc.spi.ConnectionFactoryOptions.DATABASE;
 import static io.r2dbc.spi.ConnectionFactoryOptions.DRIVER;
 import static io.r2dbc.spi.ConnectionFactoryOptions.HOST;
 import static io.r2dbc.spi.ConnectionFactoryOptions.PASSWORD;
 import static io.r2dbc.spi.ConnectionFactoryOptions.PORT;
 import static io.r2dbc.spi.ConnectionFactoryOptions.USER;
+
+import io.r2dbc.spi.ConnectionFactoryOptions;
+import org.springframework.util.StringUtils;
 
 final class ConfiguredDatabase {
 
@@ -22,17 +22,17 @@ final class ConfiguredDatabase {
 
     ConnectionFactoryOptions connectionFactoryOptions() {
         if (StringUtils.hasText(this.properties.url())) {
-            return this.urlBasedDatabase().connectionFactoryOptions(
-                this.properties.hasExplicitUserOverride() ? this.properties.postgresUser() : null,
-                this.properties.postgresPassword()
-            );
+            return this.urlBasedDatabase()
+                    .connectionFactoryOptions(
+                            this.properties.hasExplicitUserOverride() ? this.properties.postgresUser() : null,
+                            this.properties.postgresPassword());
         }
         ConnectionFactoryOptions.Builder builder = ConnectionFactoryOptions.builder()
-            .option(DRIVER, POSTGRES_DRIVER)
-            .option(HOST, this.properties.postgresHost())
-            .option(PORT, this.properties.postgresPort())
-            .option(DATABASE, this.properties.postgresDatabase())
-            .option(USER, this.properties.postgresUser());
+                .option(DRIVER, POSTGRES_DRIVER)
+                .option(HOST, this.properties.postgresHost())
+                .option(PORT, this.properties.postgresPort())
+                .option(DATABASE, this.properties.postgresDatabase())
+                .option(USER, this.properties.postgresUser());
         if (StringUtils.hasText(this.properties.postgresPassword())) {
             builder.option(PASSWORD, this.properties.postgresPassword());
         }
@@ -43,22 +43,20 @@ final class ConfiguredDatabase {
         if (StringUtils.hasText(this.properties.url())) {
             DatabaseUrl databaseUrl = this.urlBasedDatabase();
             return new JdbcDatabaseConnection(
-                databaseUrl.jdbc(),
-                this.properties.hasExplicitUserOverride() ? this.properties.postgresUser() : databaseUrl.user(),
-                StringUtils.hasText(this.properties.postgresPassword())
-                    ? this.properties.postgresPassword()
-                    : databaseUrl.password()
-            );
+                    databaseUrl.jdbc(),
+                    this.properties.hasExplicitUserOverride() ? this.properties.postgresUser() : databaseUrl.user(),
+                    StringUtils.hasText(this.properties.postgresPassword())
+                            ? this.properties.postgresPassword()
+                            : databaseUrl.password());
         }
         return new JdbcDatabaseConnection(
-            "jdbc:postgresql://%s:%s/%s".formatted(
-                this.properties.postgresHost(),
-                this.properties.postgresPort(),
-                this.properties.postgresDatabase()
-            ),
-            this.properties.postgresUser(),
-            this.properties.postgresPassword()
-        );
+                "jdbc:postgresql://%s:%s/%s"
+                        .formatted(
+                                this.properties.postgresHost(),
+                                this.properties.postgresPort(),
+                                this.properties.postgresDatabase()),
+                this.properties.postgresUser(),
+                this.properties.postgresPassword());
     }
 
     private DatabaseUrl urlBasedDatabase() {

@@ -11,9 +11,18 @@ import reactor.core.publisher.Mono;
 @RestController
 public class DigestsController {
     private final DigestHistoryService service;
-    public DigestsController(DigestHistoryService service) { this.service = service; }
+
+    public DigestsController(DigestHistoryService service) {
+        this.service = service;
+    }
+
     @GetMapping("/api/digests")
-    public Flux<DigestDtos.DigestListItemResponse> list() { return service.listSentDigests(); }
+    public Flux<DigestDtos.DigestListItemResponse> list() {
+        return service.listSentDigests();
+    }
+
     @GetMapping("/api/digests/{digestId}")
-    public Mono<DigestDtos.DigestDetailResponse> detail(@PathVariable long digestId) { return service.getSentDigest(digestId); }
+    public Mono<DigestDtos.DigestDetailResponse> detail(@PathVariable long digestId) {
+        return service.getSentDigest(digestId);
+    }
 }

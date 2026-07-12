@@ -26,22 +26,19 @@ public class FeedbackController {
 
     @PutMapping("/api/feedback/{postId}")
     public Mono<FeedbackDtos.FeedbackResponse> updateFeedback(
-        @PathVariable long postId,
-        @Valid @RequestBody FeedbackDtos.FeedbackUpdateRequest request
-    ) {
+            @PathVariable long postId, @Valid @RequestBody FeedbackDtos.FeedbackUpdateRequest request) {
         return feedbackService.updateFeedback(postId, request.state());
     }
 
     @GetMapping("/api/feedback/{postId}/{state}")
     public Mono<ResponseEntity<Void>> saveFeedback(
-        @PathVariable long postId,
-        @PathVariable
-        @Pattern(
-            regexp = "interesting|not_interesting|want_to_read|norm",
-            message = "state must be one of interesting, not_interesting, want_to_read, norm"
-        ) String state,
-        @RequestParam(name = "digest_id", required = false) String digestId
-    ) {
+            @PathVariable long postId,
+            @PathVariable
+                    @Pattern(
+                            regexp = "interesting|not_interesting|want_to_read|norm",
+                            message = "state must be one of interesting, not_interesting, want_to_read, norm")
+                    String state,
+            @RequestParam(name = "digest_id", required = false) String digestId) {
         return feedbackService.saveFeedback(postId, state, digestId);
     }
 }

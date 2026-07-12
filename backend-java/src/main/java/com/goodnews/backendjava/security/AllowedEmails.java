@@ -10,10 +10,10 @@ final class AllowedEmails {
 
     AllowedEmails(String csv) {
         this.values = Stream.of(csv.split(","))
-            .map(NormalizedEmailAddress::new)
-            .map(NormalizedEmailAddress::value)
-            .filter(value -> !value.isEmpty())
-            .collect(Collectors.toUnmodifiableSet());
+                .map(NormalizedEmailAddress::new)
+                .map(NormalizedEmailAddress::value)
+                .filter(value -> !value.isEmpty())
+                .collect(Collectors.toUnmodifiableSet());
     }
 
     boolean contains(TokenClaims claims) {

@@ -19,15 +19,17 @@ public class ReactiveDatabaseHealthIndicator implements ReactiveHealthIndicator 
     @Override
     public Mono<Health> health() {
         if (!properties.database().isExplicitlyConfigured()) {
-            return Mono.just(Health.up().withDetail("database", "not-configured").build());
+            return Mono.just(
+                    Health.up().withDetail("database", "not-configured").build());
         }
 
-        return smokeProbe.verifyConnectivity()
-            .map(connected -> connected
-                ? Health.up().withDetail("database", "reachable").build()
-                : Health.down().withDetail("database", "unreachable").build())
-            .onErrorResume(exception -> Mono.just(
-                Health.down(exception).withDetail("database", "unreachable").build()
-            ));
+        return smokeProbe
+                .verifyConnectivity()
+                .map(connected -> connected
+                        ? Health.up().withDetail("database", "reachable").build()
+                        : Health.down().withDetail("database", "unreachable").build())
+                .onErrorResume(exception -> Mono.just(Health.down(exception)
+                        .withDetail("database", "unreachable")
+                        .build()));
     }
 }

@@ -20,9 +20,7 @@ public class WantToReadController {
 
     @PutMapping("/api/want-to-read/{postId}")
     public Mono<WantToReadDtos.WantToReadUpdateResponse> updateWantToRead(
-        @PathVariable long postId,
-        @Valid @RequestBody WantToReadDtos.WantToReadUpdateRequest request
-    ) {
+            @PathVariable long postId, @Valid @RequestBody WantToReadDtos.WantToReadUpdateRequest request) {
         return wantToReadService.updateWantToRead(postId, request.saved());
     }
 }

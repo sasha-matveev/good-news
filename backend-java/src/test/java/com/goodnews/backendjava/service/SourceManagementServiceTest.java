@@ -7,7 +7,10 @@ import org.junit.jupiter.params.provider.CsvSource;
 
 class SourceManagementServiceTest {
     @ParameterizedTest(name = "{0} normalizes to {1}")
-    @CsvSource(delimiter = '|', textBlock = """
+    @CsvSource(
+            delimiter = '|',
+            textBlock =
+                    """
         example.com | https://example.com
          example.com/path/  | https://example.com/path
         http://example.com/path/?query=yes#fragment | http://example.com/path

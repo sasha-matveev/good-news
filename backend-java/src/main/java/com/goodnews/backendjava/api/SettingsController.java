@@ -1,8 +1,8 @@
 package com.goodnews.backendjava.api;
 
 import com.goodnews.backendjava.api.dto.SettingsDtos;
-import com.goodnews.backendjava.service.TestEmailService;
 import com.goodnews.backendjava.service.SettingsService;
+import com.goodnews.backendjava.service.TestEmailService;
 import jakarta.validation.Valid;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,7 +30,8 @@ public class SettingsController {
     }
 
     @PutMapping("/api/settings")
-    public Mono<SettingsDtos.SettingsResponse> updateSettings(@Valid @RequestBody SettingsDtos.SettingsUpdateRequest request) {
+    public Mono<SettingsDtos.SettingsResponse> updateSettings(
+            @Valid @RequestBody SettingsDtos.SettingsUpdateRequest request) {
         return settingsService.updateSettings(request);
     }
 

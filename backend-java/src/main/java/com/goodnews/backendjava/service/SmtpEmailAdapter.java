@@ -6,11 +6,5 @@ public interface SmtpEmailAdapter {
 
     record TestEmailMessage(String sender, String recipient, String subject, String htmlBody) {}
 
-    record SmtpConnectionSettings(
-        String host,
-        int port,
-        String username,
-        String password,
-        String securityMode
-    ) {}
+    record SmtpConnectionSettings(String host, int port, String username, String password, String securityMode) {}
 }

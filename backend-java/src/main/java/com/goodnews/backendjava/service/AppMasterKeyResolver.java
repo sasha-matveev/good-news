@@ -29,8 +29,7 @@ final class AppMasterKeyResolver {
             return runtimeConfigured;
         }
         throw new IllegalStateException(
-            "Missing app master key contract GOOD_NEWS_APP_MASTER_KEY; set it explicitly for SMTP secret encryption."
-        );
+                "Missing app master key contract GOOD_NEWS_APP_MASTER_KEY; set it explicitly for SMTP secret encryption.");
     }
 
     private boolean hasText(String value) {

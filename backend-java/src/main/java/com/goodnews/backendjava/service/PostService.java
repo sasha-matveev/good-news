@@ -32,15 +32,13 @@ import reactor.core.publisher.Mono;
 public class PostService {
 
     private static final Map<String, Double> FEEDBACK_WEIGHTS = Map.of(
-        "interesting", 4.0,
-        "want_to_read", 5.0,
-        "not_interesting", -4.0
-    );
+            "interesting", 4.0,
+            "want_to_read", 5.0,
+            "not_interesting", -4.0);
     private static final Map<String, Double> DEPTH_WEIGHTS = Map.of(
-        "shallow", 0.1,
-        "medium", 0.35,
-        "deep", 0.7
-    );
+            "shallow", 0.1,
+            "medium", 0.35,
+            "deep", 0.7);
 
     private final DatabaseClient databaseClient;
     private final ObjectMapper objectMapper;
@@ -53,25 +51,22 @@ public class PostService {
     }
 
     public Mono<List<PostDtos.PostResponse>> listPosts(
-        Long sourceId,
-        String feedbackState,
-        String window,
-        String sort,
-        Integer limit,
-        int offset,
-        Boolean readLater
-    ) {
+            Long sourceId,
+            String feedbackState,
+            String window,
+            String sort,
+            Integer limit,
+            int offset,
+            Boolean readLater) {
         FeedQuery query = new FeedQuery(sourceId, feedbackState, window, readLater);
-        return fetchPosts(query)
-            .collectList()
-            .map(rows -> toResponses(rows, !"date".equals(sort), limit, offset));
+        return fetchPosts(query).collectList().map(rows -> toResponses(rows, !"date".equals(sort), limit, offset));
     }
 
     @Transactional
     public Mono<PostDtos.ReadLaterResponse> updateReadLater(long postId, boolean saved) {
         return requirePostExists(postId)
-            .then(saved ? saveReadLater(postId) : clearReadLater(postId))
-            .thenReturn(new PostDtos.ReadLaterResponse(postId, saved));
+                .then(saved ? saveReadLater(postId) : clearReadLater(postId))
+                .thenReturn(new PostDtos.ReadLaterResponse(postId, saved));
     }
 
     public Mono<PostDtos.OpenResponse> trackOpen(long postId) {
@@ -79,36 +74,41 @@ public class PostService {
     }
 
     Mono<Void> requirePostExists(long postId) {
-        return databaseClient.sql("SELECT id FROM posts WHERE id = :postId")
-            .bind("postId", postId)
-            .map((row, metadata) -> row.get("id"))
-            .first()
-            .switchIfEmpty(Mono.error(new ApiHttpException(HttpStatus.NOT_FOUND, "Post not found")))
-            .then();
+        return databaseClient
+                .sql("SELECT id FROM posts WHERE id = :postId")
+                .bind("postId", postId)
+                .map((row, metadata) -> row.get("id"))
+                .first()
+                .switchIfEmpty(Mono.error(new ApiHttpException(HttpStatus.NOT_FOUND, "Post not found")))
+                .then();
     }
 
     Mono<Void> saveReadLater(long postId) {
-        return databaseClient.sql("""
+        return databaseClient
+                .sql(
+                        """
                 INSERT INTO read_later (post_id)
                 VALUES (:postId)
                 ON CONFLICT (post_id) DO NOTHING
                 """)
-            .bind("postId", postId)
-            .fetch()
-            .rowsUpdated()
-            .then();
+                .bind("postId", postId)
+                .fetch()
+                .rowsUpdated()
+                .then();
     }
 
     Mono<Void> clearReadLater(long postId) {
-        return databaseClient.sql("DELETE FROM read_later WHERE post_id = :postId")
-            .bind("postId", postId)
-            .fetch()
-            .rowsUpdated()
-            .then();
+        return databaseClient
+                .sql("DELETE FROM read_later WHERE post_id = :postId")
+                .bind("postId", postId)
+                .fetch()
+                .rowsUpdated()
+                .then();
     }
 
     private Flux<PostRow> fetchPosts(FeedQuery query) {
-        StringBuilder sql = new StringBuilder("""
+        StringBuilder sql = new StringBuilder(
+                """
             SELECT
                 p.id,
                 p.source_id,
@@ -132,7 +132,9 @@ public class PostService {
 
         if (!"all".equals(query.window())) {
             sql.append(" AND p.published_at >= :minPublishedAt");
-            bindings.put("minPublishedAt", OffsetDateTime.ofInstant(clock.instant().minus(30, ChronoUnit.DAYS), ZoneOffset.UTC));
+            bindings.put(
+                    "minPublishedAt",
+                    OffsetDateTime.ofInstant(clock.instant().minus(30, ChronoUnit.DAYS), ZoneOffset.UTC));
         }
         if (query.sourceId() != null) {
             sql.append(" AND p.source_id = :sourceId");
@@ -158,37 +160,36 @@ public class PostService {
         }
 
         return spec.map((row, metadata) -> new PostRow(
-                numberToLong(row.get("id")),
-                numberToLong(row.get("source_id")),
-                row.get("source_name", String.class),
-                row.get("canonical_url", String.class),
-                row.get("title", String.class),
-                offsetDateTime(row.get("published_at")),
-                row.get("raw_content", String.class),
-                row.get("feedback_state", String.class),
-                booleanValue(row.get("read_later")),
-                row.get("summary_ru", String.class),
-                row.get("analysis_metadata_json", String.class)
-            ))
-            .all();
+                        numberToLong(row.get("id")),
+                        numberToLong(row.get("source_id")),
+                        row.get("source_name", String.class),
+                        row.get("canonical_url", String.class),
+                        row.get("title", String.class),
+                        offsetDateTime(row.get("published_at")),
+                        row.get("raw_content", String.class),
+                        row.get("feedback_state", String.class),
+                        booleanValue(row.get("read_later")),
+                        row.get("summary_ru", String.class),
+                        row.get("analysis_metadata_json", String.class)))
+                .all();
     }
 
-    private List<PostDtos.PostResponse> toResponses(List<PostRow> rows, boolean rankResults, Integer limit, int offset) {
+    private List<PostDtos.PostResponse> toResponses(
+            List<PostRow> rows, boolean rankResults, Integer limit, int offset) {
         Map<Long, ParsedAnalysis> analysisByPostId = new HashMap<>();
         List<RankablePost> projections = new ArrayList<>();
         for (PostRow row : rows) {
             ParsedAnalysis analysis = parseAnalysis(row.analysisMetadataJson(), row.summaryRu());
             analysisByPostId.put(row.id(), analysis);
             projections.add(new RankablePost(
-                row.id(),
-                row.title(),
-                row.sourceName(),
-                row.canonicalUrl(),
-                row.publishedAt(),
-                row.rawContent(),
-                row.feedbackState(),
-                analysis
-            ));
+                    row.id(),
+                    row.title(),
+                    row.sourceName(),
+                    row.canonicalUrl(),
+                    row.publishedAt(),
+                    row.rawContent(),
+                    row.feedbackState(),
+                    analysis));
         }
 
         Map<Long, RankingResult> rankingByPostId = rankResults ? rankPosts(projections) : Map.of();
@@ -206,41 +207,37 @@ public class PostService {
             ParsedAnalysis analysis = analysisByPostId.get(row.id());
             RankingResult ranking = rankingByPostId.get(row.id());
             responses.add(new PostDtos.PostResponse(
-                row.id(),
-                row.sourceId(),
-                row.sourceName(),
-                row.canonicalUrl(),
-                row.title(),
-                formatInstant(row.publishedAt()),
-                null,
-                row.rawContent(),
-                row.feedbackState(),
-                row.readLater(),
-                analysis.summaryRu(),
-                emptyToNull(analysis.verdict()),
-                emptyToNull(analysis.verdictReason()),
-                analysis.relevanceScore(),
-                ranking == null ? null : ranking.explanation()
-            ));
+                    row.id(),
+                    row.sourceId(),
+                    row.sourceName(),
+                    row.canonicalUrl(),
+                    row.title(),
+                    formatInstant(row.publishedAt()),
+                    null,
+                    row.rawContent(),
+                    row.feedbackState(),
+                    row.readLater(),
+                    analysis.summaryRu(),
+                    emptyToNull(analysis.verdict()),
+                    emptyToNull(analysis.verdictReason()),
+                    analysis.relevanceScore(),
+                    ranking == null ? null : ranking.explanation()));
         }
         return responses;
     }
 
     private int compareMatchOrder(
-        PostRow left,
-        PostRow right,
-        Map<Long, ParsedAnalysis> analysisByPostId,
-        Map<Long, RankingResult> rankingByPostId
-    ) {
-        Comparator<PostRow> comparator = Comparator
-            .comparing((PostRow row) -> analysisByPostId.get(row.id()).relevanceScore() != null ? 1 : 0)
-            .thenComparing(
-                row -> analysisByPostId.get(row.id()).relevanceScore() != null
-                    ? analysisByPostId.get(row.id()).relevanceScore()
-                    : 0
-            )
-            .thenComparingDouble(row -> rankingByPostId.get(row.id()).score())
-            .thenComparingLong(PostRow::id);
+            PostRow left,
+            PostRow right,
+            Map<Long, ParsedAnalysis> analysisByPostId,
+            Map<Long, RankingResult> rankingByPostId) {
+        Comparator<PostRow> comparator = Comparator.comparing(
+                        (PostRow row) -> analysisByPostId.get(row.id()).relevanceScore() != null ? 1 : 0)
+                .thenComparing(row -> analysisByPostId.get(row.id()).relevanceScore() != null
+                        ? analysisByPostId.get(row.id()).relevanceScore()
+                        : 0)
+                .thenComparingDouble(row -> rankingByPostId.get(row.id()).score())
+                .thenComparingLong(PostRow::id);
 
         return comparator.reversed().compare(left, right);
     }
@@ -262,39 +259,43 @@ public class PostService {
                 }
             }
             inputs.add(new RankInput(
-                post.postId(),
-                post.sourceName(),
-                post.publishedAt() == null ? 0L : post.publishedAt().toEpochSecond(),
-                post.feedbackState(),
-                post.analysis().topics(),
-                post.analysis().format(),
-                "interesting".equals(post.analysis().verdict()) ? 0.6 : 0.1,
-                DEPTH_WEIGHTS.getOrDefault(nullToEmpty(post.analysis().technicalDepth()), 0.0)
-            ));
+                    post.postId(),
+                    post.sourceName(),
+                    post.publishedAt() == null ? 0L : post.publishedAt().toEpochSecond(),
+                    post.feedbackState(),
+                    post.analysis().topics(),
+                    post.analysis().format(),
+                    "interesting".equals(post.analysis().verdict()) ? 0.6 : 0.1,
+                    DEPTH_WEIGHTS.getOrDefault(nullToEmpty(post.analysis().technicalDepth()), 0.0)));
         }
 
-        long latestEpoch = inputs.stream().mapToLong(RankInput::publishedEpoch).max().orElse(0L);
+        long latestEpoch =
+                inputs.stream().mapToLong(RankInput::publishedEpoch).max().orElse(0L);
         Map<Long, RankingResult> results = new HashMap<>();
         for (RankInput input : inputs) {
             double feedbackScore = feedbackWeight(input.feedbackState());
             double sourceScore = sourceAffinity.getOrDefault(nullToEmpty(input.sourceName()), 0.0);
-            double topicScore = input.topics().stream().mapToDouble(topic -> topicAffinity.getOrDefault(topic, 0.0)).max().orElse(0.0);
+            double topicScore = input.topics().stream()
+                    .mapToDouble(topic -> topicAffinity.getOrDefault(topic, 0.0))
+                    .max()
+                    .orElse(0.0);
             double formatScore = formatAffinity.getOrDefault(nullToEmpty(input.format()), 0.0);
-            double recencyScore = latestEpoch == 0L ? 0.0 : Math.max(0.0, (((double) input.publishedEpoch()) / latestEpoch) * 0.3);
+            double recencyScore =
+                    latestEpoch == 0L ? 0.0 : Math.max(0.0, (((double) input.publishedEpoch()) / latestEpoch) * 0.3);
             double total = feedbackScore
-                + sourceScore
-                + topicScore
-                + formatScore
-                + input.practicalEngineeringScore()
-                + input.technicalDepthScore()
-                + recencyScore;
+                    + sourceScore
+                    + topicScore
+                    + formatScore
+                    + input.practicalEngineeringScore()
+                    + input.technicalDepthScore()
+                    + recencyScore;
             String explanation = "feedback=" + (input.feedbackState() == null ? "none" : input.feedbackState())
-                + "; source_affinity=" + formatScoreValue(sourceScore)
-                + "; topic_affinity=" + formatScoreValue(topicScore)
-                + "; format_affinity=" + formatScoreValue(formatScore)
-                + "; practical=" + formatScoreValue(input.practicalEngineeringScore())
-                + "; depth=" + formatScoreValue(input.technicalDepthScore())
-                + "; recency=" + formatScoreValue(roundToThreeDecimals(recencyScore));
+                    + "; source_affinity=" + formatScoreValue(sourceScore)
+                    + "; topic_affinity=" + formatScoreValue(topicScore)
+                    + "; format_affinity=" + formatScoreValue(formatScore)
+                    + "; practical=" + formatScoreValue(input.practicalEngineeringScore())
+                    + "; depth=" + formatScoreValue(input.technicalDepthScore())
+                    + "; recency=" + formatScoreValue(roundToThreeDecimals(recencyScore));
             results.put(input.postId(), new RankingResult(input.postId(), total, explanation));
         }
         return results;
@@ -312,14 +313,15 @@ public class PostService {
                 topicsNode.forEach(node -> topics.add(node.asText()));
             }
             return new ParsedAnalysis(
-                summaryRu,
-                List.copyOf(topics),
-                textOrNull(metadata.get("format")),
-                textOrNull(metadata.get("technical_depth")),
-                textOrNull(metadata.get("verdict")),
-                textOrNull(metadata.get("verdict_reason")),
-                metadata.hasNonNull("relevance_score") ? metadata.get("relevance_score").asInt() : null
-            );
+                    summaryRu,
+                    List.copyOf(topics),
+                    textOrNull(metadata.get("format")),
+                    textOrNull(metadata.get("technical_depth")),
+                    textOrNull(metadata.get("verdict")),
+                    textOrNull(metadata.get("verdict_reason")),
+                    metadata.hasNonNull("relevance_score")
+                            ? metadata.get("relevance_score").asInt()
+                            : null);
         } catch (Exception exception) {
             return new ParsedAnalysis(summaryRu, List.of(), null, null, null, null, null);
         }
@@ -330,7 +332,9 @@ public class PostService {
     }
 
     private String formatInstant(OffsetDateTime value) {
-        return value == null ? null : value.withOffsetSameInstant(ZoneOffset.UTC).toInstant().toString();
+        return value == null
+                ? null
+                : value.withOffsetSameInstant(ZoneOffset.UTC).toInstant().toString();
     }
 
     private String emptyToNull(String value) {
@@ -397,50 +401,46 @@ public class PostService {
     private record FeedQuery(Long sourceId, String feedbackState, String window, Boolean readLater) {}
 
     private record PostRow(
-        long id,
-        long sourceId,
-        String sourceName,
-        String canonicalUrl,
-        String title,
-        OffsetDateTime publishedAt,
-        String rawContent,
-        String feedbackState,
-        boolean readLater,
-        String summaryRu,
-        String analysisMetadataJson
-    ) {}
+            long id,
+            long sourceId,
+            String sourceName,
+            String canonicalUrl,
+            String title,
+            OffsetDateTime publishedAt,
+            String rawContent,
+            String feedbackState,
+            boolean readLater,
+            String summaryRu,
+            String analysisMetadataJson) {}
 
     private record ParsedAnalysis(
-        String summaryRu,
-        List<String> topics,
-        String format,
-        String technicalDepth,
-        String verdict,
-        String verdictReason,
-        Integer relevanceScore
-    ) {}
+            String summaryRu,
+            List<String> topics,
+            String format,
+            String technicalDepth,
+            String verdict,
+            String verdictReason,
+            Integer relevanceScore) {}
 
     private record RankablePost(
-        long postId,
-        String title,
-        String sourceName,
-        String canonicalUrl,
-        OffsetDateTime publishedAt,
-        String rawContent,
-        String feedbackState,
-        ParsedAnalysis analysis
-    ) {}
+            long postId,
+            String title,
+            String sourceName,
+            String canonicalUrl,
+            OffsetDateTime publishedAt,
+            String rawContent,
+            String feedbackState,
+            ParsedAnalysis analysis) {}
 
     private record RankInput(
-        long postId,
-        String sourceName,
-        long publishedEpoch,
-        String feedbackState,
-        List<String> topics,
-        String format,
-        double practicalEngineeringScore,
-        double technicalDepthScore
-    ) {}
+            long postId,
+            String sourceName,
+            long publishedEpoch,
+            String feedbackState,
+            List<String> topics,
+            String format,
+            double practicalEngineeringScore,
+            double technicalDepthScore) {}
 
     private record RankingResult(long postId, double score, String explanation) {}
 }

@@ -1,25 +1,27 @@
 package com.goodnews.backendjava;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 class BackendJavaApplicationTests {
 
     @Test
     void contextLoadsWithJavaSideDefaults() {
         try (ConfigurableApplicationContext context = new SpringApplicationBuilder(loadApplicationClass())
-            .web(WebApplicationType.NONE)
-            .run()) {
+                .web(WebApplicationType.NONE)
+                .run()) {
             Object properties = context.getBean(loadPropertiesClass());
 
             assertThat(readNestedValue(properties, "app", "environment")).isEqualTo("dev");
-            assertThat(readNestedValue(properties, "app", "contentApiServiceHost")).isEqualTo("localhost");
-            assertThat(readNestedValue(properties, "scheduler", "sourceSyncIntervalMinutes")).isEqualTo(30);
+            assertThat(readNestedValue(properties, "app", "contentApiServiceHost"))
+                    .isEqualTo("localhost");
+            assertThat(readNestedValue(properties, "scheduler", "sourceSyncIntervalMinutes"))
+                    .isEqualTo(30);
             assertThat(context.getBeansOfType(Flyway.class)).isEmpty();
         }
     }

@@ -1,5 +1,7 @@
 package com.goodnews.backendjava;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.goodnews.backendjava.config.ReactiveDatabaseSmokeProbe;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,17 +13,15 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import reactor.test.StepVerifier;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @Testcontainers(disabledWithoutDocker = true)
 class ReactivePostgresConnectivityIT {
 
     @Container
     static final PostgreSQLContainer<?> POSTGRESQL = new PostgreSQLContainer<>("postgres:16-alpine")
-        .withDatabaseName("good_news")
-        .withUsername("good_news")
-        .withPassword("good-news-secret");
+            .withDatabaseName("good_news")
+            .withUsername("good_news")
+            .withPassword("good-news-secret");
 
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
@@ -38,7 +38,7 @@ class ReactivePostgresConnectivityIT {
     @Test
     void applicationBootsAndConnectsToPostgresReactively() {
         StepVerifier.create(smokeProbe.verifyConnectivity())
-            .assertNext(canConnect -> assertThat(canConnect).isTrue())
-            .verifyComplete();
+                .assertNext(canConnect -> assertThat(canConnect).isTrue())
+                .verifyComplete();
     }
 }
