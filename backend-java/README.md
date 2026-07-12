@@ -22,6 +22,14 @@ backend-java\mvnw.cmd verify
 ```
 
 `verify` covers the unit test suite plus the Testcontainers-backed integration phase that exercises Flyway migrations when Docker is available.
+Formatting and structural style checks run automatically during Maven's `validate` phase, so `compile`, `test`, and `verify` fail before compilation when Java style is invalid.
+
+To run the canonical read-only style check or optionally apply the formatter from the repo root:
+
+```powershell
+backend-java\mvnw.cmd validate
+backend-java\mvnw.cmd spotless:apply
+```
 
 Manual endpoint check on the default application port:
 
