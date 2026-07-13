@@ -33,9 +33,11 @@ public final class MonitoringController {
 
     @PostMapping("/api/monitoring/analyze-now")
     public Mono<MonitoringDtos.AnalyzeNowResponse> analyzeNow() {
-        return Mono.error(new ApiHttpException(
-                org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
-                "Analysis client is not configured in this runtime."));
+        return service.analyzeNow()
+                .map(result -> new MonitoringDtos.AnalyzeNowResponse(result.analyzed(), result.remaining()))
+                .switchIfEmpty(Mono.error(new ApiHttpException(
+                        org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
+                        "Analysis client is not configured in this runtime.")));
     }
 
     private MonitoringDtos.MonitoringSummaryResponse summaryResponse(MonitoringSummary summary) {
