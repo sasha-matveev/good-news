@@ -565,11 +565,18 @@ Build the reusable ingestion base and prove one end-to-end sync path.
 
 - Keep concurrency intentionally simple here. The goal is correctness of the pipeline, not throughput tuning yet.
 
-### PR-15. Port Bulk Source Sync, Reload Flows, and Monitoring API
+### PR-15. Port Bulk Source Sync, Reload Flows, and Monitoring API [Completed on master]
 
 **Goal**
 
 Complete the ingestion and operational visibility slice as one coherent unit.
+
+**Status**
+
+- Completed on `master`.
+- Artifact: `backend-java/src/main/java/com/goodnews/backendjava/ingestion/application/SyncActiveSources.java`, `backend-java/src/main/java/com/goodnews/backendjava/ingestion/application/ReloadSourcePosts.java`, `backend-java/src/main/java/com/goodnews/backendjava/api/MonitoringController.java`, the extended sync/reload routes in `backend-java/src/main/java/com/goodnews/backendjava/api/SourcesController.java`, and monitoring persistence under `backend-java/src/main/java/com/goodnews/backendjava/monitoring/`.
+- Coverage: `backend-java/src/test/java/com/goodnews/backendjava/ingestion/application/SyncActiveSourcesTest.java`, `backend-java/src/test/java/com/goodnews/backendjava/ingestion/application/ReloadSourcePostsTest.java`, `backend-java/src/test/java/com/goodnews/backendjava/api/MonitoringControllerContractTest.java`, and `backend-java/src/test/java/com/goodnews/backendjava/ingestion/infrastructure/persistence/R2dbcSourceReloadWriterIT.java`.
+- Reviewed implementation basis for this plan update: current `master` bulk-sync and monitoring state after commit `acad841` (`feat: port bulk source sync and monitoring`).
 
 **Exact changes**
 
