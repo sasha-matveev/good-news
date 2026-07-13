@@ -27,6 +27,11 @@ public class PreferenceService {
 
     @Transactional
     public Mono<PreferenceDtos.PreferenceProfileResponse> recomputePreferenceProfile() {
+        return loadCurrentPreferenceProfile()
+                .flatMap(profile -> persistPreferenceProfile(profile).thenReturn(profile));
+    }
+
+    public Mono<PreferenceDtos.PreferenceProfileResponse> loadCurrentPreferenceProfile() {
         return databaseClient
                 .sql(
                         """
@@ -42,8 +47,7 @@ public class PreferenceService {
                         row.get("metadata_json", String.class)))
                 .all()
                 .collectList()
-                .map(this::buildProfile)
-                .flatMap(profile -> persistPreferenceProfile(profile).thenReturn(profile));
+                .map(this::buildProfile);
     }
 
     private Mono<Void> persistPreferenceProfile(PreferenceDtos.PreferenceProfileResponse profile) {
