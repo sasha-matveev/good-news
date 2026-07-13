@@ -599,11 +599,18 @@ Complete the ingestion and operational visibility slice as one coherent unit.
 
 - Reactive does not mean unlimited concurrency. The concurrency cap and scheduler choices must be explicit in this PR.
 
-### PR-16. Port Analysis Pipeline and Gemini Integration
+### PR-16. Port Analysis Pipeline and Gemini Integration [Completed on master]
 
 **Goal**
 
 Move the analysis subsystem as one testable slice instead of splitting orchestration from transport.
+
+**Status**
+
+- Completed on `master`.
+- Artifact: analysis pipeline under `backend-java/src/main/java/com/goodnews/backendjava/analysis/`, including `analysis/application/AnalyzePendingPosts.java`, Gemini integration under `analysis/infrastructure/gemini/`, persistence adapters under `analysis/infrastructure/persistence/`, and config in `backend-java/src/main/java/com/goodnews/backendjava/config/GeminiProperties.java`.
+- Coverage: `backend-java/src/test/java/com/goodnews/backendjava/analysis/application/AnalyzePendingPostsTest.java`, `backend-java/src/test/java/com/goodnews/backendjava/analysis/infrastructure/gemini/GeminiAnalysisClientTest.java`, `backend-java/src/test/java/com/goodnews/backendjava/analysis/infrastructure/persistence/AnalysisPipelineIT.java`, and related analysis normalization/configuration tests.
+- Reviewed implementation basis for this plan update: current `master` analysis state after commit `81dc596` (`feat: port analysis pipeline and gemini integration`).
 
 **Exact changes**
 
