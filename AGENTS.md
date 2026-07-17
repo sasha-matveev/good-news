@@ -5,3 +5,13 @@
 3. Before declaring implementation work complete, request a subagent code review and address any important findings.
 4. Before closing out implementation work, run the relevant verification commands.
 5. Unless the user explicitly says otherwise, finish implementation work by committing the changes and pushing the current branch.
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked in this repository's GitHub Issues. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+This repository uses a single-context domain-doc layout. See `docs/agents/domain.md`.
