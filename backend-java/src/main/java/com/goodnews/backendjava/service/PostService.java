@@ -58,8 +58,31 @@ public class PostService {
             Integer limit,
             int offset,
             Boolean readLater) {
-        FeedQuery query = new FeedQuery(sourceId, feedbackState, window, readLater);
+        OffsetDateTime minPublishedAt = "all".equals(window)
+                ? null
+                : OffsetDateTime.ofInstant(clock.instant().minus(30, ChronoUnit.DAYS), ZoneOffset.UTC);
+        FeedQuery query = new FeedQuery(sourceId, feedbackState, readLater, minPublishedAt, null);
         return fetchPosts(query).collectList().map(rows -> toResponses(rows, !"date".equals(sort), limit, offset));
+    }
+
+    public Mono<List<DigestCandidate>> listRankedDigestCandidates(Instant publishedSince, Instant publishedThrough) {
+        FeedQuery query = new FeedQuery(
+                null,
+                null,
+                null,
+                OffsetDateTime.ofInstant(publishedSince, ZoneOffset.UTC),
+                OffsetDateTime.ofInstant(publishedThrough, ZoneOffset.UTC));
+        return fetchPosts(query).collectList().map(rows -> toResponses(rows, true, null, 0).stream()
+                .map(post -> new DigestCandidate(
+                        post.id(),
+                        post.title(),
+                        post.source_name(),
+                        post.canonical_url(),
+                        post.summary_ru(),
+                        post.verdict(),
+                        post.verdict_reason(),
+                        post.relevance_score()))
+                .toList());
     }
 
     @Transactional
@@ -130,11 +153,13 @@ public class PostService {
             """);
         Map<String, Object> bindings = new HashMap<>();
 
-        if (!"all".equals(query.window())) {
+        if (query.minPublishedAt() != null) {
             sql.append(" AND p.published_at >= :minPublishedAt");
-            bindings.put(
-                    "minPublishedAt",
-                    OffsetDateTime.ofInstant(clock.instant().minus(30, ChronoUnit.DAYS), ZoneOffset.UTC));
+            bindings.put("minPublishedAt", query.minPublishedAt());
+        }
+        if (query.maxPublishedAt() != null) {
+            sql.append(" AND p.published_at <= :maxPublishedAt");
+            bindings.put("maxPublishedAt", query.maxPublishedAt());
         }
         if (query.sourceId() != null) {
             sql.append(" AND p.source_id = :sourceId");
@@ -398,7 +423,22 @@ public class PostService {
         return OffsetDateTime.parse(String.valueOf(value));
     }
 
-    private record FeedQuery(Long sourceId, String feedbackState, String window, Boolean readLater) {}
+    private record FeedQuery(
+            Long sourceId,
+            String feedbackState,
+            Boolean readLater,
+            OffsetDateTime minPublishedAt,
+            OffsetDateTime maxPublishedAt) {}
+
+    public record DigestCandidate(
+            long postId,
+            String title,
+            String sourceName,
+            String canonicalUrl,
+            String summaryRu,
+            String verdict,
+            String verdictReason,
+            Integer relevanceScore) {}
 
     private record PostRow(
             long id,

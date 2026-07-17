@@ -54,7 +54,7 @@ class DigestSourceApiTest {
                 "INSERT INTO posts(id,source_id,canonical_url,title,raw_content,content_hash,ingest_metadata) VALUES (1,1,'https://p/1','First','x','h1','{}'),(2,1,'https://p/2','Second','x','h2','{}')");
         sql("INSERT INTO feedback(post_id,state) VALUES (2,'interesting')");
         sql(
-                "INSERT INTO digests(id,digest_type,scheduled_for,status,subject,html_body,sent_at) VALUES (1,'daily',NOW(),'sent','Daily','<p>D</p>','2026-04-01T10:00:00Z'),(2,'weekly',NOW(),'sent','Weekly','<p>W</p>','2026-04-02T10:00:00Z'),(3,'daily',NOW(),'pending',NULL,NULL,NULL),(4,'internal',NOW(),'sent',NULL,NULL,NOW())");
+                "INSERT INTO digests(id,digest_type,scheduled_for,status,subject,html_body,sent_at) VALUES (1,'daily',NOW(),'sent','Daily','<p>D</p>','2026-04-01T10:00:00Z'),(2,'weekly',NOW(),'sent','Weekly','<p>W</p>','2026-04-02T10:00:00Z'),(3,'daily',NOW() + INTERVAL '1 second','pending',NULL,NULL,NULL),(4,'internal',NOW(),'sent',NULL,NULL,NOW())");
         sql("INSERT INTO digest_items(id,digest_id,post_id,rank_position) VALUES (1,2,2,2),(2,2,1,1)");
 
         client.get()
