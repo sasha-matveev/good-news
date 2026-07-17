@@ -8,9 +8,12 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.MigrationVersion;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -55,6 +58,44 @@ class FlywaySchemaMigrationIT {
                 POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword())) {
             assertFlywayHistory(connection);
             assertTables(connection);
+            assertDigestDeliverySlotIndex(connection);
+        }
+    }
+
+    @Test
+    void migrationFivePreservesLegacyDuplicateDigestSlots() throws SQLException {
+        String schema = "legacy_digest_upgrade";
+        Flyway.configure()
+                .dataSource(POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword())
+                .schemas(schema)
+                .defaultSchema(schema)
+                .target(MigrationVersion.fromVersion("4"))
+                .load()
+                .migrate();
+
+        try (Connection connection = DriverManager.getConnection(
+                        POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword());
+                Statement statement = connection.createStatement()) {
+            connection.setSchema(schema);
+            statement.executeUpdate(
+                    "INSERT INTO digests(digest_type,scheduled_for,status) VALUES ('daily','2026-07-17T12:00:00Z','sent'),('daily','2026-07-17T12:00:00Z','failed')");
+        }
+
+        Flyway.configure()
+                .dataSource(POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword())
+                .schemas(schema)
+                .defaultSchema(schema)
+                .load()
+                .migrate();
+
+        try (Connection connection = DriverManager.getConnection(
+                        POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword());
+                PreparedStatement statement = connection.prepareStatement(
+                        "SELECT COUNT(*) FROM " + schema + ".digests WHERE delivery_slot_key IS NULL")) {
+            try (ResultSet resultSet = statement.executeQuery()) {
+                assertThat(resultSet.next()).isTrue();
+                assertThat(resultSet.getLong(1)).isEqualTo(2L);
+            }
         }
     }
 
@@ -69,7 +110,11 @@ class FlywaySchemaMigrationIT {
 
                 assertThat(migrations)
                         .containsExactly(
-                                Map.entry("1", true), Map.entry("2", true), Map.entry("3", true), Map.entry("4", true));
+                                Map.entry("1", true),
+                                Map.entry("2", true),
+                                Map.entry("3", true),
+                                Map.entry("4", true),
+                                Map.entry("5", true));
             }
         }
     }
@@ -81,6 +126,17 @@ class FlywaySchemaMigrationIT {
             assertColumns(connection, entry.getKey(), entry.getValue().columns());
             assertUniqueConstraints(connection, entry.getKey(), entry.getValue().uniqueConstraints());
             assertForeignKeys(connection, entry.getKey(), entry.getValue().foreignKeys());
+        }
+    }
+
+    private void assertDigestDeliverySlotIndex(Connection connection) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT indexdef FROM pg_indexes WHERE schemaname=current_schema() AND tablename='digests' AND indexname='uq_digests_delivery_slot_key'")) {
+            try (ResultSet resultSet = statement.executeQuery()) {
+                assertThat(resultSet.next()).isTrue();
+                assertThat(resultSet.getString("indexdef"))
+                        .contains("UNIQUE INDEX", "delivery_slot_key", "WHERE (delivery_slot_key IS NOT NULL)");
+            }
         }
     }
 
@@ -345,6 +401,7 @@ class FlywaySchemaMigrationIT {
                                 Map.entry("subject", nullableColumn("character varying")),
                                 Map.entry("html_body", nullableColumn("text")),
                                 Map.entry("metadata_json", nullableColumn("text")),
+                                Map.entry("delivery_slot_key", nullableColumn("character varying")),
                                 Map.entry("sent_at", nullableColumn("timestamp with time zone")),
                                 Map.entry(
                                         "created_at",

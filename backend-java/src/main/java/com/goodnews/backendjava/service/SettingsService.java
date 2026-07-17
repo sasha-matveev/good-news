@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -165,6 +166,14 @@ public class SettingsService {
                 .map((row, metadata) -> row.get("encrypted_value", String.class))
                 .one()
                 .map(encrypted -> decryptSecret(encrypted, appMasterKeyResolver.require()));
+    }
+
+    public Mono<Void> setLastDailyDigestSentAt(Instant sentAt) {
+        return upsertSetting("last_daily_digest_sent_at", sentAt.toString());
+    }
+
+    public Mono<Void> setLastWeeklyDigestSentAt(Instant sentAt) {
+        return upsertSetting("last_weekly_digest_sent_at", sentAt.toString());
     }
 
     static String encryptSecret(String plaintext, String masterKey) {
