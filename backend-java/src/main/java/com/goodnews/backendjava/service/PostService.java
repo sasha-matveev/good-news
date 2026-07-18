@@ -158,7 +158,7 @@ public class PostService {
             bindings.put("minPublishedAt", query.minPublishedAt());
         }
         if (query.maxPublishedAt() != null) {
-            sql.append(" AND p.published_at <= :maxPublishedAt");
+            sql.append(" AND p.published_at < :maxPublishedAt");
             bindings.put("maxPublishedAt", query.maxPublishedAt());
         }
         if (query.sourceId() != null) {

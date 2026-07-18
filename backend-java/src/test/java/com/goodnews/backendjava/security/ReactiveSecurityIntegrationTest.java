@@ -3,6 +3,9 @@ package com.goodnews.backendjava.security;
 import static org.mockito.BDDMockito.given;
 
 import com.goodnews.backendjava.api.dto.InternalJobDtos;
+import com.goodnews.backendjava.jobs.ScheduledDigestJobs;
+import com.goodnews.backendjava.jobs.SourceSyncJob;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,6 +44,12 @@ class ReactiveSecurityIntegrationTest {
 
     @MockBean
     private GoogleOidcTokenVerifier googleOidcTokenVerifier;
+
+    @MockBean
+    private SourceSyncJob sourceSyncJob;
+
+    @MockBean
+    private ScheduledDigestJobs scheduledDigestJobs;
 
     @Test
     void apiRequiresBearerTokenWhenFirebaseAuthConfigured() {
@@ -115,6 +124,19 @@ class ReactiveSecurityIntegrationTest {
     }
 
     @Test
+    void realSourceSyncEndpointRequiresOidcToken() {
+        webTestClient
+                .post()
+                .uri("/internal/jobs/source-sync")
+                .exchange()
+                .expectStatus()
+                .isUnauthorized()
+                .expectBody()
+                .jsonPath("$.detail")
+                .isEqualTo("Missing bearer token.");
+    }
+
+    @Test
     void internalJobRejectsWrongServiceAccount() {
         given(googleOidcTokenVerifier.verify("intruder"))
                 .willReturn(Mono.just(new TokenClaims("intruder@test.iam.gserviceaccount.com", true)));
@@ -148,6 +170,24 @@ class ReactiveSecurityIntegrationTest {
                 .isEqualTo(1)
                 .jsonPath("$.analyzed_pending")
                 .isEqualTo(true);
+    }
+
+    @Test
+    void realDigestEndpointRunsForSchedulerServiceAccount() {
+        given(googleOidcTokenVerifier.verify("scheduler"))
+                .willReturn(Mono.just(new TokenClaims("scheduler@test.iam.gserviceaccount.com", true)));
+        given(scheduledDigestJobs.runDue(org.mockito.ArgumentMatchers.any(Instant.class)))
+                .willReturn(Mono.just(new ScheduledDigestJobs.RunResult(null, null, null, List.of())));
+
+        webTestClient
+                .post()
+                .uri("/internal/jobs/digests")
+                .header("Authorization", "Bearer scheduler")
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody()
+                .json("{\"daily_ran_for\":null,\"weekly_ran_for\":null,\"observability_ran_for\":null,\"errors\":[]}");
     }
 
     @Test

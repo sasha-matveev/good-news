@@ -109,6 +109,6 @@ class AnalysisConfigurationTest {
                 new SchedulerProperties(30, 3, null),
                 new GeminiProperties(key, "configured-model", 4, 13, 6),
                 new EmailProperties(null, null, null),
-                new ObservabilityProperties(null, "127.0.0.1", 3000));
+                new ObservabilityProperties(null, "127.0.0.1", 3000, "18:00"));
     }
 }
