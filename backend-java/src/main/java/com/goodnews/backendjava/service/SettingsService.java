@@ -176,6 +176,22 @@ public class SettingsService {
         return upsertSetting("last_weekly_digest_sent_at", sentAt.toString());
     }
 
+    public Mono<Void> setLastObservabilityReportSentAt(Instant sentAt) {
+        return upsertSetting("last_observability_report_sent_at", sentAt.toString());
+    }
+
+    public Mono<Instant> getLastDailyDigestSentAt() {
+        return getInstantSetting("last_daily_digest_sent_at");
+    }
+
+    public Mono<Instant> getLastWeeklyDigestSentAt() {
+        return getInstantSetting("last_weekly_digest_sent_at");
+    }
+
+    public Mono<Instant> getLastObservabilityReportSentAt() {
+        return getInstantSetting("last_observability_report_sent_at");
+    }
+
     static String encryptSecret(String plaintext, String masterKey) {
         byte[] nonce = new byte[16];
         new SecureRandom().nextBytes(nonce);
@@ -227,6 +243,15 @@ public class SettingsService {
                 .bind("key", key);
         spec = bindNullable(spec, "value", value, String.class);
         return spec.fetch().rowsUpdated().then();
+    }
+
+    private Mono<Instant> getInstantSetting(String key) {
+        return databaseClient
+                .sql("SELECT value FROM settings WHERE key = :key")
+                .bind("key", key)
+                .map((row, metadata) -> row.get("value", String.class))
+                .one()
+                .map(Instant::parse);
     }
 
     private Mono<Void> upsertSecretSetting(String key, String encryptedValue) {

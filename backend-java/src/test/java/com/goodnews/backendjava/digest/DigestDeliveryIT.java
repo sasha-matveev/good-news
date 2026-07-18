@@ -84,9 +84,12 @@ class DigestDeliveryIT {
     @SpyBean
     DigestGenerationService generator;
 
+    @SpyBean
+    ObservabilityReportGenerator observabilityReports;
+
     @BeforeEach
     void clean() {
-        reset(smtp, digests, generator);
+        reset(smtp, digests, generator, observabilityReports);
         database.sql(
                         "TRUNCATE TABLE digest_items, digests, read_later, post_analysis, feedback, technical_events, posts, sources, secret_settings, settings RESTART IDENTITY CASCADE")
                 .then()
@@ -104,6 +107,7 @@ class DigestDeliveryIT {
         }
         post(8, NOW.minusSeconds(2 * 24 * 3600), 10);
         post(9, NOW.plusSeconds(3600), 10);
+        post(10, NOW, 10);
         List<String> threadNames = new CopyOnWriteArrayList<>();
         doAnswer(invocation -> {
                     threadNames.add(Thread.currentThread().getName());
@@ -123,7 +127,7 @@ class DigestDeliveryIT {
         assertThat(message.getValue().subject()).isEqualTo("Good News digest for 2026-07-17");
         assertThat(message.getValue().htmlBody())
                 .contains("digest_id=1", "...and 2 more posts", "https://api.good-news.example/api/feedback")
-                .doesNotContain("Post 8", "Post 9");
+                .doesNotContain("Post 8", "Post 9", "Post 10");
         assertThat(server.message()).contains("Subject: Good News digest for 2026-07-17", "Post 7");
         server.close();
 
@@ -153,6 +157,36 @@ class DigestDeliveryIT {
         assertThat(server.message()).contains("Subject: Good News weekly digest for 2026-07-17", "Post 1");
         server.close();
         assertThat(deliveryRuns("weekly", "sent")).isEqualTo(sentBefore + 1);
+    }
+
+    @Test
+    void observabilityReportPersistsRendersAndSendsCurrentOperationalState() {
+        MockSmtpServer server = new MockSmtpServer();
+        smtpSettings(server.port());
+        sql("UPDATE sources SET status='ready' WHERE id=1");
+        sql(
+                "INSERT INTO sources(id,original_url,display_name,status,consecutive_failures,needs_readaptation,last_failure_at) VALUES (2,'https://failing.test','Failing <Source>','failed',3,true,'2026-07-17T11:00:00Z')");
+        sql(
+                "INSERT INTO technical_events(severity,subsystem,event_code,summary,details,source_id,created_at) VALUES ('error','source-sync','fetch_failed','Unsafe <summary>','Timeout & retry',2,'2026-07-17T12:30:00Z')");
+
+        DeliveryRunResult result = delivery.deliverObservabilityReport(NOW).block();
+
+        assertThat(result).isEqualTo(new DeliveryRunResult(1, "sent", true, 1));
+        assertThat(digest(1).type()).isEqualTo("observability_daily");
+        assertThat(setting("last_observability_report_sent_at")).isEqualTo(NOW.toString());
+        assertThat(value("SELECT subject FROM digests WHERE id=1"))
+                .isEqualTo("Good News observability report for 2026-07-17");
+        assertThat(value("SELECT html_body FROM digests WHERE id=1"))
+                .contains(
+                        "1 technical events in the last 24 hours",
+                        "Unsafe &lt;summary&gt;",
+                        "Failing &lt;Source&gt;",
+                        "Open Grafana dashboard",
+                        "/render/d-solo/good-news-overview/good-news-observability-overview");
+        assertThat(value("SELECT metadata_json FROM digests WHERE id=1"))
+                .contains("\"event_count\":1", "\"failing_source_count\":1");
+        assertThat(server.message()).contains("Subject: Good News observability report for 2026-07-17");
+        server.close();
     }
 
     @Test
@@ -394,6 +428,13 @@ class DigestDeliveryIT {
     private long count(String statement) {
         return database.sql(statement)
                 .map((row, metadata) -> row.get("value", Long.class))
+                .one()
+                .block();
+    }
+
+    private String value(String statement) {
+        return database.sql(statement)
+                .map((row, metadata) -> row.get(0, String.class))
                 .one()
                 .block();
     }

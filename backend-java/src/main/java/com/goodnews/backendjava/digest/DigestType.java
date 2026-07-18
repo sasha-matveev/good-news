@@ -2,7 +2,8 @@ package com.goodnews.backendjava.digest;
 
 public enum DigestType {
     DAILY("daily"),
-    WEEKLY("weekly");
+    WEEKLY("weekly"),
+    OBSERVABILITY_DAILY("observability_daily");
 
     private final String databaseValue;
 

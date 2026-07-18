@@ -11,6 +11,7 @@ import reactor.core.scheduler.Schedulers;
 @Service
 public final class DigestDeliveryService {
     private final DigestGenerationService generator;
+    private final ObservabilityReportGenerator observabilityReports;
     private final DigestRepository digests;
     private final SettingsService settings;
     private final SmtpEmailAdapter smtp;
@@ -19,12 +20,14 @@ public final class DigestDeliveryService {
 
     public DigestDeliveryService(
             DigestGenerationService generator,
+            ObservabilityReportGenerator observabilityReports,
             DigestRepository digests,
             SettingsService settings,
             SmtpEmailAdapter smtp,
             TransactionalOperator transactions,
             DeliveryObservability observability) {
         this.generator = generator;
+        this.observabilityReports = observabilityReports;
         this.digests = digests;
         this.settings = settings;
         this.smtp = smtp;
@@ -40,9 +43,17 @@ public final class DigestDeliveryService {
         return deliver(DigestType.WEEKLY, now);
     }
 
+    public Mono<DeliveryRunResult> deliverObservabilityReport(Instant now) {
+        return deliver(DigestType.OBSERVABILITY_DAILY, now);
+    }
+
     private Mono<DeliveryRunResult> deliver(DigestType type, Instant now) {
         Mono<GeneratedDigest> generated =
-                type == DigestType.DAILY ? generator.generateDaily(now) : generator.generateWeekly(now);
+                switch (type) {
+                    case DAILY -> generator.generateDaily(now);
+                    case WEEKLY -> generator.generateWeekly(now);
+                    case OBSERVABILITY_DAILY -> observabilityReports.generate(now);
+                };
         return guardNoPriorRun(type, now)
                 .then(generated)
                 .flatMap(digest -> deliveryDecision(digest)
@@ -123,9 +134,11 @@ public final class DigestDeliveryService {
     }
 
     private Mono<Void> setLastSentAt(DigestType type, Instant now) {
-        return type == DigestType.DAILY
-                ? settings.setLastDailyDigestSentAt(now)
-                : settings.setLastWeeklyDigestSentAt(now);
+        return switch (type) {
+            case DAILY -> settings.setLastDailyDigestSentAt(now);
+            case WEEKLY -> settings.setLastWeeklyDigestSentAt(now);
+            case OBSERVABILITY_DAILY -> settings.setLastObservabilityReportSentAt(now);
+        };
     }
 
     private SendCommand command(GeneratedDigest digest, SettingsService.AppSettings appSettings, String smtpPassword) {
