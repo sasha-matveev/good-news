@@ -632,11 +632,19 @@ Move the analysis subsystem as one testable slice instead of splitting orchestra
 
 - The earlier split between domain orchestration and Gemini transport was too granular for the real amount of coupling here.
 
-### PR-17. Port Digest Generation, Rendering, and Delivery
+### PR-17. Port Digest Generation, Rendering, and Delivery [Completed on master]
 
 **Goal**
 
 Move digest creation and delivery as one complete operational feature.
+
+**Status**
+
+- Completed on `master`.
+- Artifact: digest generation and delivery under `backend-java/src/main/java/com/goodnews/backendjava/digest/`, including `DigestGenerationService.java`, `DigestEmailRenderer.java`, `DigestDeliveryService.java`, `DigestRepository.java`, `DeliveryObservability.java`, and supporting digest models.
+- Artifact: schema support in `backend-java/src/main/resources/db/migration/V5__unique_digest_run_slots.sql`.
+- Coverage: `backend-java/src/test/java/com/goodnews/backendjava/digest/DigestGenerationServiceTest.java`, `backend-java/src/test/java/com/goodnews/backendjava/digest/DigestEmailRendererTest.java`, `backend-java/src/test/java/com/goodnews/backendjava/digest/DigestDeliveryIT.java`, and `backend-java/src/test/java/com/goodnews/backendjava/digest/DeliveryObservabilityTest.java`.
+- Reviewed implementation basis for this plan update: current `origin/master` head commit `c68c556` (`feat: port digest generation and delivery`).
 
 **Exact changes**
 
