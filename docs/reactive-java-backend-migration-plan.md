@@ -668,11 +668,20 @@ Move digest creation and delivery as one complete operational feature.
 
 - Digest generation and delivery are tightly coupled at the operational level, so separating them created more planning overhead than safety.
 
-### PR-18. Port Internal Job Endpoints and Scheduler Behavior
+### PR-18. Port Internal Job Endpoints and Scheduler Behavior [Completed on master]
 
 **Goal**
 
 Reach backend parity for the current scheduled automation surface.
+
+**Status**
+
+- Completed on `master`.
+- Artifact: scheduler-facing endpoints in `backend-java/src/main/java/com/goodnews/backendjava/api/InternalJobsController.java`.
+- Artifact: source sync and digest scheduling behavior in `backend-java/src/main/java/com/goodnews/backendjava/jobs/SourceSyncJob.java` and `backend-java/src/main/java/com/goodnews/backendjava/jobs/ScheduledDigestJobs.java`.
+- Artifact: daily observability report generation and delivery in `backend-java/src/main/java/com/goodnews/backendjava/digest/ObservabilityReportGenerator.java` and `backend-java/src/main/java/com/goodnews/backendjava/digest/DigestDeliveryService.java`.
+- Coverage: `backend-java/src/test/java/com/goodnews/backendjava/api/InternalJobsControllerContractTest.java`, `backend-java/src/test/java/com/goodnews/backendjava/jobs/SourceSyncJobTest.java`, `backend-java/src/test/java/com/goodnews/backendjava/jobs/ScheduledDigestJobsTest.java`, and `backend-java/src/test/java/com/goodnews/backendjava/security/ReactiveSecurityIntegrationTest.java`.
+- Reviewed implementation basis for this plan update: `origin/master` commit `6c2da18` (`feat: port internal scheduler jobs`); CI, CodeQL, and deploy workflows completed successfully.
 
 **Exact changes**
 
