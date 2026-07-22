@@ -1,5 +1,7 @@
 package com.goodnews.backendjava.config;
 
+import io.r2dbc.pool.ConnectionPool;
+import io.r2dbc.pool.ConnectionPoolConfiguration;
 import io.r2dbc.spi.ConnectionFactories;
 import io.r2dbc.spi.ConnectionFactory;
 import org.springframework.context.annotation.Bean;
@@ -10,9 +12,22 @@ import org.springframework.r2dbc.core.DatabaseClient;
 @Configuration
 public class ReactiveDatabaseConfig {
 
-    @Bean
+    @Bean(destroyMethod = "dispose")
     ConnectionFactory connectionFactory(GoodNewsProperties properties) {
-        return ConnectionFactories.get(new ConfiguredDatabase(properties.database()).connectionFactoryOptions());
+        ConnectionFactory driver =
+                ConnectionFactories.get(new ConfiguredDatabase(properties.database()).connectionFactoryOptions());
+        DatabaseProperties database = properties.database();
+        ConnectionPoolConfiguration poolConfiguration = ConnectionPoolConfiguration.builder(driver)
+                .name("good-news-java")
+                .initialSize(database.poolInitialSize())
+                .maxSize(database.poolMaxSize())
+                .maxAcquireTime(database.poolAcquireTimeout())
+                .maxCreateConnectionTime(database.connectTimeout())
+                .maxIdleTime(database.poolIdleTimeout())
+                .maxLifeTime(database.poolMaxLifeTime())
+                .validationQuery("SELECT 1")
+                .build();
+        return new ConnectionPool(poolConfiguration);
     }
 
     @Bean

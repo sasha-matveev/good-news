@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import json
 
-from app.core.observability import emit_event, record_analysis_failure, record_delivery_run
+from app.core.observability import (
+    _correlation_id,
+    emit_event,
+    record_analysis_failure,
+    record_delivery_run,
+)
 
 
 def _captured_events(capsys) -> list[dict]:
@@ -31,3 +36,10 @@ def test_record_delivery_run_marks_failed_as_warning(capsys) -> None:
     events = _captured_events(capsys)
     by_status = {e["status"]: e["severity"] for e in events if e["event"] == "delivery_run"}
     assert by_status == {"failed": "WARNING", "sent": "INFO"}
+
+
+def test_correlation_id_rejects_log_injection_values() -> None:
+    generated = _correlation_id("unsafe\nvalue")
+
+    assert generated != "unsafe\nvalue"
+    assert len(generated) == 36

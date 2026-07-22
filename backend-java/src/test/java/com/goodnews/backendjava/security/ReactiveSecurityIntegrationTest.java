@@ -3,6 +3,7 @@ package com.goodnews.backendjava.security;
 import static org.mockito.BDDMockito.given;
 
 import com.goodnews.backendjava.api.dto.InternalJobDtos;
+import com.goodnews.backendjava.config.ReactiveDatabaseSmokeProbe;
 import com.goodnews.backendjava.jobs.ScheduledDigestJobs;
 import com.goodnews.backendjava.jobs.SourceSyncJob;
 import java.time.Instant;
@@ -12,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,12 +34,16 @@ import reactor.core.publisher.Mono;
             "good-news.auth.firebase-project-id=good-news-test",
             "good-news.auth.allowed-emails=owner@example.com",
             "good-news.scheduler.invoker=scheduler@test.iam.gserviceaccount.com",
-            "good-news.auth.oidc-audience=https://good-news-jobs.example"
+            "good-news.auth.oidc-audience=https://good-news-jobs.example",
+            "good-news.email.public-frontend-origin=https://good-news.example"
         })
 class ReactiveSecurityIntegrationTest {
 
     @Autowired
     private WebTestClient webTestClient;
+
+    @LocalServerPort
+    private int port;
 
     @MockBean
     private FirebaseTokenVerifier firebaseTokenVerifier;
@@ -50,6 +56,9 @@ class ReactiveSecurityIntegrationTest {
 
     @MockBean
     private ScheduledDigestJobs scheduledDigestJobs;
+
+    @MockBean
+    private ReactiveDatabaseSmokeProbe databaseSmokeProbe;
 
     @Test
     void apiRequiresBearerTokenWhenFirebaseAuthConfigured() {
@@ -66,6 +75,8 @@ class ReactiveSecurityIntegrationTest {
 
     @Test
     void apiHealthStaysPublic() {
+        given(databaseSmokeProbe.verifyRequiredSchema()).willReturn(Mono.just(true));
+
         webTestClient
                 .get()
                 .uri("/api/health")
@@ -98,13 +109,18 @@ class ReactiveSecurityIntegrationTest {
     void apiAcceptsAllowlistedVerifiedEmail() {
         given(firebaseTokenVerifier.verify("owner")).willReturn(Mono.just(new TokenClaims("owner@example.com", true)));
 
-        webTestClient
+        serverWebTestClient()
                 .get()
                 .uri("/api/test/posts")
                 .header("Authorization", "Bearer owner")
+                .header("Origin", "https://good-news.example")
                 .exchange()
                 .expectStatus()
                 .isOk()
+                .expectHeader()
+                .valueEquals("Access-Control-Allow-Origin", "https://good-news.example")
+                .expectHeader()
+                .valueEquals("X-Good-News-Backend", "java")
                 .expectBody()
                 .jsonPath("$.status")
                 .isEqualTo("ok");
@@ -198,6 +214,27 @@ class ReactiveSecurityIntegrationTest {
                 .exchange()
                 .expectStatus()
                 .isOk();
+    }
+
+    @Test
+    void browserPreflightAllowsAuthorizationAndCorrelationHeaders() {
+        serverWebTestClient()
+                .options()
+                .uri("/api/test/posts")
+                .header("Origin", "https://good-news.example")
+                .header("Access-Control-Request-Method", "GET")
+                .header("Access-Control-Request-Headers", "authorization,x-correlation-id")
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectHeader()
+                .valueEquals("Access-Control-Allow-Origin", "https://good-news.example")
+                .expectHeader()
+                .valueEquals("X-Good-News-Backend", "java");
+    }
+
+    private WebTestClient serverWebTestClient() {
+        return WebTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
     }
 
     @RestController

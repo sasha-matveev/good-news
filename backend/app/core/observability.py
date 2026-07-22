@@ -1,10 +1,18 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
+import time
+import uuid
 
-from fastapi import FastAPI, Request, Response
-from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, generate_latest
+from fastapi import FastAPI, Request
+from prometheus_client import Counter, Gauge, Histogram
+
+BACKEND_HEADER = "X-Good-News-Backend"
+CORRELATION_HEADER = "X-Correlation-ID"
+BACKEND_IDENTITY = "python"
+_CORRELATION_ID_PATTERN = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 
 
 def emit_event(event: str, *, severity: str = "INFO", **fields: object) -> None:
@@ -19,10 +27,16 @@ def emit_event(event: str, *, severity: str = "INFO", **fields: object) -> None:
     payload: dict[str, object] = {"severity": severity, "event": event, **fields}
     print(json.dumps(payload, ensure_ascii=False), file=sys.stdout, flush=True)
 
+
 HTTP_REQUESTS_TOTAL = Counter(
     "good_news_http_requests_total",
     "HTTP requests handled by Good News services.",
-    ["service", "method", "route", "status"],
+    ["backend", "service", "method", "route", "status"],
+)
+HTTP_REQUEST_DURATION_SECONDS = Histogram(
+    "good_news_http_request_duration_seconds",
+    "HTTP request latency handled by Good News services.",
+    ["backend", "service", "method", "route", "status"],
 )
 SOURCE_SYNC_FAILURES_TOTAL = Counter(
     "good_news_source_sync_failures_total",
@@ -51,20 +65,53 @@ def instrument_app(*, app: FastAPI, service_name: str) -> None:
 
     @app.middleware("http")
     async def collect_request_metrics(request: Request, call_next):
-        response = await call_next(request)
-        route = request.scope.get("route")
-        route_path = getattr(route, "path", request.url.path)
-        HTTP_REQUESTS_TOTAL.labels(
-            service=service_name,
-            method=request.method,
-            route=route_path,
-            status=str(response.status_code),
-        ).inc()
+        started_at = time.perf_counter()
+        correlation_id = _correlation_id(request.headers.get(CORRELATION_HEADER))
+        request.state.correlation_id = correlation_id
+        status_code = 500
+        error_type: str | None = None
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+        except Exception as exc:
+            error_type = type(exc).__name__
+            raise
+        finally:
+            route = request.scope.get("route")
+            route_path = getattr(route, "path", request.url.path)
+            duration_seconds = time.perf_counter() - started_at
+            labels = {
+                "backend": BACKEND_IDENTITY,
+                "service": service_name,
+                "method": request.method,
+                "route": route_path,
+                "status": str(status_code),
+            }
+            HTTP_REQUESTS_TOTAL.labels(**labels).inc()
+            HTTP_REQUEST_DURATION_SECONDS.labels(**labels).observe(duration_seconds)
+            emit_event(
+                "http_request",
+                severity="ERROR" if status_code >= 500 else "INFO",
+                backend=BACKEND_IDENTITY,
+                service=service_name,
+                correlation_id=correlation_id,
+                method=request.method,
+                route=route_path,
+                status=status_code,
+                duration_ms=round(duration_seconds * 1000, 3),
+                error_type=error_type,
+            )
+
+        response.headers[BACKEND_HEADER] = BACKEND_IDENTITY
+        response.headers[CORRELATION_HEADER] = correlation_id
         return response
 
-    @app.get("/metrics", include_in_schema=False)
-    def metrics() -> Response:
-        return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+def _correlation_id(candidate: str | None) -> str:
+    normalized = (candidate or "").strip()
+    if _CORRELATION_ID_PATTERN.fullmatch(normalized):
+        return normalized
+    return str(uuid.uuid4())
 
 
 def record_source_sync_failure(*, event_code: str) -> None:

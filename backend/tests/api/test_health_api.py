@@ -33,3 +33,5 @@ def test_health_reports_ok_after_schema_is_current() -> None:
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+    assert response.headers["X-Good-News-Backend"] == "python"
+    assert response.headers["X-Correlation-ID"]

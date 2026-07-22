@@ -17,7 +17,10 @@ Runs in Google Cloud: https://good-news-am26.web.app
 | Auth | Firebase Auth (Google sign-in) + email allowlist on the backend |
 | Secrets | GCP Secret Manager: `good-news-db-url`, `good-news-app-master-key`, `good-news-gemini-api-key` |
 
-The frontend calls Cloud Run directly (`VITE_CONTENT_API_ORIGIN` baked at build time); Firebase Hosting rewrites `/api/**` exist as a fallback.
+The frontend API layer routes each operation through a versioned ownership map.
+Production currently assigns every operation to the Python Cloud Run origin
+(`VITE_CONTENT_API_ORIGIN`); `VITE_JAVA_API_ORIGIN` is reserved for staged
+strangler cutovers. Firebase Hosting rewrites `/api/**` remain a fallback.
 
 ## Frontend tabs
 

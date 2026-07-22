@@ -34,6 +34,7 @@ def test_api_requires_bearer_token_when_firebase_auth_configured() -> None:
     with TestClient(app) as client:
         response = client.get("/api/posts")
     assert response.status_code == 401
+    assert response.headers["X-Good-News-Backend"] == "python"
 
 
 def test_api_health_stays_public() -> None:
@@ -41,6 +42,49 @@ def test_api_health_stays_public() -> None:
     with TestClient(app) as client:
         response = client.get("/api/health")
     assert response.status_code == 200
+
+
+def test_browser_preflight_matches_frontend_authorization_contract() -> None:
+    app = _build_app(
+        Settings(
+            firebase_project_id="good-news-test",
+            allowed_emails="owner@example.com",
+            public_frontend_origin="https://good-news.example",
+        )
+    )
+    with TestClient(app) as client:
+        response = client.options(
+            "/api/posts",
+            headers={
+                "Origin": "https://good-news.example",
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": "authorization,x-correlation-id",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "https://good-news.example"
+    assert "Authorization" in response.headers["access-control-allow-headers"]
+    assert response.headers["X-Good-News-Backend"] == "python"
+
+
+def test_correlation_id_is_preserved_on_response() -> None:
+    app = _build_app(Settings())
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/health", headers={"X-Correlation-ID": "frontend-request-42"}
+        )
+
+    assert response.headers["X-Correlation-ID"] == "frontend-request-42"
+
+
+def test_prometheus_metrics_are_not_publicly_exposed() -> None:
+    app = _build_app(Settings())
+    with TestClient(app) as client:
+        response = client.get("/metrics")
+
+    assert response.status_code == 404
+    assert response.headers["X-Good-News-Backend"] == "python"
 
 
 def test_api_rejects_non_allowlisted_email() -> None:
