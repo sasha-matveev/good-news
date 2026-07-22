@@ -740,11 +740,20 @@ The first production browser ownership map is intentionally mixed:
 
 Every production ownership PR records its exact before/after operation map, rollback command or deployment action, soak start and end, minimum observation sample, and route-specific error-rate and latency thresholds derived from the Python baseline. A switch cannot close on manual smoke alone: its contract suite must be green, unexpected `5xx` responses must be explained, database connections must remain within the shared budget, and rollback must have been exercised in the same environment class.
 
-### PR-19. Establish the Production Strangler Foundation and Close Parity Gaps
+### PR-19. Establish the Production Strangler Foundation and Close Parity Gaps [Completed on master]
 
 **Goal**
 
 Create a reversible per-operation routing foundation without changing production ownership yet, and close runtime gaps that would otherwise block the first Java request.
+
+**Status**
+
+- Completed on `master`.
+- Artifact: centralized all-Python production ownership map and environment-scoped diagnostic override in `frontend/src/lib/api.ts`.
+- Artifact: Java readiness work under `backend-java/`, including public health parity, CORS, protected management endpoints, request observability, explicit R2DBC pooling, and bounded database/SMTP timeouts.
+- Artifact: Python backend identity, correlation, CORS, and request-observability parity under `backend/app/`.
+- Operational contract and reviewed connection/JVM budgets: `backend-java/README.md` and `docs/reactive-java-backend-pr-19-production-foundation.md`.
+- Reviewed implementation basis for this plan update: current `master` commit `df8e476` (`feat: establish production strangler foundation`).
 
 **Exact changes**
 
