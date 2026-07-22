@@ -19,7 +19,7 @@ public class ActuatorSecurityConfig {
             UserAuthenticationWebFilter userAuthenticationWebFilter,
             SchedulerAuthenticationWebFilter schedulerAuthenticationWebFilter) {
         return http.authorizeExchange(exchanges -> exchanges
-                        .pathMatchers("/actuator/health", "/actuator/prometheus")
+                        .pathMatchers("/actuator/health")
                         .permitAll()
                         .pathMatchers("/api/health")
                         .permitAll()
@@ -30,6 +30,7 @@ public class ActuatorSecurityConfig {
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
                 .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
+                .cors(ServerHttpSecurity.CorsSpec::disable)
                 .addFilterAt(schedulerAuthenticationWebFilter, SecurityWebFiltersOrder.AUTHENTICATION)
                 .addFilterAfter(userAuthenticationWebFilter, SecurityWebFiltersOrder.AUTHENTICATION)
                 .build();

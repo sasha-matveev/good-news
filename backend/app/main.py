@@ -120,16 +120,18 @@ def create_app(
     app.state.analysis_stub_result = _stub_analysis_result(resolved_settings)
     app.state.email_transport_factory = email_transport_factory
 
-    instrument_app(app=app, service_name="good-news")
-
     app.add_middleware(
         CORSMiddleware,
         allow_origins=_cors_origins(resolved_settings),
         allow_credentials=False,
         allow_methods=["*"],
-        allow_headers=["Authorization", "Content-Type"],
+        allow_headers=["Authorization", "Content-Type", "X-Correlation-ID"],
+        expose_headers=["X-Good-News-Backend", "X-Correlation-ID"],
     )
     install_user_auth_middleware(app, resolved_settings)
+    # Install this last so identity/correlation headers and request telemetry
+    # also cover CORS preflight and authentication failures.
+    instrument_app(app=app, service_name="good-news")
 
     app.include_router(feedback_router, prefix="/api")
     app.include_router(digests_router, prefix="/api")

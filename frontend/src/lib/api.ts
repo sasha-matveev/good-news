@@ -125,10 +125,74 @@ export type DigestDetailRecord = {
   rendered_html: string;
 };
 
-const API_ORIGIN = ((import.meta.env.VITE_CONTENT_API_ORIGIN as string | undefined) ?? "").replace(/\/$/, "");
-const API_ROOT = `${API_ORIGIN}/api`;
+export type BackendOwner = "python" | "java";
 
-async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
+/**
+ * Versioned production control plane for browser API ownership.
+ *
+ * PR-19 intentionally keeps every operation on Python. Later strangler phases
+ * change individual values in this map only after the matching Java operation
+ * has passed parity and production-readiness checks.
+ */
+export const API_OPERATION_OWNERS = {
+  listSources: "python",
+  createSource: "python",
+  deleteSource: "python",
+  updateSourceActive: "python",
+  runSourceSyncOnce: "python",
+  syncSource: "python",
+  reloadPosts: "python",
+  listPosts: "python",
+  updateFeedback: "python",
+  getPreferenceProfile: "python",
+  recomputePreferenceProfile: "python",
+  getSettings: "python",
+  listDigests: "python",
+  getDigest: "python",
+  updateSettings: "python",
+  sendTestEmail: "python",
+  setReadLater: "python",
+  recordArticleOpen: "python",
+  fetchMonitoringSummary: "python",
+  getSourceLog: "python",
+  getAnalysisQueue: "python",
+  analyzePendingNow: "python"
+} as const satisfies Record<string, BackendOwner>;
+
+export type ApiOperation = keyof typeof API_OPERATION_OWNERS;
+
+const API_ORIGINS: Record<BackendOwner, string> = {
+  python: normalizeOrigin(import.meta.env.VITE_CONTENT_API_ORIGIN as string | undefined),
+  java: normalizeOrigin(import.meta.env.VITE_JAVA_API_ORIGIN as string | undefined)
+};
+
+function normalizeOrigin(origin: string | undefined): string {
+  return (origin ?? "").trim().replace(/\/+$/, "");
+}
+
+function diagnosticOverride(): BackendOwner | null {
+  const override = (import.meta.env.VITE_API_BACKEND_OVERRIDE as string | undefined)?.trim();
+  if (override !== "python" && override !== "java") return null;
+
+  const deployEnvironment = (
+    (import.meta.env.VITE_DEPLOY_ENV as string | undefined) ?? import.meta.env.MODE
+  ).toLowerCase();
+  const overrideAllowed = ["development", "test", "local", "preview", "staging"].includes(
+    deployEnvironment
+  );
+  return overrideAllowed ? override : null;
+}
+
+function apiUrl(operation: ApiOperation, path: string): string {
+  const owner = diagnosticOverride() ?? API_OPERATION_OWNERS[operation];
+  return `${API_ORIGINS[owner]}/api${path}`;
+}
+
+async function apiFetch(
+  operation: ApiOperation,
+  path: string,
+  init: RequestInit = {}
+): Promise<Response> {
   let token: string | null = null;
   try {
     const { currentIdToken } = await import("./firebase");
@@ -137,11 +201,11 @@ async function apiFetch(input: string, init: RequestInit = {}): Promise<Response
     // Firebase unavailable (tests, local dev without auth) — send the request as-is.
   }
   if (!token) {
-    return fetch(input, init);
+    return fetch(apiUrl(operation, path), init);
   }
   const headers = new Headers(init.headers);
   headers.set("Authorization", `Bearer ${token}`);
-  return fetch(input, { ...init, headers });
+  return fetch(apiUrl(operation, path), { ...init, headers });
 }
 
 async function readJson<T>(response: Response): Promise<T> {
@@ -152,12 +216,12 @@ async function readJson<T>(response: Response): Promise<T> {
 }
 
 export async function listSources(): Promise<SourceRecord[]> {
-  const response = await apiFetch(`${API_ROOT}/sources`, { method: "GET" });
+  const response = await apiFetch("listSources", "/sources", { method: "GET" });
   return readJson<SourceRecord[]>(response);
 }
 
 export async function createSource(url: string): Promise<SourceRecord> {
-  const response = await apiFetch(`${API_ROOT}/sources`, {
+  const response = await apiFetch("createSource", "/sources", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url })
@@ -166,7 +230,7 @@ export async function createSource(url: string): Promise<SourceRecord> {
 }
 
 export async function deleteSource(sourceId: number): Promise<void> {
-  const response = await apiFetch(`${API_ROOT}/sources/${sourceId}`, {
+  const response = await apiFetch("deleteSource", `/sources/${sourceId}`, {
     method: "DELETE"
   });
   if (!response.ok) {
@@ -178,7 +242,7 @@ export async function updateSourceActive(
   sourceId: number,
   active: boolean
 ): Promise<SourceRecord> {
-  const response = await apiFetch(`${API_ROOT}/sources/${sourceId}`, {
+  const response = await apiFetch("updateSourceActive", `/sources/${sourceId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ active })
@@ -187,14 +251,14 @@ export async function updateSourceActive(
 }
 
 export async function runSourceSyncOnce(): Promise<SourceSyncRecord> {
-  const response = await apiFetch(`${API_ROOT}/sources/sync`, {
+  const response = await apiFetch("runSourceSyncOnce", "/sources/sync", {
     method: "POST"
   });
   return readJson<SourceSyncRecord>(response);
 }
 
 export async function syncSource(sourceId: number): Promise<SourceSyncRecord> {
-  const response = await apiFetch(`${API_ROOT}/sources/${sourceId}/sync`, {
+  const response = await apiFetch("syncSource", `/sources/${sourceId}/sync`, {
     method: "POST"
   });
   return readJson<SourceSyncRecord>(response);
@@ -203,7 +267,7 @@ export async function syncSource(sourceId: number): Promise<SourceSyncRecord> {
 export type ReloadPostsResult = { deleted: number; reloaded: number };
 
 export async function reloadPosts(sourceId: number): Promise<ReloadPostsResult> {
-  const response = await apiFetch(`${API_ROOT}/sources/${sourceId}/reload-posts`, {
+  const response = await apiFetch("reloadPosts", `/sources/${sourceId}/reload-posts`, {
     method: "POST"
   });
   return readJson<ReloadPostsResult>(response);
@@ -242,7 +306,7 @@ export async function listPosts(params?: {
   }
 
   const suffix = search.toString() ? `?${search.toString()}` : "";
-  const response = await apiFetch(`${API_ROOT}/posts${suffix}`, { method: "GET" });
+  const response = await apiFetch("listPosts", `/posts${suffix}`, { method: "GET" });
   return readJson<PostRecord[]>(response);
 }
 
@@ -250,7 +314,7 @@ export async function updateFeedback(
   postId: number,
   state: FeedbackState
 ): Promise<{ post_id: number; state: FeedbackState }> {
-  const response = await apiFetch(`${API_ROOT}/feedback/${postId}`, {
+  const response = await apiFetch("updateFeedback", `/feedback/${postId}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ state })
@@ -259,32 +323,34 @@ export async function updateFeedback(
 }
 
 export async function getPreferenceProfile(): Promise<PreferenceProfileRecord> {
-  const response = await apiFetch(`${API_ROOT}/preferences`, { method: "GET" });
+  const response = await apiFetch("getPreferenceProfile", "/preferences", { method: "GET" });
   return readJson<PreferenceProfileRecord>(response);
 }
 
 export async function recomputePreferenceProfile(): Promise<PreferenceProfileRecord> {
-  const response = await apiFetch(`${API_ROOT}/preferences/recompute`, { method: "POST" });
+  const response = await apiFetch("recomputePreferenceProfile", "/preferences/recompute", {
+    method: "POST"
+  });
   return readJson<PreferenceProfileRecord>(response);
 }
 
 export async function getSettings(): Promise<SettingsRecord> {
-  const response = await apiFetch(`${API_ROOT}/settings`, { method: "GET" });
+  const response = await apiFetch("getSettings", "/settings", { method: "GET" });
   return readJson<SettingsRecord>(response);
 }
 
 export async function listDigests(): Promise<DigestListItemRecord[]> {
-  const response = await apiFetch(`${API_ROOT}/digests`, { method: "GET" });
+  const response = await apiFetch("listDigests", "/digests", { method: "GET" });
   return readJson<DigestListItemRecord[]>(response);
 }
 
 export async function getDigest(digestId: number): Promise<DigestDetailRecord> {
-  const response = await apiFetch(`${API_ROOT}/digests/${digestId}`, { method: "GET" });
+  const response = await apiFetch("getDigest", `/digests/${digestId}`, { method: "GET" });
   return readJson<DigestDetailRecord>(response);
 }
 
 export async function updateSettings(payload: SettingsUpdate): Promise<SettingsRecord> {
-  const response = await apiFetch(`${API_ROOT}/settings`, {
+  const response = await apiFetch("updateSettings", "/settings", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -293,7 +359,7 @@ export async function updateSettings(payload: SettingsUpdate): Promise<SettingsR
 }
 
 export async function sendTestEmail(): Promise<{ status: string }> {
-  const response = await apiFetch(`${API_ROOT}/settings/test-email`, { method: "POST" });
+  const response = await apiFetch("sendTestEmail", "/settings/test-email", { method: "POST" });
   return readJson<{ status: string }>(response);
 }
 
@@ -301,7 +367,7 @@ export async function setReadLater(
   postId: number,
   saved: boolean
 ): Promise<{ post_id: number; read_later: boolean }> {
-  const response = await apiFetch(`${API_ROOT}/posts/${postId}/read-later`, {
+  const response = await apiFetch("setReadLater", `/posts/${postId}/read-later`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ saved })
@@ -312,7 +378,7 @@ export async function setReadLater(
 export async function recordArticleOpen(
   postId: number
 ): Promise<{ opened: boolean }> {
-  const response = await apiFetch(`${API_ROOT}/posts/${postId}/open`, {
+  const response = await apiFetch("recordArticleOpen", `/posts/${postId}/open`, {
     method: "POST"
   });
   return readJson<{ opened: boolean }>(response);
@@ -336,7 +402,9 @@ export type MonitoringSummary = {
 
 export async function fetchMonitoringSummary(): Promise<MonitoringSummary | null> {
   try {
-    const response = await apiFetch(`${API_ROOT}/monitoring/summary`, { method: "GET" });
+    const response = await apiFetch("fetchMonitoringSummary", "/monitoring/summary", {
+      method: "GET"
+    });
     if (!response.ok) return null;
     const data: unknown = await response.json();
     if (!data || typeof data !== "object" || Array.isArray(data)) return null;
@@ -350,20 +418,22 @@ export type SourceLogLine = { ts: number; msg: string };
 export type SourceLogRecord = { log: SourceLogLine[]; done: boolean; status: string | null };
 
 export async function getSourceLog(sourceId: number): Promise<SourceLogRecord> {
-  const response = await apiFetch(`${API_ROOT}/sources/${sourceId}/log`, { method: "GET" });
+  const response = await apiFetch("getSourceLog", `/sources/${sourceId}/log`, { method: "GET" });
   return readJson<SourceLogRecord>(response);
 }
 
 export type QueueItem = { post_id: number; title: string; source_name: string | null; created_at: string | null };
 
 export async function getAnalysisQueue(): Promise<QueueItem[]> {
-  const response = await apiFetch(`${API_ROOT}/monitoring/queue`, { method: "GET" });
+  const response = await apiFetch("getAnalysisQueue", "/monitoring/queue", { method: "GET" });
   return readJson<QueueItem[]>(response);
 }
 
 export type AnalyzeNowResult = { analyzed: number; remaining: number };
 
 export async function analyzePendingNow(): Promise<AnalyzeNowResult> {
-  const response = await apiFetch(`${API_ROOT}/monitoring/analyze-now`, { method: "POST" });
+  const response = await apiFetch("analyzePendingNow", "/monitoring/analyze-now", {
+    method: "POST"
+  });
   return readJson<AnalyzeNowResult>(response);
 }

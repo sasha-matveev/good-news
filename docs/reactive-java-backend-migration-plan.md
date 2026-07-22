@@ -746,6 +746,12 @@ Every production ownership PR records its exact before/after operation map, roll
 
 Create a reversible per-operation routing foundation without changing production ownership yet, and close runtime gaps that would otherwise block the first Java request.
 
+**Status**
+
+- Completed on `codex/pr-19-production-strangler`.
+- Browser ownership remains all-Python; no production traffic ownership changed.
+- Runtime contract and reviewed connection/JVM budgets are documented in `backend-java/README.md`.
+
 **Exact changes**
 
 - Update `frontend/src/lib/api.ts` to resolve both Python and Java origins through one operation-ownership map.

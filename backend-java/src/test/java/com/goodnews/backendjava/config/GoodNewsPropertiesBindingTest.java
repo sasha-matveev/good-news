@@ -35,6 +35,13 @@ class GoodNewsPropertiesBindingTest {
                         "GOOD_NEWS_POSTGRES_DATABASE=good_news_prod",
                         "GOOD_NEWS_POSTGRES_USER=service_user",
                         "GOOD_NEWS_POSTGRES_PASSWORD=top-secret",
+                        "GOOD_NEWS_DATABASE_POOL_INITIAL_SIZE=1",
+                        "GOOD_NEWS_DATABASE_POOL_MAX_SIZE=4",
+                        "GOOD_NEWS_DATABASE_POOL_ACQUIRE_TIMEOUT=750ms",
+                        "GOOD_NEWS_DATABASE_CONNECT_TIMEOUT=3s",
+                        "GOOD_NEWS_DATABASE_OPERATION_TIMEOUT=12s",
+                        "GOOD_NEWS_DATABASE_POOL_IDLE_TIMEOUT=5m",
+                        "GOOD_NEWS_DATABASE_POOL_MAX_LIFE_TIME=20m",
                         "GOOD_NEWS_FIREBASE_PROJECT_ID=demo-project",
                         "GOOD_NEWS_ALLOWED_EMAILS=alice@example.com,bob@example.com",
                         "GOOD_NEWS_OIDC_AUDIENCE=https://good-news.example.com",
@@ -49,6 +56,9 @@ class GoodNewsPropertiesBindingTest {
                         "GOOD_NEWS_APP_MASTER_KEY=master-key",
                         "GOOD_NEWS_PUBLIC_CONTENT_API_ORIGIN=https://api.good-news.example.com",
                         "GOOD_NEWS_PUBLIC_FRONTEND_ORIGIN=https://good-news.example.com",
+                        "GOOD_NEWS_SMTP_CONNECTION_TIMEOUT=4s",
+                        "GOOD_NEWS_SMTP_READ_TIMEOUT=14s",
+                        "GOOD_NEWS_SMTP_WRITE_TIMEOUT=15s",
                         "GOOD_NEWS_OBSERVABILITY_GRAFANA_ORIGIN=https://grafana.good-news.example.com",
                         "GOOD_NEWS_OBSERVABILITY_GRAFANA_HOST=grafana.internal",
                         "GOOD_NEWS_OBSERVABILITY_GRAFANA_HOST_PORT=3300",
@@ -75,6 +85,13 @@ class GoodNewsPropertiesBindingTest {
             assertThat(properties.database().postgresDatabase()).isEqualTo("good_news_prod");
             assertThat(properties.database().postgresUser()).isEqualTo("service_user");
             assertThat(properties.database().postgresPassword()).isEqualTo("top-secret");
+            assertThat(properties.database().poolInitialSize()).isEqualTo(1);
+            assertThat(properties.database().poolMaxSize()).isEqualTo(4);
+            assertThat(properties.database().poolAcquireTimeout()).isEqualTo(java.time.Duration.ofMillis(750));
+            assertThat(properties.database().connectTimeout()).isEqualTo(java.time.Duration.ofSeconds(3));
+            assertThat(properties.database().operationTimeout()).isEqualTo(java.time.Duration.ofSeconds(12));
+            assertThat(properties.database().poolIdleTimeout()).isEqualTo(java.time.Duration.ofMinutes(5));
+            assertThat(properties.database().poolMaxLifeTime()).isEqualTo(java.time.Duration.ofMinutes(20));
 
             assertThat(properties.auth().firebaseProjectId()).isEqualTo("demo-project");
             assertThat(properties.auth().allowedEmails()).isEqualTo("alice@example.com,bob@example.com");
@@ -93,6 +110,9 @@ class GoodNewsPropertiesBindingTest {
             assertThat(properties.email().appMasterKey()).isEqualTo("master-key");
             assertThat(properties.email().publicContentApiOrigin()).isEqualTo("https://api.good-news.example.com");
             assertThat(properties.email().publicFrontendOrigin()).isEqualTo("https://good-news.example.com");
+            assertThat(properties.email().smtpConnectionTimeout()).isEqualTo(java.time.Duration.ofSeconds(4));
+            assertThat(properties.email().smtpReadTimeout()).isEqualTo(java.time.Duration.ofSeconds(14));
+            assertThat(properties.email().smtpWriteTimeout()).isEqualTo(java.time.Duration.ofSeconds(15));
             assertThat(properties.observability().grafanaOrigin()).isEqualTo("https://grafana.good-news.example.com");
             assertThat(properties.observability().grafanaHost()).isEqualTo("grafana.internal");
             assertThat(properties.observability().grafanaHostPort()).isEqualTo(3300);

@@ -53,6 +53,9 @@ class FlywaySchemaMigrationIT {
         StepVerifier.create(smokeProbe.verifyConnectivity())
                 .assertNext(canConnect -> assertThat(canConnect).isTrue())
                 .verifyComplete();
+        StepVerifier.create(smokeProbe.verifyRequiredSchema())
+                .assertNext(schemaReady -> assertThat(schemaReady).isTrue())
+                .verifyComplete();
 
         try (Connection connection = DriverManager.getConnection(
                 POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword())) {
