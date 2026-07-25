@@ -63,9 +63,16 @@ the report can return `GO`.
 
 Authentication integration tests in each backend remain responsible for
 cryptographic token verification. Differential auth processes use a
-deterministic token adapter that is guarded by `GOOD_NEWS_ENV=contract`; they
-compare missing tokens, allowlisted and rejected email claims, scheduler OIDC,
-and CORS without contacting Firebase or Google.
+deterministic token adapter; they compare missing tokens, allowlisted and
+rejected email claims, scheduler OIDC, and CORS without contacting Firebase or
+Google.
+
+Fixed time, deterministic authentication, source responses, and analysis
+responses are contract-harness adapters, not production features. The Python
+adapter is copied only by `contract-harness/Dockerfile.python`. The Java
+adapter sources are copied into the application source tree only inside the
+build stage of `contract-harness/Dockerfile.java`. The production Dockerfiles
+do not contain either adapter.
 
 The boundary service records SMTP envelopes, Gemini requests, and source-fetch
 requests. The runner clears it before each backend observation and includes the

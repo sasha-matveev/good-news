@@ -29,8 +29,6 @@ class GoodNewsPropertiesBindingTest {
                         "GOOD_NEWS_DELIVERY_SERVICE_PORT=9300",
                         "GOOD_NEWS_ANALYSIS_STUB_RESPONSE_JSON={\"mode\":\"stub\"}",
                         "GOOD_NEWS_INGESTION_RESPONSES_JSON=[{\"source\":\"demo\"}]",
-                        "GOOD_NEWS_FIXED_NOW=2026-04-26T12:00:00Z",
-                        "GOOD_NEWS_CONTRACT_AUTH_TOKENS_JSON={\"allowed\":{\"email\":\"reader@example.com\"}}",
                         "GOOD_NEWS_DATABASE_URL=r2dbc:postgresql://db.example/good_news",
                         "GOOD_NEWS_POSTGRES_HOST=db.internal",
                         "GOOD_NEWS_POSTGRES_PORT=6432",
@@ -80,8 +78,6 @@ class GoodNewsPropertiesBindingTest {
             assertThat(properties.app().deliveryServicePort()).isEqualTo(9300);
             assertThat(properties.app().analysisStubResponseJson()).isEqualTo("{\"mode\":\"stub\"}");
             assertThat(properties.app().ingestionResponsesJson()).isEqualTo("[{\"source\":\"demo\"}]");
-            assertThat(properties.app().fixedNow()).isEqualTo("2026-04-26T12:00:00Z");
-            assertThat(properties.app().contractAuthTokensJson()).contains("reader@example.com");
 
             assertThat(properties.database().url()).isEqualTo("r2dbc:postgresql://db.example/good_news");
             assertThat(properties.database().postgresHost()).isEqualTo("db.internal");

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from urllib.parse import quote_plus
 
 from app.core.secrets import (
@@ -49,8 +48,6 @@ class Settings:
     database_url_override: str | None = None
     analysis_stub_response_json: str | None = None
     ingestion_responses_json: str | None = None
-    fixed_now: str | None = None
-    contract_auth_tokens_json: str | None = None
     source_sync_interval_minutes: int = 30
     source_failure_threshold: int = 3
     gemini_api_key_env_var: str = "GOOD_NEWS_GEMINI_API_KEY"
@@ -89,8 +86,6 @@ class Settings:
             database_url_override=os.getenv("GOOD_NEWS_DATABASE_URL"),
             analysis_stub_response_json=os.getenv("GOOD_NEWS_ANALYSIS_STUB_RESPONSE_JSON"),
             ingestion_responses_json=os.getenv("GOOD_NEWS_INGESTION_RESPONSES_JSON"),
-            fixed_now=os.getenv("GOOD_NEWS_FIXED_NOW"),
-            contract_auth_tokens_json=os.getenv("GOOD_NEWS_CONTRACT_AUTH_TOKENS_JSON"),
             source_sync_interval_minutes=_read_int_env("GOOD_NEWS_SOURCE_SYNC_INTERVAL_MINUTES", 30),
             source_failure_threshold=_read_int_env("GOOD_NEWS_SOURCE_FAILURE_THRESHOLD", 3),
             gemini_model=os.getenv("GOOD_NEWS_GEMINI_MODEL", "gemini-3.1-flash-lite"),
@@ -164,14 +159,6 @@ class Settings:
             for email in self.allowed_emails.split(",")
             if email.strip()
         )
-
-    def now(self) -> datetime:
-        if not self.fixed_now:
-            return datetime.now(UTC)
-        parsed = datetime.fromisoformat(self.fixed_now.replace("Z", "+00:00"))
-        if parsed.tzinfo is None:
-            raise ValueError("GOOD_NEWS_FIXED_NOW must include a timezone.")
-        return parsed.astimezone(UTC)
 
     def analysis_service_base_url(self) -> str:
         return f"http://{self.analysis_service_host}:{self.analysis_service_port}"

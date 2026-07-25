@@ -9,7 +9,9 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.UnaryOperator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientRequestException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
@@ -18,12 +20,14 @@ import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
 import reactor.util.retry.Retry;
 
+@Component
 public class WebClientSourceDocumentLoader implements SourceDocumentLoader {
     private static final Logger LOG = LoggerFactory.getLogger(WebClientSourceDocumentLoader.class);
     private final WebClient.Builder clientBuilder;
     private final PublicSourceUrlPolicy urlPolicy;
     private final UnaryOperator<HttpClient> clientCustomizer;
 
+    @Autowired
     public WebClientSourceDocumentLoader(WebClient.Builder clientBuilder, PublicSourceUrlPolicy urlPolicy) {
         this(clientBuilder, urlPolicy, UnaryOperator.identity());
     }

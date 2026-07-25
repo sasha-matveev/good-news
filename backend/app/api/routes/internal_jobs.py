@@ -6,11 +6,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel
 
 from app.core.config import MissingPublicOriginError
-from app.core.request_auth import (
-    _bearer_token,
-    contract_token_verifier,
-    google_oidc_token_verifier,
-)
+from app.core.request_auth import _bearer_token, google_oidc_token_verifier
 from app.jobs.digest_jobs import (
     catch_up_daily_digest_if_needed,
     catch_up_daily_observability_report_if_needed,
@@ -52,9 +48,7 @@ def _require_scheduler_oidc(request: Request) -> None:
 
     verifier = getattr(request.app.state, "scheduler_oidc_verifier", None)
     if verifier is None:
-        verifier = contract_token_verifier(settings) or google_oidc_token_verifier(
-            audience=settings.oidc_audience
-        )
+        verifier = google_oidc_token_verifier(audience=settings.oidc_audience)
         request.app.state.scheduler_oidc_verifier = verifier
 
     try:

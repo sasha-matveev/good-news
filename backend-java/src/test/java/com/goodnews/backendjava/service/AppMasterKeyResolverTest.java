@@ -49,8 +49,6 @@ class AppMasterKeyResolverTest {
                         "localhost",
                         8300,
                         null,
-                        null,
-                        null,
                         null),
                 new DatabaseProperties(null, "localhost", 5432, "good_news", "good_news", null),
                 new AuthProperties(null, "", null),
