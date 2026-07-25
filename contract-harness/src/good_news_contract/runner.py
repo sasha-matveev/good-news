@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from time import monotonic, sleep
 from typing import Any
 
 import httpx
@@ -28,6 +29,28 @@ class Harness:
     def __init__(self, config: HarnessConfig, normalizer: Normalizer) -> None:
         self._config = config
         self._normalizer = normalizer
+
+    def wait_until_ready(self, timeout_seconds: float = 90) -> None:
+        urls = [
+            self._config.python_url,
+            self._config.java_url,
+            self._config.python_auth_url,
+            self._config.java_auth_url,
+        ]
+        deadline = monotonic() + timeout_seconds
+        pending = {url for url in urls if url}
+        while pending and monotonic() < deadline:
+            for url in tuple(pending):
+                try:
+                    response = httpx.get(f"{url}/api/health", timeout=2)
+                    if response.status_code == 200:
+                        pending.remove(url)
+                except httpx.HTTPError:
+                    pass
+            if pending:
+                sleep(1)
+        if pending:
+            raise TimeoutError(f"Backends did not become ready: {sorted(pending)}")
 
     def run_differential(self, scenario: Scenario) -> None:
         if scenario.mode not in {"differential", "both"}:
