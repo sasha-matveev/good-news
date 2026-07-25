@@ -42,6 +42,7 @@ def main() -> None:
         java_auth_url=os.getenv("GOOD_NEWS_CONTRACT_JAVA_AUTH_URL"),
     )
     harness = Harness(config, Normalizer(frozenset({"id", "created_at", "updated_at", "sent_at", "correlation_id"})))
+    harness.wait_until_ready()
     results = {}
     for scenario in scenarios:
         applies = (
