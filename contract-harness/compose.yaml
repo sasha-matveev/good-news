@@ -11,7 +11,7 @@ x-backend-environment: &backend-environment
   GOOD_NEWS_SCHEDULER_INVOKER: scheduler@contract.test
   GOOD_NEWS_OIDC_AUDIENCE: https://jobs.contract.test
   GOOD_NEWS_ANALYSIS_STUB_RESPONSE_JSON: >-
-    {"summary_ru":"Детерминированный ответ","topics":["platform"],"format":"article","technical_depth":"medium","verdict":"interesting","verdict_reason":"Useful.","relevance_score":8}
+    {"summary_ru":"Детерминированный ответ","topics":["platform"],"format":"news","technical_depth":"intermediate","verdict":"interesting","verdict_reason":"Useful.","relevance_score":8}
   GOOD_NEWS_FIXED_NOW: "2026-04-26T12:00:00Z"
   GOOD_NEWS_CONTRACT_AUTH_TOKENS_JSON: >-
     {"allowed-user":{"email":"reader@contract.test","email_verified":true},"forbidden-user":{"email":"outsider@contract.test","email_verified":true},"scheduler":{"email":"scheduler@contract.test","email_verified":true}}
