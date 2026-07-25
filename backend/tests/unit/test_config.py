@@ -1,4 +1,9 @@
+from datetime import UTC, datetime
+
+import pytest
+
 from app.core.config import Settings
+from app.core.request_auth import contract_token_verifier
 from app.core.secrets import (
     APP_MASTER_KEY_SECRET_NAME,
     POSTGRES_PASSWORD_SECRET_NAME,
@@ -86,3 +91,29 @@ def test_app_master_key_falls_back_to_secret_store(monkeypatch) -> None:
     secret_store = InMemorySecretStore({APP_MASTER_KEY_SECRET_NAME: "master-key"})
 
     assert settings.app_master_key(secret_store=secret_store) == "master-key"
+
+
+def test_fixed_now_is_an_explicit_utc_clock_contract(monkeypatch) -> None:
+    monkeypatch.setenv("GOOD_NEWS_FIXED_NOW", "2026-04-26T14:00:00+02:00")
+
+    assert Settings.from_env().now() == datetime(2026, 4, 26, 12, 0, tzinfo=UTC)
+
+
+def test_fixed_now_rejects_a_timezone_less_value() -> None:
+    with pytest.raises(ValueError, match="must include a timezone"):
+        Settings(fixed_now="2026-04-26T12:00:00").now()
+
+
+def test_contract_token_verifier_is_scoped_to_contract_environment() -> None:
+    payload = '{"allowed":{"email":"reader@example.com","email_verified":true}}'
+
+    assert contract_token_verifier(Settings(contract_auth_tokens_json=payload)) is None
+
+    verifier = contract_token_verifier(
+        Settings(environment="contract", contract_auth_tokens_json=payload)
+    )
+
+    assert verifier is not None
+    assert verifier("allowed")["email"] == "reader@example.com"
+    with pytest.raises(ValueError, match="Unknown contract token"):
+        verifier("missing")

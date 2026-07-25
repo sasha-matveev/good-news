@@ -1,0 +1,5 @@
+FROM python:3.12-slim
+WORKDIR /contract
+COPY contract-harness/adapters/fake_boundaries.py /contract/fake_boundaries.py
+CMD ["python", "/contract/fake_boundaries.py"]
+

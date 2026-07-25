@@ -105,7 +105,7 @@ def create_app(
     settings: Settings | None = None,
 ) -> FastAPI:
     resolved_settings = settings or Settings.from_env()
-    resolved_now_provider = now_provider or (lambda: datetime.now(UTC))
+    resolved_now_provider = now_provider or resolved_settings.now
 
     app = FastAPI(title="Good News")
     app.state.session_factory = session_factory

@@ -24,6 +24,8 @@ public class GoodNewsEnvironmentPostProcessor implements EnvironmentPostProcesso
             Map.entry("GOOD_NEWS_DELIVERY_SERVICE_PORT", "good-news.app.delivery-service-port"),
             Map.entry("GOOD_NEWS_ANALYSIS_STUB_RESPONSE_JSON", "good-news.app.analysis-stub-response-json"),
             Map.entry("GOOD_NEWS_INGESTION_RESPONSES_JSON", "good-news.app.ingestion-responses-json"),
+            Map.entry("GOOD_NEWS_FIXED_NOW", "good-news.app.fixed-now"),
+            Map.entry("GOOD_NEWS_CONTRACT_AUTH_TOKENS_JSON", "good-news.app.contract-auth-tokens-json"),
             Map.entry("GOOD_NEWS_DATABASE_URL", "good-news.database.url"),
             Map.entry("GOOD_NEWS_POSTGRES_HOST", "good-news.database.postgres-host"),
             Map.entry("GOOD_NEWS_POSTGRES_PORT", "good-news.database.postgres-port"),

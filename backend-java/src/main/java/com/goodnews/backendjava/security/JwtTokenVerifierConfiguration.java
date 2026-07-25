@@ -1,5 +1,7 @@
 package com.goodnews.backendjava.security;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.goodnews.backendjava.config.GoodNewsProperties;
 import java.util.List;
 import org.springframework.context.annotation.Bean;
@@ -23,12 +25,18 @@ public class JwtTokenVerifierConfiguration {
 
     @Bean
     FirebaseTokenVerifier firebaseTokenVerifier(GoodNewsProperties properties) {
+        if (isContractVerifierConfigured(properties)) {
+            return token -> contractClaims(properties, token);
+        }
         ReactiveJwtDecoder decoder = buildFirebaseDecoder(properties.auth().firebaseProjectId());
         return token -> decoder.decode(token).map(this::toClaims).subscribeOn(Schedulers.boundedElastic());
     }
 
     @Bean
     GoogleOidcTokenVerifier googleOidcTokenVerifier(GoodNewsProperties properties) {
+        if (isContractVerifierConfigured(properties)) {
+            return token -> contractClaims(properties, token);
+        }
         ReactiveJwtDecoder decoder = buildGoogleOidcDecoder(properties.auth().oidcAudience());
         return token -> decoder.decode(token).map(this::toClaims).subscribeOn(Schedulers.boundedElastic());
     }
@@ -72,5 +80,24 @@ public class JwtTokenVerifierConfiguration {
         return new TokenClaims(
                 jwt.getClaimAsString("email"),
                 Boolean.TRUE.equals(emailVerified) || "true".equals(String.valueOf(emailVerified)));
+    }
+
+    private boolean isContractVerifierConfigured(GoodNewsProperties properties) {
+        return "contract".equals(properties.app().environment())
+                && properties.app().contractAuthTokensJson() != null
+                && !properties.app().contractAuthTokensJson().isBlank();
+    }
+
+    private reactor.core.publisher.Mono<TokenClaims> contractClaims(GoodNewsProperties properties, String token) {
+        return reactor.core.publisher.Mono.fromCallable(() -> {
+            JsonNode claims = new ObjectMapper()
+                    .readTree(properties.app().contractAuthTokensJson())
+                    .get(token);
+            if (claims == null || !claims.isObject()) {
+                throw new IllegalArgumentException("Unknown contract token.");
+            }
+            return new TokenClaims(
+                    claims.path("email").asText(), claims.path("email_verified").asBoolean(false));
+        });
     }
 }
