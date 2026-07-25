@@ -5,9 +5,19 @@ HARNESS_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 REPOSITORY_DIR=$(dirname "$HARNESS_DIR")
 
 docker compose -f "$HARNESS_DIR/compose.yaml" up --build --wait
-trap 'docker compose -f "$HARNESS_DIR/compose.yaml" down --volumes' EXIT
+
+cleanup() {
+  status=$?
+  if [ "$status" -ne 0 ]; then
+    docker compose -f "$HARNESS_DIR/compose.yaml" logs --no-color java java-auth
+  fi
+  docker compose -f "$HARNESS_DIR/compose.yaml" down --volumes
+  exit "$status"
+}
+trap cleanup EXIT
 
 python3 -m pip install -e "$HARNESS_DIR"
+mkdir -p "$REPOSITORY_DIR/artifacts"
 
 export GOOD_NEWS_CONTRACT_PYTHON_URL=http://127.0.0.1:18000
 export GOOD_NEWS_CONTRACT_JAVA_URL=http://127.0.0.1:18080

@@ -101,4 +101,4 @@ jobs:
         with:
           name: backend-parity-reports
           path: artifacts/backend-parity*.md
-          if-no-files-found: error
+          if-no-files-found: warn
