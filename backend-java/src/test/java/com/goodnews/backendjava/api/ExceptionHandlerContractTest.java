@@ -2,6 +2,7 @@ package com.goodnews.backendjava.api;
 
 import com.goodnews.backendjava.api.contract.ApiErrorHandler;
 import com.goodnews.backendjava.api.contract.ApiHttpException;
+import com.goodnews.backendjava.api.dto.FeedbackDtos;
 import com.goodnews.backendjava.api.dto.SettingsDtos;
 import com.goodnews.backendjava.ingestion.application.SourceNotFoundException;
 import jakarta.validation.Valid;
@@ -126,6 +127,31 @@ class ExceptionHandlerContractTest {
     }
 
     @Test
+    void feedbackStateValidationOwnsItsFastApiCompatibleLiteralError() {
+        webTestClient
+                .post()
+                .uri("/contract/feedback")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"state\":\"unknown\"}")
+                .exchange()
+                .expectStatus()
+                .isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY)
+                .expectBody()
+                .jsonPath("$.detail[0].loc[0]")
+                .isEqualTo("body")
+                .jsonPath("$.detail[0].loc[1]")
+                .isEqualTo("state")
+                .jsonPath("$.detail[0].msg")
+                .isEqualTo("Input should be 'interesting', 'not_interesting', 'want_to_read' or 'norm'")
+                .jsonPath("$.detail[0].type")
+                .isEqualTo("literal_error")
+                .jsonPath("$.detail[0].input")
+                .isEqualTo("unknown")
+                .jsonPath("$.detail[0].ctx.expected")
+                .isEqualTo("'interesting', 'not_interesting', 'want_to_read' or 'norm'");
+    }
+
+    @Test
     void httpExceptionsExposeLegacyDetailEnvelope() {
         webTestClient
                 .post()
@@ -164,6 +190,9 @@ class ExceptionHandlerContractTest {
         void notFound() {
             throw new ApiHttpException(HttpStatus.NOT_FOUND, "Post not found");
         }
+
+        @PostMapping("/contract/feedback")
+        void validateFeedback(@Valid @RequestBody FeedbackDtos.FeedbackUpdateRequest request) {}
 
         @PostMapping("/contract/source-not-found")
         void sourceNotFound() {

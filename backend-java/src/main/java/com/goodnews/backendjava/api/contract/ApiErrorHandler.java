@@ -1,6 +1,5 @@
 package com.goodnews.backendjava.api.contract;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.goodnews.backendjava.ingestion.application.SourceNotFoundException;
 import java.util.List;
 import java.util.Map;
@@ -10,7 +9,6 @@ import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -37,22 +35,22 @@ public class ApiErrorHandler {
 
     @ExceptionHandler(WebExchangeBindException.class)
     public ResponseEntity<Map<String, Object>> handleBindException(WebExchangeBindException exception) {
-        List<ValidationErrorItem> detail =
-                exception.getFieldErrors().stream().map(this::fromFieldError).toList();
+        List<ApiValidationError> detail = exception.getFieldErrors().stream()
+                .map(ApiValidationError::from)
+                .toList();
         return ResponseEntity.unprocessableEntity().body(Map.of("detail", detail));
     }
 
     @ExceptionHandler(HandlerMethodValidationException.class)
     public ResponseEntity<Map<String, Object>> handleMethodValidationException(
             HandlerMethodValidationException exception) {
-        List<ValidationErrorItem> detail = exception.getAllValidationResults().stream()
+        List<ApiValidationError> detail = exception.getAllValidationResults().stream()
                 .flatMap(result -> result.getResolvableErrors().stream().map(error -> {
                     String fieldName = result.getMethodParameter().getParameterName();
-                    return new ValidationErrorItem(
-                            List.of(resolveLocation(result.getMethodParameter()), fieldName),
+                    return ApiValidationError.valueError(
+                            resolveLocation(result.getMethodParameter()),
+                            fieldName,
                             Objects.requireNonNullElse(error.getDefaultMessage(), "Validation failed"),
-                            "value_error",
-                            null,
                             null);
                 }))
                 .toList();
@@ -62,23 +60,6 @@ public class ApiErrorHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalArgumentException(IllegalArgumentException exception) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("detail", exception.getMessage()));
-    }
-
-    private ValidationErrorItem fromFieldError(FieldError error) {
-        if ("state".equals(error.getField()) && error.getRejectedValue() instanceof String rejected) {
-            return new ValidationErrorItem(
-                    List.of("body", "state"),
-                    "Input should be 'interesting', 'not_interesting', 'want_to_read' or 'norm'",
-                    "literal_error",
-                    rejected,
-                    Map.of("expected", "'interesting', 'not_interesting', 'want_to_read' or 'norm'"));
-        }
-        return new ValidationErrorItem(
-                List.of("body", error.getField()),
-                Objects.requireNonNullElse(error.getDefaultMessage(), "Validation failed"),
-                "value_error",
-                null,
-                null);
     }
 
     private String resolveLocation(MethodParameter parameter) {
@@ -99,7 +80,4 @@ public class ApiErrorHandler {
         }
         return "query";
     }
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    record ValidationErrorItem(List<String> loc, String msg, String type, Object input, Map<String, Object> ctx) {}
 }
