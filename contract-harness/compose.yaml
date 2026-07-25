@@ -62,7 +62,7 @@ services:
   python:
     build:
       context: ..
-      dockerfile: backend/Dockerfile
+      dockerfile: contract-harness/Dockerfile.python
     environment:
       <<: *backend-environment
       GOOD_NEWS_POSTGRES_HOST: postgres-python
@@ -77,7 +77,7 @@ services:
   python-auth:
     build:
       context: ..
-      dockerfile: backend/Dockerfile
+      dockerfile: contract-harness/Dockerfile.python
     environment:
       <<: *backend-environment
       GOOD_NEWS_POSTGRES_HOST: postgres-python
@@ -94,7 +94,7 @@ services:
   java:
     build:
       context: ..
-      dockerfile: backend-java/Dockerfile
+      dockerfile: contract-harness/Dockerfile.java
     environment:
       <<: *backend-environment
       GOOD_NEWS_POSTGRES_HOST: ${GOOD_NEWS_JAVA_POSTGRES_HOST:-postgres-java}
@@ -113,7 +113,7 @@ services:
   java-auth:
     build:
       context: ..
-      dockerfile: backend-java/Dockerfile
+      dockerfile: contract-harness/Dockerfile.java
     environment:
       <<: *backend-environment
       GOOD_NEWS_POSTGRES_HOST: ${GOOD_NEWS_JAVA_POSTGRES_HOST:-postgres-java}

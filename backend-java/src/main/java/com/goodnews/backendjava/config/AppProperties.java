@@ -14,9 +14,7 @@ public record AppProperties(
         @DefaultValue(DEFAULT_HOST) String deliveryServiceHost,
         @DefaultValue(DEFAULT_DELIVERY_SERVICE_PORT) Integer deliveryServicePort,
         String analysisStubResponseJson,
-        String ingestionResponsesJson,
-        String fixedNow,
-        String contractAuthTokensJson) {
+        String ingestionResponsesJson) {
     private static final String DEFAULT_ENVIRONMENT = "dev";
     private static final String DEFAULT_HOST = "localhost";
     private static final String DEFAULT_CONTENT_API_SERVICE_PORT = "8000";

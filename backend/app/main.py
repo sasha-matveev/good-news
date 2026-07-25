@@ -28,7 +28,6 @@ from app.core.request_auth import install_user_auth_middleware
 from app.core.schema_guard import assert_database_schema_is_current
 from app.parsing.discovery import DocumentLoader
 from app.services.analysis import AnalysisResult
-from app.services.stub_analysis_client import StubAnalysisClient
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +105,7 @@ def create_app(
     settings: Settings | None = None,
 ) -> FastAPI:
     resolved_settings = settings or Settings.from_env()
-    resolved_now_provider = now_provider or resolved_settings.now
+    resolved_now_provider = now_provider or (lambda: datetime.now(UTC))
 
     app = FastAPI(title="Good News")
     app.state.session_factory = session_factory
@@ -115,19 +114,10 @@ def create_app(
     app.state.responses = _load_responses(resolved_settings, responses)
     app.state.document_client = None
     app.state.document_loader = document_loader
+    app.state.analysis_client_factory = analysis_client_factory or (
+        lambda: GeminiClient(settings=resolved_settings, session_factory=app.state.session_factory)
+    )
     app.state.analysis_stub_result = _stub_analysis_result(resolved_settings)
-    if analysis_client_factory is not None:
-        app.state.analysis_client_factory = analysis_client_factory
-    elif app.state.analysis_stub_result is not None:
-        app.state.analysis_client_factory = lambda: StubAnalysisClient(
-            session_factory=app.state.session_factory,
-            result=app.state.analysis_stub_result,
-        )
-    else:
-        app.state.analysis_client_factory = lambda: GeminiClient(
-            settings=resolved_settings,
-            session_factory=app.state.session_factory,
-        )
     app.state.email_transport_factory = email_transport_factory
 
     app.add_middleware(
