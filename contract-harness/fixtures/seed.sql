@@ -39,11 +39,11 @@ INSERT INTO post_analysis (
 
 INSERT INTO digests (
     id, digest_type, scheduled_for, status, recipient_email, subject,
-    html_body, metadata_json, sent_at, created_at, delivery_slot_key
+    html_body, metadata_json, sent_at, created_at
 ) VALUES
     (1, 'daily', '2026-04-26T08:00:00Z', 'sent', 'reader@contract.test',
      'Daily digest', '<p>Digest</p>', '{}', '2026-04-26T08:01:00Z',
-     '2026-04-26T08:00:00Z', 'daily:2026-04-26');
+     '2026-04-26T08:00:00Z');
 
 INSERT INTO digest_items (id, digest_id, post_id, rank_position)
 VALUES (1, 1, 1, 1);
@@ -53,4 +53,3 @@ SELECT setval(pg_get_serial_sequence('posts', 'id'), 2, true);
 SELECT setval(pg_get_serial_sequence('post_analysis', 'id'), 1, true);
 SELECT setval(pg_get_serial_sequence('digests', 'id'), 1, true);
 SELECT setval(pg_get_serial_sequence('digest_items', 'id'), 1, true);
-
