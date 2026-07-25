@@ -49,3 +49,9 @@ def test_only_allowlisted_volatile_fields_are_normalized() -> None:
         Normalizer(frozenset({"id"})),
     )
 
+
+def test_persisted_json_fields_are_compared_semantically() -> None:
+    python = ScenarioObservation((), {"post_analysis": [{"metadata_json": '{"b": 2, "a": 1}'}]}, [])
+    java = ScenarioObservation((), {"post_analysis": [{"metadata_json": '{"a":1,"b":2}'}]}, [])
+
+    compare_observations("json", python, java, Normalizer(frozenset()))

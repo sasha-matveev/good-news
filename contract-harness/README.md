@@ -49,6 +49,11 @@ The fixtures use the same public origins, deterministic analysis/source
 responses, and explicit timestamps. Mutation snapshots still normalize
 database-generated timestamps.
 
+Columns named `*_json` are decoded before comparison. This is structural
+comparison rather than value normalization: object keys and values remain
+strict, while insignificant JSON whitespace and object-key ordering do not
+create false mismatches.
+
 ## Adding a route
 
 Add a scenario to `scenarios.json`, including every table it may change.
