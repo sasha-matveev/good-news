@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       backend_java: ${{ steps.filter.outputs.backend_java }}
+      contract_harness: ${{ steps.filter.outputs.contract_harness }}
       shared: ${{ steps.filter.outputs.shared }}
     steps:
       - uses: actions/checkout@v4
@@ -25,6 +26,10 @@ jobs:
         with:
           filters: |
             backend_java:
+              - 'backend-java/**'
+            contract_harness:
+              - 'contract-harness/**'
+              - 'backend/**'
               - 'backend-java/**'
             shared:
               - '.github/workflows/ci.yml'
@@ -70,3 +75,30 @@ jobs:
           cache-dependency-path: backend-java/pom.xml
       - name: Run backend-java tests
         run: ./mvnw -B verify
+
+  differential-contract:
+    needs: changes
+    if: needs.changes.outputs.contract_harness == 'true' || needs.changes.outputs.shared == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: contract-harness/pyproject.toml
+      - name: Install contract harness
+        run: python -m pip install -e './contract-harness[dev]'
+      - name: Prove mismatch diagnostics
+        run: pytest contract-harness/tests -q
+      - name: Run isolated-database differential contract
+        run: ./contract-harness/run-local.sh
+      - name: Run shared-database read-only smoke
+        run: ./contract-harness/run-read-only.sh
+      - name: Publish parity reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-parity-reports
+          path: artifacts/backend-parity*.md
+          if-no-files-found: error

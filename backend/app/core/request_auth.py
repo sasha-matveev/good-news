@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import Callable
 
@@ -48,6 +49,20 @@ def google_oidc_token_verifier(audience: str | None) -> TokenVerifier:
     return verify
 
 
+def contract_token_verifier(settings: Settings) -> TokenVerifier | None:
+    if settings.environment != "contract" or not settings.contract_auth_tokens_json:
+        return None
+    claims_by_token = json.loads(settings.contract_auth_tokens_json)
+
+    def verify(token: str) -> dict:
+        claims = claims_by_token.get(token)
+        if not isinstance(claims, dict):
+            raise ValueError("Unknown contract token.")
+        return claims
+
+    return verify
+
+
 def install_user_auth_middleware(
     app: FastAPI,
     settings: Settings,
@@ -62,6 +77,8 @@ def install_user_auth_middleware(
         return
 
     allowed_emails = settings.allowed_email_set()
+    if verifier is None:
+        verifier = contract_token_verifier(settings)
     if verifier is not None:
         app.state.user_token_verifier = verifier
 

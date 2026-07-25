@@ -1,0 +1,172 @@
+{
+  "active_route_groups": [
+    "health",
+    "posts",
+    "feedback",
+    "want-to-read",
+    "digests",
+    "monitoring",
+    "preferences",
+    "settings",
+    "sources",
+    "internal-jobs",
+    "security-and-cors"
+  ],
+  "scenarios": [
+    {
+      "name": "health",
+      "route_group": "health",
+      "mode": "both",
+      "steps": [{"method": "GET", "path": "/api/health"}]
+    },
+    {
+      "name": "post-order-and-pagination",
+      "route_group": "posts",
+      "mode": "both",
+      "steps": [{"method": "GET", "path": "/api/posts?window=all&sort=date&limit=1&offset=1"}]
+    },
+    {
+      "name": "feedback-success-update-and-read-after-write",
+      "route_group": "feedback",
+      "mode": "differential",
+      "tables": ["feedback"],
+      "steps": [
+        {"method": "PUT", "path": "/api/feedback/1", "json": {"state": "interesting"}},
+        {"method": "PUT", "path": "/api/feedback/1", "json": {"state": "not_interesting"}},
+        {"method": "GET", "path": "/api/posts?window=all&feedback_state=not_interesting"}
+      ]
+    },
+    {
+      "name": "feedback-idempotent",
+      "route_group": "feedback",
+      "mode": "differential",
+      "tables": ["feedback"],
+      "steps": [
+        {"method": "PUT", "path": "/api/feedback/1", "json": {"state": "interesting"}},
+        {"method": "PUT", "path": "/api/feedback/1", "json": {"state": "interesting"}}
+      ]
+    },
+    {
+      "name": "feedback-not-found",
+      "route_group": "feedback",
+      "mode": "differential",
+      "tables": ["feedback"],
+      "steps": [{"method": "PUT", "path": "/api/feedback/999", "json": {"state": "interesting"}}]
+    },
+    {
+      "name": "feedback-validation",
+      "route_group": "feedback",
+      "mode": "differential",
+      "tables": ["feedback"],
+      "steps": [{"method": "PUT", "path": "/api/feedback/1", "json": {"state": "invalid"}}]
+    },
+    {
+      "name": "feedback-public-redirect",
+      "route_group": "feedback",
+      "mode": "differential",
+      "tables": ["feedback"],
+      "steps": [{"method": "GET", "path": "/api/feedback/1/interesting?digest_id=21"}]
+    },
+    {
+      "name": "want-to-read-reaction-and-read-after-write",
+      "route_group": "want-to-read",
+      "mode": "differential",
+      "tables": ["feedback"],
+      "steps": [
+        {"method": "PUT", "path": "/api/want-to-read/1", "json": {"saved": true}},
+        {"method": "PUT", "path": "/api/want-to-read/1", "json": {"saved": true}},
+        {"method": "GET", "path": "/api/posts?window=all&feedback_state=want_to_read"}
+      ]
+    },
+    {
+      "name": "digest-list",
+      "route_group": "digests",
+      "mode": "both",
+      "steps": [{"method": "GET", "path": "/api/digests"}]
+    },
+    {
+      "name": "monitoring-summary",
+      "route_group": "monitoring",
+      "mode": "both",
+      "steps": [{"method": "GET", "path": "/api/monitoring/summary"}]
+    },
+    {
+      "name": "preferences",
+      "route_group": "preferences",
+      "mode": "both",
+      "steps": [{"method": "GET", "path": "/api/preferences"}]
+    },
+    {
+      "name": "settings",
+      "route_group": "settings",
+      "mode": "both",
+      "steps": [{"method": "GET", "path": "/api/settings"}]
+    },
+    {
+      "name": "sources",
+      "route_group": "sources",
+      "mode": "both",
+      "steps": [{"method": "GET", "path": "/api/sources"}]
+    },
+    {
+      "name": "scheduler-oidc-missing-token",
+      "route_group": "internal-jobs",
+      "mode": "differential",
+      "steps": [{"method": "POST", "path": "/internal/jobs/source-sync"}]
+    },
+    {
+      "name": "scheduler-oidc-valid-invoker",
+      "route_group": "internal-jobs",
+      "mode": "differential",
+      "tables": ["sources", "posts", "post_analysis", "technical_events"],
+      "steps": [{
+        "method": "POST",
+        "path": "/internal/jobs/source-sync",
+        "headers": {"Authorization": "Bearer scheduler"}
+      }]
+    },
+    {
+      "name": "cors-preflight",
+      "route_group": "security-and-cors",
+      "mode": "both",
+      "steps": [{
+        "method": "OPTIONS",
+        "path": "/api/posts",
+        "headers": {
+          "Origin": "https://frontend.contract.test",
+          "Access-Control-Request-Method": "GET",
+          "Access-Control-Request-Headers": "authorization"
+        }
+      }]
+    },
+    {
+      "name": "firebase-missing-token",
+      "route_group": "security-and-cors",
+      "mode": "differential",
+      "target": "auth",
+      "steps": [{"method": "GET", "path": "/api/posts?window=all"}]
+    },
+    {
+      "name": "firebase-allowed-email",
+      "route_group": "security-and-cors",
+      "mode": "differential",
+      "target": "auth",
+      "steps": [{
+        "method": "GET",
+        "path": "/api/posts?window=all",
+        "headers": {"Authorization": "Bearer allowed-user"}
+      }]
+    },
+    {
+      "name": "firebase-disallowed-email",
+      "route_group": "security-and-cors",
+      "mode": "differential",
+      "target": "auth",
+      "steps": [{
+        "method": "GET",
+        "path": "/api/posts?window=all",
+        "headers": {"Authorization": "Bearer forbidden-user"}
+      }]
+    }
+  ]
+}

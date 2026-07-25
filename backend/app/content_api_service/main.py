@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
-
 from fastapi import FastAPI
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -32,7 +30,7 @@ def create_app(
     app = FastAPI(title="Good News Content API Service")
     app.state.discovery_responses = discovery_responses or {}
     app.state.session_factory = session_factory
-    app.state.now_provider = now_provider or (lambda: datetime.now(UTC))
+    app.state.now_provider = now_provider or resolved_settings.now
     app.state.settings = resolved_settings
     app.state.source_ingestion_client_factory = source_ingestion_client_factory
     app.state.delivery_service_client_factory = delivery_service_client_factory

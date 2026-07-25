@@ -103,6 +103,8 @@ class AnalysisConfigurationTest {
                         "localhost",
                         8300,
                         stub,
+                        null,
+                        null,
                         null),
                 new DatabaseProperties(null, "localhost", 5432, "good_news", "good_news", null),
                 new AuthProperties(null, "", null),
