@@ -97,7 +97,7 @@ class Harness:
                     json=step.json_body,
                     headers=step.headers,
                 )
-                observations.append(self._http_observation(response))
+                observations.append(self._http_observation(step.method, response))
         return ScenarioObservation(
             http=tuple(observations),
             tables=database.snapshot(scenario.tables),
@@ -105,9 +105,11 @@ class Harness:
         )
 
     @staticmethod
-    def _http_observation(response: httpx.Response) -> HttpObservation:
+    def _http_observation(method: str, response: httpx.Response) -> HttpObservation:
         content_type = response.headers.get("content-type", "")
         body: Any = response.json() if "json" in content_type else response.text
+        if method == "OPTIONS":
+            body = None
         error_class = None
         if response.status_code >= 400:
             if isinstance(body, dict) and "detail" in body:

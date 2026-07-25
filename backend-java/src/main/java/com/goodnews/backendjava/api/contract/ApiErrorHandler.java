@@ -1,5 +1,6 @@
 package com.goodnews.backendjava.api.contract;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.goodnews.backendjava.ingestion.application.SourceNotFoundException;
 import java.util.List;
 import java.util.Map;
@@ -50,7 +51,9 @@ public class ApiErrorHandler {
                     return new ValidationErrorItem(
                             List.of(resolveLocation(result.getMethodParameter()), fieldName),
                             Objects.requireNonNullElse(error.getDefaultMessage(), "Validation failed"),
-                            "value_error");
+                            "value_error",
+                            null,
+                            null);
                 }))
                 .toList();
         return ResponseEntity.unprocessableEntity().body(Map.of("detail", detail));
@@ -62,10 +65,20 @@ public class ApiErrorHandler {
     }
 
     private ValidationErrorItem fromFieldError(FieldError error) {
+        if ("state".equals(error.getField()) && error.getRejectedValue() instanceof String rejected) {
+            return new ValidationErrorItem(
+                    List.of("body", "state"),
+                    "Input should be 'interesting', 'not_interesting', 'want_to_read' or 'norm'",
+                    "literal_error",
+                    rejected,
+                    Map.of("expected", "'interesting', 'not_interesting', 'want_to_read' or 'norm'"));
+        }
         return new ValidationErrorItem(
                 List.of("body", error.getField()),
                 Objects.requireNonNullElse(error.getDefaultMessage(), "Validation failed"),
-                "value_error");
+                "value_error",
+                null,
+                null);
     }
 
     private String resolveLocation(MethodParameter parameter) {
@@ -87,5 +100,6 @@ public class ApiErrorHandler {
         return "query";
     }
 
-    record ValidationErrorItem(List<String> loc, String msg, String type) {}
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    record ValidationErrorItem(List<String> loc, String msg, String type, Object input, Map<String, Object> ctx) {}
 }
