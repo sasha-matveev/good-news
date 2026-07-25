@@ -786,11 +786,20 @@ Create a reversible per-operation routing foundation without changing production
 - The operation map is a migration control plane, not a general feature-flag framework.
 - A hidden production selector is not an access-control mechanism and must not replace versioned ownership changes.
 
-### PR-20. Build a Differential Contract and Persisted-State Harness
+### PR-20. Build a Differential Contract and Persisted-State Harness [Completed on codex/pr-20-differential-harness]
 
 **Goal**
 
 Make each production ownership decision evidence-based without allowing one backend's mutation to contaminate the other backend's expected result.
+
+**Status**
+
+- Completed on `codex/pr-20-differential-harness`.
+- Artifact: standalone runner, manifest, fixtures, reports, fake external-boundary adapter, and local orchestration under `contract-harness/`.
+- Artifact: CI `differential-contract` job runs isolated-database mutation parity and shared-database read-only smoke, then publishes route-group reports.
+- Coverage: 19 deterministic differential scenarios across every active route group, including reaction success, failure, idempotency, and read-after-write; Firebase/email allowlist, scheduler OIDC, CORS, redirects, validation, and persisted state.
+- Diagnostics are covered by harness tests that intentionally introduce HTTP-field and persisted-row mismatches.
+- Verified in GitHub Actions run `30174501697`: differential contract, shared read-only smoke, Python, Java, frontend, and CodeQL checks all passed.
 
 **Exact changes**
 
