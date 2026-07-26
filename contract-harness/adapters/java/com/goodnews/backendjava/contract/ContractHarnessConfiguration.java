@@ -1,6 +1,5 @@
 package com.goodnews.backendjava.contract;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.goodnews.backendjava.ingestion.application.port.SourceDocumentLoader;
 import java.time.Clock;
 import java.time.Instant;
@@ -9,6 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.core.env.Environment;
+import tools.jackson.databind.ObjectMapper;
 
 @Configuration
 public class ContractHarnessConfiguration {

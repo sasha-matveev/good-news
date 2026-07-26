@@ -1,11 +1,11 @@
 package com.goodnews.backendjava.contract;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.goodnews.backendjava.ingestion.application.SourceIngestionException;
 import com.goodnews.backendjava.ingestion.application.port.SourceDocumentLoader;
 import java.util.Map;
 import reactor.core.publisher.Mono;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 final class ContractSourceDocumentLoader implements SourceDocumentLoader {
 
