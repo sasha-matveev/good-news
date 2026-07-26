@@ -35,6 +35,7 @@ jobs:
               - '.github/workflows/ci.yml'
 
   backend:
+    name: backend
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
