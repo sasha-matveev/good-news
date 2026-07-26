@@ -32,10 +32,10 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.operation == 'validate'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Authenticate to Google Cloud with Workload Identity Federation
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
@@ -83,9 +83,10 @@ jobs:
             --project="${{ vars.GCP_PROJECT_ID }}" \
             --format="value(metadata.name)"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "20"
+          package-manager-cache: false
 
       - name: Validate Firebase Hosting access
         run: |
@@ -98,7 +99,7 @@ jobs:
     if: github.event_name == 'push' || inputs.operation == 'deploy'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
@@ -111,10 +112,11 @@ jobs:
     if: github.event_name == 'push' || inputs.operation == 'deploy'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: "20"
+          package-manager-cache: false
       - name: Install frontend dependencies
         run: npm ci --prefix frontend
       - name: Run frontend tests
@@ -125,9 +127,9 @@ jobs:
     if: github.event_name == 'push' || inputs.operation == 'deploy'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: google-github-actions/auth@v2
+      - uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
@@ -177,9 +179,10 @@ jobs:
             --set-secrets "GOOD_NEWS_DATABASE_URL=good-news-db-url:latest,GOOD_NEWS_APP_MASTER_KEY=good-news-app-master-key:latest,GOOD_NEWS_GEMINI_API_KEY=good-news-gemini-api-key:latest" \
             --set-env-vars "^@@^GOOD_NEWS_ENV=prod@@GOOD_NEWS_PUBLIC_CONTENT_API_ORIGIN=$RUN_URL@@GOOD_NEWS_PUBLIC_FRONTEND_ORIGIN=https://${{ vars.GCP_PROJECT_ID }}.web.app@@GOOD_NEWS_FIREBASE_PROJECT_ID=${{ vars.GCP_PROJECT_ID }}@@GOOD_NEWS_ALLOWED_EMAILS=${{ vars.ALLOWED_EMAILS }}@@GOOD_NEWS_SCHEDULER_INVOKER=scheduler-invoker@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com@@GOOD_NEWS_OIDC_AUDIENCE=$RUN_URL"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "20"
+          package-manager-cache: false
 
       - name: Build frontend
         env:
