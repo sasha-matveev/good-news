@@ -2,7 +2,7 @@
 
 Run the commands below from the `frontend` directory.
 
-This frontend now requires Node `^20.19.0 || >=22.12.0`.
+This frontend requires Node `>=22.12.0`.
 
 ## Install dependencies
 
@@ -26,6 +26,15 @@ This runs the `test` script from `package.json`, which is currently:
 
 ```bash
 vitest run
+```
+
+## Typecheck and build
+
+Run the same checks used by CI before opening a pull request:
+
+```bash
+npm run typecheck
+npm run build
 ```
 
 ## Run a single test file

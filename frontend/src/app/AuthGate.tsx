@@ -12,7 +12,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   if (user === undefined) {
     return (
-      <main style={{ fontFamily: theme.fontFamily, padding: "4rem", textAlign: "center" }}>
+      <main style={{ fontFamily: theme.font.body, padding: "4rem", textAlign: "center" }}>
         Loading…
       </main>
     );
@@ -20,7 +20,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   if (!user) {
     return (
-      <main style={{ fontFamily: theme.fontFamily, padding: "4rem", textAlign: "center" }}>
+      <main style={{ fontFamily: theme.font.body, padding: "4rem", textAlign: "center" }}>
         <h1>Good News</h1>
         <p>Sign in to read your feed.</p>
         <button
