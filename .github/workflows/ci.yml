@@ -34,8 +34,7 @@ jobs:
             shared:
               - '.github/workflows/ci.yml'
 
-  backend:
-    name: backend
+  backend-python:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -50,6 +49,16 @@ jobs:
         run: python -m pip install --upgrade pip && python -m pip install -e './backend[dev]'
       - name: Run backend tests
         run: pytest backend/tests/unit backend/tests/api -q
+
+  backend:
+    needs: backend-python
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require backend test matrix
+        env:
+          BACKEND_RESULT: ${{ needs.backend-python.result }}
+        run: test "$BACKEND_RESULT" = success
 
   production-image:
     runs-on: ubuntu-latest
