@@ -5,6 +5,15 @@ on:
     branches:
       - master
   workflow_dispatch:
+    inputs:
+      operation:
+        description: Operation to run
+        type: choice
+        options:
+          - validate
+          - deploy
+        default: validate
+        required: true
 
 permissions:
   contents: read
@@ -19,10 +28,78 @@ env:
   RUN_URL: https://good-news-app-446870476468.us-central1.run.app
 
 jobs:
-  backend-tests:
+  validate-deploy-toolchain:
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'validate'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+
+      - name: Authenticate to Google Cloud with Workload Identity Federation
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Install gcloud
+        id: gcloud
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          version: ">= 363.0.0"
+          cache: false
+
+      - name: Report gcloud version and authenticated identity
+        run: |
+          echo "Expected gcloud version: >= 363.0.0"
+          echo "Installed gcloud version: ${{ steps.gcloud.outputs.version }}"
+          gcloud version
+          gcloud auth list --filter=status:ACTIVE
+          gcloud projects describe "${{ vars.GCP_PROJECT_ID }}" \
+            --format="value(projectId)"
+
+      - name: Validate Artifact Registry access
+        run: |
+          gcloud auth configure-docker \
+            "${{ vars.GCP_REGION }}-docker.pkg.dev" \
+            --quiet
+          gcloud artifacts repositories describe good-news \
+            --location="${{ vars.GCP_REGION }}" \
+            --project="${{ vars.GCP_PROJECT_ID }}" \
+            --format="value(name)"
+
+      - name: Validate Cloud Run job access
+        run: |
+          gcloud run jobs deploy --help >/dev/null
+          gcloud run jobs execute --help >/dev/null
+          gcloud run jobs describe db-migrate \
+            --region="${{ vars.GCP_REGION }}" \
+            --project="${{ vars.GCP_PROJECT_ID }}" \
+            --format="value(metadata.name)"
+
+      - name: Validate Cloud Run service access
+        run: |
+          gcloud run deploy --help >/dev/null
+          gcloud run services describe good-news-app \
+            --region="${{ vars.GCP_REGION }}" \
+            --project="${{ vars.GCP_PROJECT_ID }}" \
+            --format="value(metadata.name)"
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          package-manager-cache: false
+
+      - name: Validate Firebase Hosting access
+        run: |
+          npx --yes firebase-tools@latest deploy --help >/dev/null
+          npx --yes firebase-tools@latest hosting:sites:list \
+            --project="${{ vars.GCP_PROJECT_ID }}" \
+            --non-interactive
+
+  backend-tests:
+    if: github.event_name == 'push' || inputs.operation == 'deploy'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
@@ -32,12 +109,14 @@ jobs:
         run: pytest backend/tests/unit backend/tests/api -q
 
   frontend-tests:
+    if: github.event_name == 'push' || inputs.operation == 'deploy'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
+          package-manager-cache: false
       - name: Install frontend dependencies
         run: npm ci --prefix frontend
       - name: Run frontend tests
@@ -49,16 +128,20 @@ jobs:
 
   deploy:
     needs: [backend-tests, frontend-tests]
+    if: github.event_name == 'push' || inputs.operation == 'deploy'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: google-github-actions/auth@v2
+      - uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
 
-      - uses: google-github-actions/setup-gcloud@v2
+      - uses: google-github-actions/setup-gcloud@v3
+        with:
+          version: ">= 363.0.0"
+          cache: false
 
       - name: Build and push backend image
         run: |
@@ -100,9 +183,10 @@ jobs:
             --set-secrets "GOOD_NEWS_DATABASE_URL=good-news-db-url:latest,GOOD_NEWS_APP_MASTER_KEY=good-news-app-master-key:latest,GOOD_NEWS_GEMINI_API_KEY=good-news-gemini-api-key:latest" \
             --set-env-vars "^@@^GOOD_NEWS_ENV=prod@@GOOD_NEWS_PUBLIC_CONTENT_API_ORIGIN=$RUN_URL@@GOOD_NEWS_PUBLIC_FRONTEND_ORIGIN=https://${{ vars.GCP_PROJECT_ID }}.web.app@@GOOD_NEWS_FIREBASE_PROJECT_ID=${{ vars.GCP_PROJECT_ID }}@@GOOD_NEWS_ALLOWED_EMAILS=${{ vars.ALLOWED_EMAILS }}@@GOOD_NEWS_SCHEDULER_INVOKER=scheduler-invoker@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com@@GOOD_NEWS_OIDC_AUDIENCE=$RUN_URL"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
+          package-manager-cache: false
 
       - name: Build frontend
         env:

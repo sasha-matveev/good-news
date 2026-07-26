@@ -47,6 +47,28 @@ Push to `master` triggers `.github/workflows/deploy.yml`:
 GitHub authenticates to GCP via Workload Identity Federation — no key files.
 All changes land on `master` through pull requests.
 
+Run the `Deploy` workflow manually with its default `validate` operation to
+verify Workload Identity Federation, the installed gcloud version, and
+authenticated access to Artifact Registry, the `db-migrate` Cloud Run job, the
+`good-news-app` Cloud Run service, and Firebase Hosting. The validation performs
+read-only cloud queries; its only local mutation is configuring Docker
+authentication on the ephemeral runner. A manual production deployment requires
+explicitly selecting the `deploy` operation.
+
+To roll back the backend, shift Cloud Run traffic to a known-good retained
+revision:
+
+```shell
+gcloud run services update-traffic good-news-app \
+  --region us-central1 \
+  --project PROJECT_ID \
+  --to-revisions REVISION=100
+```
+
+Roll back the frontend to a known-good release from the Firebase Hosting release
+history. Database migrations remain forward-only and are not reverted as part
+of an application rollback.
+
 Cloud Scheduler jobs (`source-sync` every 30 min, `daily-digest` hourly) call the
 `/internal/jobs/*` endpoints with an OIDC token from `scheduler-invoker@…`;
 the backend verifies issuer, audience, and service-account email.
