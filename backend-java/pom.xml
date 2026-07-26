@@ -22,7 +22,7 @@
         <testcontainers.version>1.21.4</testcontainers.version>
         <spotless-maven-plugin.version>3.8.0</spotless-maven-plugin.version>
         <palantir-java-format.version>2.50.0</palantir-java-format.version>
-        <maven-checkstyle-plugin.version>3.4.0</maven-checkstyle-plugin.version>
+        <maven-checkstyle-plugin.version>3.6.0</maven-checkstyle-plugin.version>
         <checkstyle.version>13.8.0</checkstyle.version>
     </properties>
 
@@ -74,7 +74,7 @@
         <dependency>
             <groupId>org.jsoup</groupId>
             <artifactId>jsoup</artifactId>
-            <version>1.18.1</version>
+            <version>1.22.2</version>
         </dependency>
         <dependency>
             <groupId>org.postgresql</groupId>
