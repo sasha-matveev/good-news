@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "good-news-backend"
 version = "0.1.0"
 description = "Backend for the Good News cloud runtime."
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
     "alembic>=1.14,<2.0",
     "fastapi>=0.115,<1.0",
