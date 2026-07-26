@@ -2,7 +2,6 @@ package com.goodnews.backendjava.ingestion.strategy;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.goodnews.backendjava.ingestion.application.port.SourceDocumentLoader;
 import com.goodnews.backendjava.ingestion.model.ListingCandidate;
 import com.goodnews.backendjava.ingestion.model.PublicationDateSource;
@@ -12,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
+import tools.jackson.databind.ObjectMapper;
 
 class ListingEnricherTest {
     @Test

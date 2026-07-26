@@ -1,7 +1,5 @@
 package com.goodnews.backendjava.digest;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.goodnews.backendjava.config.GoodNewsProperties;
 import java.time.Duration;
 import java.time.Instant;
@@ -15,6 +13,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.reactive.TransactionalOperator;
 import org.springframework.web.util.HtmlUtils;
 import reactor.core.publisher.Mono;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 public final class ObservabilityReportGenerator {
@@ -124,7 +124,7 @@ public final class ObservabilityReportGenerator {
         values.put("failing_source_count", failingSourceCount);
         try {
             return objectMapper.writeValueAsString(values);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Observability metadata is not serializable", exception);
         }
     }

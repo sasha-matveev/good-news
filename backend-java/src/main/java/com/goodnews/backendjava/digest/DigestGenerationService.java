@@ -1,7 +1,5 @@
 package com.goodnews.backendjava.digest;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.goodnews.backendjava.config.GoodNewsProperties;
 import com.goodnews.backendjava.service.PostService;
 import java.time.Duration;
@@ -12,6 +10,8 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.reactive.TransactionalOperator;
 import reactor.core.publisher.Mono;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 public final class DigestGenerationService {
@@ -99,7 +99,7 @@ public final class DigestGenerationService {
     private String metadata(String frontendOrigin) {
         try {
             return objectMapper.writeValueAsString(Map.of("frontend_base_url", frontendOrigin));
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Digest metadata is not serializable", exception);
         }
     }

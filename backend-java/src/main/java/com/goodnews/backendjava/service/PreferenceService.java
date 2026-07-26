@@ -1,7 +1,5 @@
 package com.goodnews.backendjava.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.goodnews.backendjava.api.dto.PreferenceDtos;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -13,6 +11,8 @@ import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Mono;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 public class PreferenceService {
@@ -115,7 +115,7 @@ public class PreferenceService {
 
             if ("interesting".equals(feedbackState) || "want_to_read".equals(feedbackState)) {
                 sourceCounts.merge(defaultIfBlank(row.sourceName(), "Unknown source"), 1, Integer::sum);
-                metadata.path("topics").forEach(topic -> topicCounts.merge(topic.asText(), 1, Integer::sum));
+                metadata.path("topics").forEach(topic -> topicCounts.merge(topic.asString(), 1, Integer::sum));
                 String format = textOrNull(metadata.get("format"));
                 if (format != null) {
                     formatCounts.merge(format, 1, Integer::sum);
@@ -127,7 +127,7 @@ public class PreferenceService {
             }
 
             if ("not_interesting".equals(feedbackState)) {
-                metadata.path("topics").forEach(topic -> negativeTopicCounts.merge(topic.asText(), 1, Integer::sum));
+                metadata.path("topics").forEach(topic -> negativeTopicCounts.merge(topic.asString(), 1, Integer::sum));
                 String format = textOrNull(metadata.get("format"));
                 if (format != null) {
                     negativeFormatCounts.merge(format, 1, Integer::sum);
@@ -283,7 +283,7 @@ public class PreferenceService {
     }
 
     private String textOrNull(JsonNode node) {
-        return node == null || node.isNull() ? null : node.asText();
+        return node == null || node.isNull() ? null : node.asString();
     }
 
     private String defaultIfBlank(String value, String defaultValue) {

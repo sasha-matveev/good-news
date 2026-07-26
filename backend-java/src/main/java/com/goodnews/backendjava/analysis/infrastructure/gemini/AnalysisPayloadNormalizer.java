@@ -1,14 +1,14 @@
 package com.goodnews.backendjava.analysis.infrastructure.gemini;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.goodnews.backendjava.analysis.model.AnalysisResult;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 final class AnalysisPayloadNormalizer {
     private static final Set<String> VERDICTS = Set.of("interesting", "not_interesting");
@@ -78,11 +78,11 @@ final class AnalysisPayloadNormalizer {
     }
 
     private int score(JsonNode value) {
-        if (value == null || value.isNull() || value.isBoolean() || value.isContainerNode()) {
+        if (value == null || value.isNull() || value.isBoolean() || value.isContainer()) {
             return 0;
         }
         try {
-            long rounded = new BigDecimal(value.asText())
+            long rounded = new BigDecimal(value.asString())
                     .setScale(0, java.math.RoundingMode.HALF_EVEN)
                     .longValue();
             return (int) Math.max(0, Math.min(10, rounded));
@@ -98,12 +98,12 @@ final class AnalysisPayloadNormalizer {
         if (value.isBoolean()) {
             return value.booleanValue() ? "True" : "False";
         }
-        if (value.isTextual() || value.isNumber()) {
-            return value.asText();
+        if (value.isString() || value.isNumber()) {
+            return value.asString();
         }
         try {
             return objectMapper.writeValueAsString(value);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalArgumentException("Gemini field is not serializable", exception);
         }
     }

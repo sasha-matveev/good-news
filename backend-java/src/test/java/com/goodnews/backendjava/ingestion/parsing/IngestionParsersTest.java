@@ -3,13 +3,13 @@ package com.goodnews.backendjava.ingestion.parsing;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.goodnews.backendjava.ingestion.application.SourceIngestionException;
 import com.goodnews.backendjava.ingestion.knownsite.AnthropicEngineeringParser;
 import com.goodnews.backendjava.ingestion.knownsite.ClaudeBlogParser;
 import com.goodnews.backendjava.ingestion.knownsite.UberEngineeringParser;
 import com.goodnews.backendjava.ingestion.model.PublicationDateSource;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.ObjectMapper;
 
 class IngestionParsersTest {
     private final PublicationDateParser dates = new PublicationDateParser();

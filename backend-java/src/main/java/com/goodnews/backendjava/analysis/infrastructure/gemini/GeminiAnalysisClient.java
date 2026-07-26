@@ -1,7 +1,5 @@
 package com.goodnews.backendjava.analysis.infrastructure.gemini;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.goodnews.backendjava.analysis.application.port.AnalysisClient;
 import com.goodnews.backendjava.analysis.model.AnalysisContext;
 import com.goodnews.backendjava.analysis.model.AnalysisRequest;
@@ -15,6 +13,8 @@ import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClientRequest;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 public final class GeminiAnalysisClient implements AnalysisClient {
     private static final int CONTENT_SNIPPET_CHARS = 4000;
@@ -133,10 +133,10 @@ public final class GeminiAnalysisClient implements AnalysisClient {
                     .path("parts")
                     .path(0)
                     .path("text");
-            if (!text.isTextual()) {
+            if (!text.isString()) {
                 throw new IllegalArgumentException("Gemini response missing candidate text");
             }
-            return text.textValue();
+            return text.stringValue();
         });
     }
 
@@ -162,20 +162,20 @@ public final class GeminiAnalysisClient implements AnalysisClient {
                 }
             });
             return List.copyOf(normalized.values());
-        } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
+        } catch (tools.jackson.core.JacksonException exception) {
             throw new IllegalArgumentException("Gemini candidate text is not JSON", exception);
         }
     }
 
     private Long resultId(JsonNode id) {
-        if (id == null || id.isBoolean() || id.isContainerNode()) {
+        if (id == null || id.isBoolean() || id.isContainer()) {
             return null;
         }
         try {
             if (id.isNumber()) {
                 return id.decimalValue().stripTrailingZeros().longValueExact();
             }
-            return Long.parseLong(id.textValue());
+            return Long.parseLong(id.stringValue());
         } catch (ArithmeticException | NumberFormatException exception) {
             return null;
         }

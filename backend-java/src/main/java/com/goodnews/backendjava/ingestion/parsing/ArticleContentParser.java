@@ -1,8 +1,5 @@
 package com.goodnews.backendjava.ingestion.parsing;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.goodnews.backendjava.ingestion.model.PublicationDateSource;
 import java.time.Instant;
 import java.util.List;
@@ -10,6 +7,9 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 @Component
 public final class ArticleContentParser {
@@ -39,7 +39,7 @@ public final class ArticleContentParser {
                         return value;
                     }
                 }
-            } catch (JsonProcessingException ignored) {
+            } catch (JacksonException ignored) {
                 // Malformed optional metadata must not discard a readable article.
             }
         }
@@ -71,7 +71,7 @@ public final class ArticleContentParser {
         if (node.isObject()) {
             for (String key : List.of("datePublished", "dateCreated", "dateModified")) {
                 Instant value =
-                        node.path(key).isTextual() ? dates.parse(node.path(key).asText()) : null;
+                        node.path(key).isString() ? dates.parse(node.path(key).asString()) : null;
                 if (value != null) {
                     return new DateValue(value, PublicationDateSource.JSON_LD);
                 }

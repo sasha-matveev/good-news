@@ -1,6 +1,5 @@
 package com.goodnews.backendjava.security;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.goodnews.backendjava.api.contract.ApiHttpException;
 import com.goodnews.backendjava.config.GoodNewsProperties;
 import org.springframework.http.HttpMethod;
@@ -13,6 +12,7 @@ import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
+import tools.jackson.databind.ObjectMapper;
 
 @Component
 public class UserAuthenticationWebFilter implements WebFilter {

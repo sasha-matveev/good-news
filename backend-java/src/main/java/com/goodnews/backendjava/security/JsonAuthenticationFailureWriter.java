@@ -1,7 +1,5 @@
 package com.goodnews.backendjava.security;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import org.springframework.core.io.buffer.DataBuffer;
@@ -9,6 +7,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 final class JsonAuthenticationFailureWriter {
 
@@ -28,7 +28,7 @@ final class JsonAuthenticationFailureWriter {
     private byte[] payload(String detail) {
         try {
             return this.objectMapper.writeValueAsBytes(Map.of("detail", detail));
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             return ("{\"detail\":\"" + detail + "\"}").getBytes(StandardCharsets.UTF_8);
         }
     }

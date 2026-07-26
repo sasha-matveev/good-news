@@ -2,7 +2,6 @@ package com.goodnews.backendjava.analysis.infrastructure.gemini;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.goodnews.backendjava.analysis.model.AnalysisContext;
 import com.goodnews.backendjava.analysis.model.AnalysisRequest;
 import java.io.IOException;
@@ -17,6 +16,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.test.StepVerifier;
+import tools.jackson.databind.ObjectMapper;
 
 class GeminiAnalysisClientTest {
     private final ObjectMapper objectMapper = new ObjectMapper();

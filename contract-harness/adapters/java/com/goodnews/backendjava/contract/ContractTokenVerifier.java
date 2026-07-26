@@ -1,11 +1,11 @@
 package com.goodnews.backendjava.contract;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.goodnews.backendjava.security.FirebaseTokenVerifier;
 import com.goodnews.backendjava.security.GoogleOidcTokenVerifier;
 import com.goodnews.backendjava.security.TokenClaims;
 import reactor.core.publisher.Mono;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 final class ContractTokenVerifier implements FirebaseTokenVerifier, GoogleOidcTokenVerifier {
 
@@ -30,7 +30,8 @@ final class ContractTokenVerifier implements FirebaseTokenVerifier, GoogleOidcTo
                 throw new IllegalArgumentException("Unknown contract token.");
             }
             return new TokenClaims(
-                    claims.path("email").asText(), claims.path("email_verified").asBoolean(false));
+                    claims.path("email").asString(),
+                    claims.path("email_verified").asBoolean(false));
         });
     }
 }
