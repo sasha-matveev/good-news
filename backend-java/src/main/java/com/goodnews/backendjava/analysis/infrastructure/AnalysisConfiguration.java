@@ -1,6 +1,5 @@
 package com.goodnews.backendjava.analysis.infrastructure;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.goodnews.backendjava.analysis.application.AnalyzePendingPosts;
 import com.goodnews.backendjava.analysis.application.port.AnalysisClient;
 import com.goodnews.backendjava.analysis.application.port.AnalysisContextQuery;
@@ -17,6 +16,7 @@ import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.type.AnnotatedTypeMetadata;
 import org.springframework.web.reactive.function.client.WebClient;
+import tools.jackson.databind.ObjectMapper;
 
 @Configuration
 public class AnalysisConfiguration {

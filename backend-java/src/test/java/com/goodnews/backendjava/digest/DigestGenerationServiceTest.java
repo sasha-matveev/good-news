@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.goodnews.backendjava.config.EmailProperties;
 import com.goodnews.backendjava.config.GoodNewsProperties;
 import com.goodnews.backendjava.service.PostService;
@@ -17,6 +16,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.reactive.TransactionalOperator;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
+import tools.jackson.databind.ObjectMapper;
 
 @ExtendWith(MockitoExtension.class)
 class DigestGenerationServiceTest {

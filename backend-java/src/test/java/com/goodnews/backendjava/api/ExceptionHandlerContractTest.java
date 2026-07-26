@@ -8,9 +8,9 @@ import com.goodnews.backendjava.ingestion.application.SourceNotFoundException;
 import jakarta.validation.Valid;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -62,7 +62,7 @@ class ExceptionHandlerContractTest {
                 """)
                 .exchange()
                 .expectStatus()
-                .isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY)
+                .isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT)
                 .expectBody()
                 .jsonPath(
                         "$.detail[?(@.loc[0]=='body' && @.loc[1]=='daily_digest_time' && @.msg=='daily_digest_time must use HH:MM format')]")
@@ -88,7 +88,7 @@ class ExceptionHandlerContractTest {
                 """)
                 .exchange()
                 .expectStatus()
-                .isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY)
+                .isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT)
                 .expectBody()
                 .jsonPath("$.detail[?(@.loc[1]=='smtp_port')]")
                 .exists();
@@ -135,7 +135,7 @@ class ExceptionHandlerContractTest {
                 .bodyValue("{\"state\":\"unknown\"}")
                 .exchange()
                 .expectStatus()
-                .isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY)
+                .isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT)
                 .expectBody()
                 .jsonPath("$.detail[0].loc[0]")
                 .isEqualTo("body")

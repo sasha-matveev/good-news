@@ -2,7 +2,6 @@ package com.goodnews.backendjava.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.goodnews.backendjava.api.dto.MonitoringDtos;
 import com.goodnews.backendjava.api.dto.PostDtos;
 import com.goodnews.backendjava.api.dto.PreferenceDtos;
@@ -14,6 +13,7 @@ import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.ObjectMapper;
 
 class DtoContractTest {
 

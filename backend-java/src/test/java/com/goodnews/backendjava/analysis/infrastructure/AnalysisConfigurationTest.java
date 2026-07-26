@@ -3,7 +3,6 @@ package com.goodnews.backendjava.analysis.infrastructure;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.goodnews.backendjava.analysis.application.AnalyzePendingPosts;
 import com.goodnews.backendjava.analysis.application.port.AnalysisClient;
 import com.goodnews.backendjava.analysis.application.port.AnalysisContextQuery;
@@ -28,6 +27,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.web.reactive.function.client.WebClient;
+import tools.jackson.databind.ObjectMapper;
 
 class AnalysisConfigurationTest {
     private static final String STUB =
