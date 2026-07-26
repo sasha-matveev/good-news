@@ -47,11 +47,13 @@ Push to `master` triggers `.github/workflows/deploy.yml`:
 GitHub authenticates to GCP via Workload Identity Federation — no key files.
 All changes land on `master` through pull requests.
 
-Run the `Validate deploy toolchain` workflow manually to verify Workload Identity
-Federation, the installed gcloud version, and authenticated access to Artifact
-Registry, the `db-migrate` Cloud Run job, the `good-news-app` Cloud Run service,
-and Firebase Hosting. The workflow performs read-only cloud queries; its only
-local mutation is configuring Docker authentication on the ephemeral runner.
+Run the `Deploy` workflow manually with its default `validate` operation to
+verify Workload Identity Federation, the installed gcloud version, and
+authenticated access to Artifact Registry, the `db-migrate` Cloud Run job, the
+`good-news-app` Cloud Run service, and Firebase Hosting. The validation performs
+read-only cloud queries; its only local mutation is configuring Docker
+authentication on the ephemeral runner. A manual production deployment requires
+explicitly selecting the `deploy` operation.
 
 To roll back the backend, shift Cloud Run traffic to a known-good retained
 revision:
