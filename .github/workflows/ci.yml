@@ -35,7 +35,6 @@ jobs:
               - '.github/workflows/ci.yml'
 
   backend:
-    name: Backend (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
