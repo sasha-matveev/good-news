@@ -34,17 +34,82 @@ jobs:
             shared:
               - '.github/workflows/ci.yml'
 
-  backend:
+  backend-python:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.14"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
       - name: Install backend dependencies
         run: python -m pip install --upgrade pip && python -m pip install -e './backend[dev]'
       - name: Run backend tests
         run: pytest backend/tests/unit backend/tests/api -q
+
+  backend:
+    needs: backend-python
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require backend test matrix
+        env:
+          BACKEND_RESULT: ${{ needs.backend-python.result }}
+        run: test "$BACKEND_RESULT" = success
+
+  production-image:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: good_news
+          POSTGRES_USER: good_news
+          POSTGRES_PASSWORD: good_news
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U good_news -d good_news"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      GOOD_NEWS_DATABASE_URL: postgresql+psycopg://good_news:good_news@127.0.0.1:5432/good_news
+      IMAGE: good-news-backend:ci
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build production image
+        run: docker build -f backend/Dockerfile -t "$IMAGE" .
+      - name: Verify Python runtime and dependencies
+        run: |
+          docker run --rm "$IMAGE" python -c 'import sys; assert sys.version_info[:2] == (3, 14), sys.version'
+          docker run --rm "$IMAGE" python -c 'from psycopg import pq; assert pq.__impl__ == "binary", pq.__impl__'
+          docker run --rm "$IMAGE" python -m pip check
+      - name: Run database migrations
+        run: |
+          docker run --rm \
+            --network host \
+            --env GOOD_NEWS_DATABASE_URL \
+            "$IMAGE" \
+            python -m app.core.migration_runner
+      - name: Start production container
+        run: |
+          docker run --detach \
+            --name good-news-backend \
+            --network host \
+            --env GOOD_NEWS_DATABASE_URL \
+            "$IMAGE"
+      - name: Smoke-test container health
+        run: curl --fail --retry 12 --retry-all-errors --retry-delay 1 http://127.0.0.1:8000/api/health
+      - name: Show container logs
+        if: failure()
+        run: docker logs good-news-backend || true
+      - name: Stop production container
+        if: always()
+        run: docker rm --force good-news-backend || true
 
   frontend:
     runs-on: ubuntu-latest
