@@ -32,7 +32,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.operation == 'validate'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Authenticate to Google Cloud with Workload Identity Federation
         uses: google-github-actions/auth@v3
@@ -99,7 +99,7 @@ jobs:
     if: github.event_name == 'push' || inputs.operation == 'deploy'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
@@ -112,7 +112,7 @@ jobs:
     if: github.event_name == 'push' || inputs.operation == 'deploy'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
@@ -131,7 +131,7 @@ jobs:
     if: github.event_name == 'push' || inputs.operation == 'deploy'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: google-github-actions/auth@v3
         with:
