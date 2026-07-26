@@ -2,7 +2,8 @@
 
 Run the commands below from the `frontend` directory.
 
-This frontend requires Node `>=22.12.0`.
+This frontend requires Node `>=26.0.0`. From the repository root, run
+`nvm use` to select the version declared in `.nvmrc`.
 
 ## Install dependencies
 
