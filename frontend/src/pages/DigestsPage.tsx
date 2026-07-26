@@ -85,12 +85,13 @@ export function DigestsPage({
       return;
     }
 
+    const digestId = selectedDigestId;
     let cancelled = false;
 
     async function loadDetail() {
       setDetailLoading(true);
       try {
-        const nextDetail = await getDigest(selectedDigestId);
+        const nextDetail = await getDigest(digestId);
         if (!cancelled) {
           setDetail(nextDetail);
           setDetailError(null);

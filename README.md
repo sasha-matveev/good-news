@@ -65,6 +65,7 @@ uvicorn app.main:app --reload
 Frontend:
 
 ```powershell
+# Requires Node >=22.12.0.
 npm ci --prefix frontend
 npm run dev --prefix frontend   # proxies /api to localhost:8000
 ```
@@ -76,6 +77,8 @@ With `GOOD_NEWS_FIREBASE_PROJECT_ID` unset, auth middleware is disabled locally.
 ```powershell
 pytest backend/tests/unit backend/tests/api -q
 npm run test --prefix frontend
+npm run typecheck --prefix frontend
+npm run build --prefix frontend
 ```
 
 ## Operations
