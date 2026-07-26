@@ -1,0 +1,78 @@
+name: Validate deploy toolchain
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: validate-deploy-toolchain-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud with Workload Identity Federation
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Install gcloud
+        id: gcloud
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          version: ">= 363.0.0"
+          cache: false
+
+      - name: Report gcloud version and authenticated identity
+        run: |
+          echo "Expected gcloud version: >= 363.0.0"
+          echo "Installed gcloud version: ${{ steps.gcloud.outputs.version }}"
+          gcloud version
+          gcloud auth list --filter=status:ACTIVE
+          gcloud projects describe "${{ vars.GCP_PROJECT_ID }}" \
+            --format="value(projectId)"
+
+      - name: Validate Artifact Registry access
+        run: |
+          gcloud auth configure-docker \
+            "${{ vars.GCP_REGION }}-docker.pkg.dev" \
+            --quiet
+          gcloud artifacts repositories describe good-news \
+            --location="${{ vars.GCP_REGION }}" \
+            --project="${{ vars.GCP_PROJECT_ID }}" \
+            --format="value(name)"
+
+      - name: Validate Cloud Run job access
+        run: |
+          gcloud run jobs deploy --help >/dev/null
+          gcloud run jobs execute --help >/dev/null
+          gcloud run jobs describe db-migrate \
+            --region="${{ vars.GCP_REGION }}" \
+            --project="${{ vars.GCP_PROJECT_ID }}" \
+            --format="value(metadata.name)"
+
+      - name: Validate Cloud Run service access
+        run: |
+          gcloud run deploy --help >/dev/null
+          gcloud run services describe good-news-app \
+            --region="${{ vars.GCP_REGION }}" \
+            --project="${{ vars.GCP_PROJECT_ID }}" \
+            --format="value(metadata.name)"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Validate Firebase Hosting access
+        run: |
+          npx --yes firebase-tools@latest deploy --help >/dev/null
+          npx --yes firebase-tools@latest hosting:sites:list \
+            --project="${{ vars.GCP_PROJECT_ID }}" \
+            --non-interactive
