@@ -1,8 +1,5 @@
 package com.goodnews.backendjava.ingestion.infrastructure.persistence;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.goodnews.backendjava.ingestion.application.SourceIngestionException;
 import com.goodnews.backendjava.ingestion.model.SourceDefinition;
 import com.goodnews.backendjava.ingestion.model.SourceStrategyKind;
@@ -10,6 +7,9 @@ import com.goodnews.backendjava.ingestion.model.SourceStrategyOptions;
 import io.r2dbc.spi.Row;
 import java.time.OffsetDateTime;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 @Component
 final class SourceRowMapper {
@@ -44,13 +44,13 @@ final class SourceRowMapper {
             JsonNode root = objectMapper.readTree(value == null || value.isBlank() ? "{}" : value);
             return new SourceStrategyOptions(
                     text(root, "listing_url"), text(root, "link_selector"), text(root, "parser_id"));
-        } catch (JsonProcessingException error) {
+        } catch (JacksonException error) {
             throw new SourceIngestionException("Invalid source strategy configuration", error);
         }
     }
 
     private static String text(JsonNode root, String field) {
-        String value = root.path(field).asText("");
+        String value = root.path(field).asString("");
         return value.isBlank() ? null : value;
     }
 }

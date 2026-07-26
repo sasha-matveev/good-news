@@ -1,7 +1,5 @@
 package com.goodnews.backendjava.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.goodnews.backendjava.api.contract.ApiHttpException;
 import com.goodnews.backendjava.api.dto.PostDtos;
 import java.math.BigDecimal;
@@ -27,6 +25,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 public class PostService {
@@ -335,7 +335,7 @@ public class PostService {
             List<String> topics = new ArrayList<>();
             JsonNode topicsNode = metadata.get("topics");
             if (topicsNode != null && topicsNode.isArray()) {
-                topicsNode.forEach(node -> topics.add(node.asText()));
+                topicsNode.forEach(node -> topics.add(node.asString()));
             }
             return new ParsedAnalysis(
                     summaryRu,
@@ -353,7 +353,7 @@ public class PostService {
     }
 
     private String textOrNull(JsonNode node) {
-        return node == null || node.isNull() ? null : node.asText();
+        return node == null || node.isNull() ? null : node.asString();
     }
 
     private String formatInstant(OffsetDateTime value) {

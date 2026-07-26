@@ -10,11 +10,11 @@ import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -45,19 +45,19 @@ class ReactiveSecurityIntegrationTest {
     @LocalServerPort
     private int port;
 
-    @MockBean
+    @MockitoBean
     private FirebaseTokenVerifier firebaseTokenVerifier;
 
-    @MockBean
+    @MockitoBean
     private GoogleOidcTokenVerifier googleOidcTokenVerifier;
 
-    @MockBean
+    @MockitoBean
     private SourceSyncJob sourceSyncJob;
 
-    @MockBean
+    @MockitoBean
     private ScheduledDigestJobs scheduledDigestJobs;
 
-    @MockBean
+    @MockitoBean
     private ReactiveDatabaseSmokeProbe databaseSmokeProbe;
 
     @Test

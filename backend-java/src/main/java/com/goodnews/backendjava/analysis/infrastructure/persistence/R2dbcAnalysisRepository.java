@@ -1,7 +1,5 @@
 package com.goodnews.backendjava.analysis.infrastructure.persistence;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.goodnews.backendjava.analysis.application.port.AnalysisRepository;
 import com.goodnews.backendjava.analysis.model.AnalysisRequest;
 import com.goodnews.backendjava.analysis.model.AnalysisResult;
@@ -13,6 +11,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.reactive.TransactionalOperator;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 @Component
 public final class R2dbcAnalysisRepository implements AnalysisRepository {
@@ -87,7 +87,7 @@ public final class R2dbcAnalysisRepository implements AnalysisRepository {
         metadata.put("relevance_score", result.relevanceScore());
         try {
             return objectMapper.writeValueAsString(metadata);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalArgumentException("Analysis result is not serializable", exception);
         }
     }

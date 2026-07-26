@@ -1,7 +1,5 @@
 package com.goodnews.backendjava.observability;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -21,6 +19,8 @@ import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
@@ -111,7 +111,7 @@ public class HttpObservabilityWebFilter implements WebFilter {
         String json;
         try {
             json = objectMapper.writeValueAsString(event);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             LOGGER.warn("Could not serialize HTTP request event", exception);
             return;
         }

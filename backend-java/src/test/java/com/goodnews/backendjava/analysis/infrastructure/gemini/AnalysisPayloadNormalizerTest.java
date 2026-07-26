@@ -2,9 +2,9 @@ package com.goodnews.backendjava.analysis.infrastructure.gemini;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.goodnews.backendjava.analysis.model.AnalysisResult;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.ObjectMapper;
 
 class AnalysisPayloadNormalizerTest {
     private final ObjectMapper objectMapper = new ObjectMapper();

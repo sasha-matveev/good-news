@@ -38,13 +38,13 @@ public class ApiErrorHandler {
         List<ApiValidationError> detail = exception.getFieldErrors().stream()
                 .map(ApiValidationError::from)
                 .toList();
-        return ResponseEntity.unprocessableEntity().body(Map.of("detail", detail));
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT).body(Map.of("detail", detail));
     }
 
     @ExceptionHandler(HandlerMethodValidationException.class)
     public ResponseEntity<Map<String, Object>> handleMethodValidationException(
             HandlerMethodValidationException exception) {
-        List<ApiValidationError> detail = exception.getAllValidationResults().stream()
+        List<ApiValidationError> detail = exception.getParameterValidationResults().stream()
                 .flatMap(result -> result.getResolvableErrors().stream().map(error -> {
                     String fieldName = result.getMethodParameter().getParameterName();
                     return ApiValidationError.valueError(
@@ -54,7 +54,7 @@ public class ApiErrorHandler {
                             null);
                 }))
                 .toList();
-        return ResponseEntity.unprocessableEntity().body(Map.of("detail", detail));
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT).body(Map.of("detail", detail));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
