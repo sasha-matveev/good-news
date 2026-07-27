@@ -1,7 +1,11 @@
 name: Deploy
 
 on:
-  push:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
     branches:
       - master
   workflow_dispatch:
@@ -14,24 +18,32 @@ on:
           - deploy
         default: validate
         required: true
+      candidate_run_id:
+        description: Successful CI run ID (required for deploy)
+        type: string
+        required: false
+      candidate_sha:
+        description: Verified 40-character commit SHA (required for deploy)
+        type: string
+        required: false
 
 permissions:
   contents: read
-  id-token: write
-
-concurrency:
-  group: deploy
-  cancel-in-progress: false
 
 env:
-  IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/good-news/backend:${{ github.sha }}
-  MIGRATION_IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/good-news/backend-java-migration:${{ github.sha }}
   RUN_URL: https://good-news-app-446870476468.us-central1.run.app
 
 jobs:
   validate-deploy-toolchain:
-    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'validate'
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/master' &&
+      inputs.operation == 'validate'
     runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v7
 
@@ -96,89 +108,186 @@ jobs:
             --project="${{ vars.GCP_PROJECT_ID }}" \
             --non-interactive
 
-  backend-tests:
-    if: github.event_name == 'push' || inputs.operation == 'deploy'
+  resolve-candidate:
+    if: >-
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'master') ||
+      (github.event_name == 'workflow_dispatch' &&
+       github.ref == 'refs/heads/master' &&
+       inputs.operation == 'deploy')
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      run_id: ${{ steps.resolve.outputs.run_id }}
+      sha: ${{ steps.resolve.outputs.sha }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.14"
-      - name: Install backend dependencies
-        run: python -m pip install --upgrade pip && python -m pip install -e './backend[dev]'
-      - name: Run backend tests
-        run: pytest backend/tests/unit backend/tests/api -q
+      - name: Resolve and verify successful CI candidate
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTO_RUN_ID: ${{ github.event.workflow_run.id }}
+          AUTO_SHA: ${{ github.event.workflow_run.head_sha }}
+          MANUAL_RUN_ID: ${{ inputs.candidate_run_id }}
+          MANUAL_SHA: ${{ inputs.candidate_sha }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = workflow_run ]; then
+            run_id="$AUTO_RUN_ID"
+            candidate_sha="$AUTO_SHA"
+          else
+            run_id="$MANUAL_RUN_ID"
+            candidate_sha="$MANUAL_SHA"
+          fi
 
-  frontend-tests:
-    if: github.event_name == 'push' || inputs.operation == 'deploy'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: "22"
-          package-manager-cache: false
-      - name: Install frontend dependencies
-        run: npm ci --prefix frontend
-      - name: Run frontend tests
-        run: npm run test --prefix frontend
-      - name: Typecheck frontend
-        run: npm run typecheck --prefix frontend
-      - name: Build frontend
-        run: npm run build --prefix frontend
+          [[ "$run_id" =~ ^[0-9]+$ ]]
+          [[ "$candidate_sha" =~ ^[0-9a-f]{40}$ ]]
+
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" > run.json
+          test "$(jq -r '.name' run.json)" = CI
+          test "$(jq -r '.event' run.json)" = push
+          test "$(jq -r '.head_branch' run.json)" = master
+          test "$(jq -r '.head_sha' run.json)" = "$candidate_sha"
+          test "$(jq -r '.conclusion' run.json)" = success
+
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100" > jobs.json
+          test "$(jq '[.jobs[] | select(.name == "Quality gate" and .conclusion == "success")] | length' jobs.json)" = 1
+
+          latest_master_sha=$(gh api "repos/${GITHUB_REPOSITORY}/commits/master" --jq '.sha')
+          test "$candidate_sha" = "$latest_master_sha"
+
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "sha=$candidate_sha" >> "$GITHUB_OUTPUT"
 
   deploy:
-    needs: [backend-tests, frontend-tests]
-    if: github.event_name == 'push' || inputs.operation == 'deploy'
+    needs: resolve-candidate
+    if: needs.resolve-candidate.result == 'success'
     runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    env:
+      CANDIDATE_RUN_ID: ${{ needs.resolve-candidate.outputs.run_id }}
+      CANDIDATE_SHA: ${{ needs.resolve-candidate.outputs.sha }}
     steps:
-      - uses: actions/checkout@v7
+      - name: Download release manifest
+        uses: actions/download-artifact@v8
+        with:
+          name: release-candidate-${{ env.CANDIDATE_SHA }}
+          path: candidate
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.CANDIDATE_RUN_ID }}
 
-      - uses: google-github-actions/auth@v3
+      - name: Download production frontend
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-release-${{ env.CANDIDATE_SHA }}
+          path: candidate/frontend
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.CANDIDATE_RUN_ID }}
+
+      - name: Validate release manifest and frontend digest
+        id: manifest
+        run: |
+          manifest=candidate/release-manifest.json
+          jq -e \
+            --arg sha "$CANDIDATE_SHA" \
+            --arg run_id "$CANDIDATE_RUN_ID" \
+            '.schema_version == 1 and
+             .source_sha == $sha and
+             .source_run_id == $run_id and
+             .backend.image == (.backend.image | sub("@.*$"; "")) + "@" + .backend.digest and
+             .migration.image == (.migration.image | sub("@.*$"; "")) + "@" + .migration.digest and
+             (.backend.digest | test("^sha256:[0-9a-f]{64}$")) and
+             (.migration.digest | test("^sha256:[0-9a-f]{64}$")) and
+             (.backend.tested_image_id | test("^sha256:[0-9a-f]{64}$")) and
+             (.migration.tested_image_id | test("^sha256:[0-9a-f]{64}$")) and
+             .frontend.artifact == ("frontend-release-" + $sha) and
+             (.frontend.sha256 | test("^[0-9a-f]{64}$"))' \
+            "$manifest"
+
+          expected_frontend_digest=$(jq -r '.frontend.sha256' "$manifest")
+          actual_frontend_digest=$(sha256sum candidate/frontend/frontend-release.tar.gz | cut -d ' ' -f 1)
+          test "$actual_frontend_digest" = "$expected_frontend_digest"
+
+          echo "backend_image=$(jq -r '.backend.image' "$manifest")" >> "$GITHUB_OUTPUT"
+          echo "backend_digest=$(jq -r '.backend.digest' "$manifest")" >> "$GITHUB_OUTPUT"
+          echo "migration_image=$(jq -r '.migration.image' "$manifest")" >> "$GITHUB_OUTPUT"
+          echo "migration_digest=$(jq -r '.migration.digest' "$manifest")" >> "$GITHUB_OUTPUT"
+          echo "frontend_digest=$actual_frontend_digest" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to Google Cloud with Workload Identity Federation
+        uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
 
-      - uses: google-github-actions/setup-gcloud@v3
+      - name: Install gcloud
+        uses: google-github-actions/setup-gcloud@v3
         with:
           version: ">= 363.0.0"
           cache: false
 
-      - name: Build and push application and migration images
+      - name: Verify published image digests
+        env:
+          BACKEND_IMAGE: ${{ steps.manifest.outputs.backend_image }}
+          BACKEND_DIGEST: ${{ steps.manifest.outputs.backend_digest }}
+          MIGRATION_IMAGE: ${{ steps.manifest.outputs.migration_image }}
+          MIGRATION_DIGEST: ${{ steps.manifest.outputs.migration_digest }}
         run: |
-          gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
-          docker build -f backend/Dockerfile -t "$IMAGE" .
-          docker build -f backend-java/migration/Dockerfile -t "$MIGRATION_IMAGE" .
-          docker push "$IMAGE"
-          docker push "$MIGRATION_IMAGE"
+          actual_backend_digest=$(gcloud artifacts docker images describe "$BACKEND_IMAGE" --format='value(image_summary.digest)')
+          actual_migration_digest=$(gcloud artifacts docker images describe "$MIGRATION_IMAGE" --format='value(image_summary.digest)')
+          test "$actual_backend_digest" = "$BACKEND_DIGEST"
+          test "$actual_migration_digest" = "$MIGRATION_DIGEST"
 
-      - name: Run Flyway database migrations
+      - name: Reject a stale queued candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          latest_master_sha=$(gh api "repos/${GITHUB_REPOSITORY}/commits/master" --jq '.sha')
+          test "$CANDIDATE_SHA" = "$latest_master_sha"
+
+      - name: Run verified Flyway migrations
+        env:
+          MIGRATION_IMAGE: ${{ steps.manifest.outputs.migration_image }}
         run: |
           gcloud run jobs deploy db-migrate \
             --image "$MIGRATION_IMAGE" \
-            --region ${{ vars.GCP_REGION }} \
-            --project ${{ vars.GCP_PROJECT_ID }} \
-            --service-account good-news-app@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
+            --region "${{ vars.GCP_REGION }}" \
+            --project "${{ vars.GCP_PROJECT_ID }}" \
+            --service-account "good-news-app@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
             --set-secrets "GOOD_NEWS_DATABASE_URL=good-news-db-url:latest" \
             --memory 512Mi \
             --max-retries 0 \
             --command java \
             --args="-jar,/app/good-news-migration.jar"
           gcloud run jobs execute db-migrate \
-            --region ${{ vars.GCP_REGION }} \
-            --project ${{ vars.GCP_PROJECT_ID }} \
+            --region "${{ vars.GCP_REGION }}" \
+            --project "${{ vars.GCP_PROJECT_ID }}" \
             --wait
 
-      - name: Smoke-test Python after schema migration
-        run: curl --fail --retry 6 --retry-all-errors --retry-delay 2 "$RUN_URL/api/health"
-
-      - name: Deploy Cloud Run service
+      - name: Deploy verified Cloud Run image
+        id: cloud-run
+        env:
+          BACKEND_IMAGE: ${{ steps.manifest.outputs.backend_image }}
         run: |
+          revision_tag="release-${CANDIDATE_SHA:0:12}"
           gcloud run deploy good-news-app \
-            --image "$IMAGE" \
-            --region ${{ vars.GCP_REGION }} \
-            --project ${{ vars.GCP_PROJECT_ID }} \
-            --service-account good-news-app@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
+            --image "$BACKEND_IMAGE" \
+            --tag "$revision_tag" \
+            --no-traffic \
+            --region "${{ vars.GCP_REGION }}" \
+            --project "${{ vars.GCP_PROJECT_ID }}" \
+            --service-account "good-news-app@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
             --allow-unauthenticated \
             --min-instances 0 \
             --max-instances 1 \
@@ -189,18 +298,64 @@ jobs:
             --set-secrets "GOOD_NEWS_DATABASE_URL=good-news-db-url:latest,GOOD_NEWS_APP_MASTER_KEY=good-news-app-master-key:latest,GOOD_NEWS_GEMINI_API_KEY=good-news-gemini-api-key:latest" \
             --set-env-vars "^@@^GOOD_NEWS_ENV=prod@@GOOD_NEWS_PUBLIC_CONTENT_API_ORIGIN=$RUN_URL@@GOOD_NEWS_PUBLIC_FRONTEND_ORIGIN=https://${{ vars.GCP_PROJECT_ID }}.web.app@@GOOD_NEWS_FIREBASE_PROJECT_ID=${{ vars.GCP_PROJECT_ID }}@@GOOD_NEWS_ALLOWED_EMAILS=${{ vars.ALLOWED_EMAILS }}@@GOOD_NEWS_SCHEDULER_INVOKER=scheduler-invoker@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com@@GOOD_NEWS_OIDC_AUDIENCE=$RUN_URL"
 
+          gcloud run services describe good-news-app \
+            --region "${{ vars.GCP_REGION }}" \
+            --project "${{ vars.GCP_PROJECT_ID }}" \
+            --format=json > service.json
+          revision=$(jq -r '.status.latestReadyRevisionName' service.json)
+          revision_url=$(jq -r \
+            --arg tag "$revision_tag" \
+            --arg revision "$revision" \
+            '.status.traffic[] | select(.tag == $tag and .revisionName == $revision) | .url' \
+            service.json)
+          test -n "$revision"
+          test -n "$revision_url"
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+          echo "revision_url=$revision_url" >> "$GITHUB_OUTPUT"
+
+      - name: Health-check the newly deployed revision
+        env:
+          REVISION_URL: ${{ steps.cloud-run.outputs.revision_url }}
+        run: curl --fail --retry 12 --retry-all-errors --retry-delay 2 "$REVISION_URL/api/health"
+
+      - name: Promote healthy Cloud Run revision
+        env:
+          REVISION: ${{ steps.cloud-run.outputs.revision }}
+        run: |
+          gcloud run services update-traffic good-news-app \
+            --to-revisions "${REVISION}=100" \
+            --region "${{ vars.GCP_REGION }}" \
+            --project "${{ vars.GCP_PROJECT_ID }}"
+
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
           package-manager-cache: false
 
-      - name: Build frontend
-        env:
-          VITE_CONTENT_API_ORIGIN: https://good-news-app-446870476468.us-central1.run.app
-          VITE_DEPLOY_ENV: production
+      - name: Deploy verified Firebase Hosting artifact
         run: |
-          npm ci --prefix frontend
-          npm run build --prefix frontend
+          tar -xzf candidate/frontend/frontend-release.tar.gz
+          npx --yes firebase-tools@latest deploy \
+            --only hosting \
+            --project "${{ vars.GCP_PROJECT_ID }}" \
+            --non-interactive
 
-      - name: Deploy Firebase Hosting
-        run: npx firebase-tools@latest deploy --only hosting --project ${{ vars.GCP_PROJECT_ID }} --non-interactive
+      - name: Record deployed candidate
+        env:
+          BACKEND_IMAGE: ${{ steps.manifest.outputs.backend_image }}
+          MIGRATION_IMAGE: ${{ steps.manifest.outputs.migration_image }}
+          FRONTEND_DIGEST: ${{ steps.manifest.outputs.frontend_digest }}
+          REVISION: ${{ steps.cloud-run.outputs.revision }}
+          REVISION_URL: ${{ steps.cloud-run.outputs.revision_url }}
+        run: |
+          {
+            echo "## Production release"
+            echo
+            echo "- Commit: \`$CANDIDATE_SHA\`"
+            echo "- Source CI run: \`$CANDIDATE_RUN_ID\`"
+            echo "- Backend image: \`$BACKEND_IMAGE\`"
+            echo "- Migration image: \`$MIGRATION_IMAGE\`"
+            echo "- Frontend SHA-256: \`$FRONTEND_DIGEST\`"
+            echo "- Cloud Run revision: \`$REVISION\`"
+            echo "- Verified revision URL: $REVISION_URL"
+          } >> "$GITHUB_STEP_SUMMARY"

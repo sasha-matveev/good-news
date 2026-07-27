@@ -10,6 +10,9 @@ permissions:
   contents: read
   pull-requests: read
 
+env:
+  CANDIDATE_RETENTION_DAYS: 14
+
 jobs:
   changes:
     runs-on: ubuntu-latest
@@ -83,7 +86,7 @@ jobs:
       MIGRATION_IMAGE: good-news-backend-java-migration:ci
     steps:
       - uses: actions/checkout@v7
-      - name: Build production image
+      - name: Build production images once
         run: |
           docker build -f backend/Dockerfile -t "$IMAGE" .
           docker build -f backend-java/migration/Dockerfile -t "$MIGRATION_IMAGE" .
@@ -119,9 +122,31 @@ jobs:
       - name: Stop production container
         if: always()
         run: docker rm --force good-news-backend || true
+      - name: Package tested images for trusted publication
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: |
+          jq -n \
+            --arg backend_image_id "$(docker image inspect --format '{{.Id}}' "$IMAGE")" \
+            --arg migration_image_id "$(docker image inspect --format '{{.Id}}' "$MIGRATION_IMAGE")" \
+            '{backend_image_id: $backend_image_id, migration_image_id: $migration_image_id}' \
+            > release-image-identities.json
+          docker save "$IMAGE" "$MIGRATION_IMAGE" | gzip -1 > release-images.tar.gz
+      - name: Upload tested image candidate
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-images-${{ github.sha }}
+          path: |
+            release-images.tar.gz
+            release-image-identities.json
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: ${{ env.CANDIDATE_RETENTION_DAYS }}
 
   frontend:
     runs-on: ubuntu-latest
+    outputs:
+      release_digest: ${{ steps.package.outputs.digest }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -133,8 +158,25 @@ jobs:
         run: npm run test --prefix frontend
       - name: Typecheck frontend
         run: npm run typecheck --prefix frontend
-      - name: Build frontend
+      - name: Build production frontend once
+        env:
+          VITE_CONTENT_API_ORIGIN: https://good-news-app-446870476468.us-central1.run.app
+          VITE_DEPLOY_ENV: production
         run: npm run build --prefix frontend
+      - name: Package production frontend
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        id: package
+        run: |
+          tar -czf frontend-release.tar.gz firebase.json frontend/dist
+          echo "digest=$(sha256sum frontend-release.tar.gz | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+      - name: Upload production frontend candidate
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-release-${{ github.sha }}
+          path: frontend-release.tar.gz
+          if-no-files-found: error
+          retention-days: ${{ env.CANDIDATE_RETENTION_DAYS }}
 
   backend-java:
     needs: changes
@@ -180,3 +222,158 @@ jobs:
           name: backend-parity-reports
           path: artifacts/backend-parity*.md
           if-no-files-found: warn
+
+  publish-candidate:
+    needs:
+      - changes
+      - backend
+      - production-image
+      - frontend
+      - backend-java
+      - differential-contract
+    if: >-
+      always() &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/master' &&
+      needs.changes.result == 'success' &&
+      needs.backend.result == 'success' &&
+      needs.production-image.result == 'success' &&
+      needs.frontend.result == 'success' &&
+      (needs.backend-java.result == 'success' || needs.backend-java.result == 'skipped') &&
+      (needs.differential-contract.result == 'success' || needs.differential-contract.result == 'skipped')
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    env:
+      REGISTRY: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/good-news
+      BACKEND_TAG: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/good-news/backend:${{ github.sha }}
+      MIGRATION_TAG: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/good-news/backend-java-migration:${{ github.sha }}
+    steps:
+      - name: Download tested images
+        uses: actions/download-artifact@v8
+        with:
+          name: release-images-${{ github.sha }}
+      - name: Download production frontend
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-release-${{ github.sha }}
+          path: frontend-candidate
+      - name: Authenticate to Google Cloud with Workload Identity Federation
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+      - name: Install gcloud
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          version: ">= 363.0.0"
+          cache: false
+      - name: Publish tested images
+        id: images
+        run: |
+          gzip -dc release-images.tar.gz | docker load
+          backend_image_id=$(docker image inspect --format '{{.Id}}' good-news-backend:ci)
+          migration_image_id=$(docker image inspect --format '{{.Id}}' good-news-backend-java-migration:ci)
+          test "$backend_image_id" = "$(jq -r '.backend_image_id' release-image-identities.json)"
+          test "$migration_image_id" = "$(jq -r '.migration_image_id' release-image-identities.json)"
+
+          gcloud auth configure-docker "${{ vars.GCP_REGION }}-docker.pkg.dev" --quiet
+          docker tag good-news-backend:ci "$BACKEND_TAG"
+          docker tag good-news-backend-java-migration:ci "$MIGRATION_TAG"
+          docker push "$BACKEND_TAG"
+          docker push "$MIGRATION_TAG"
+
+          backend_digest=$(gcloud artifacts docker images describe "$BACKEND_TAG" --format='value(image_summary.digest)')
+          migration_digest=$(gcloud artifacts docker images describe "$MIGRATION_TAG" --format='value(image_summary.digest)')
+          test -n "$backend_digest"
+          test -n "$migration_digest"
+          echo "backend_image_id=$backend_image_id" >> "$GITHUB_OUTPUT"
+          echo "migration_image_id=$migration_image_id" >> "$GITHUB_OUTPUT"
+          echo "backend_digest=$backend_digest" >> "$GITHUB_OUTPUT"
+          echo "migration_digest=$migration_digest" >> "$GITHUB_OUTPUT"
+          echo "backend_image=${REGISTRY}/backend@${backend_digest}" >> "$GITHUB_OUTPUT"
+          echo "migration_image=${REGISTRY}/backend-java-migration@${migration_digest}" >> "$GITHUB_OUTPUT"
+      - name: Verify and write release manifest
+        env:
+          EXPECTED_FRONTEND_DIGEST: ${{ needs.frontend.outputs.release_digest }}
+          BACKEND_IMAGE: ${{ steps.images.outputs.backend_image }}
+          BACKEND_IMAGE_ID: ${{ steps.images.outputs.backend_image_id }}
+          BACKEND_DIGEST: ${{ steps.images.outputs.backend_digest }}
+          MIGRATION_IMAGE: ${{ steps.images.outputs.migration_image }}
+          MIGRATION_IMAGE_ID: ${{ steps.images.outputs.migration_image_id }}
+          MIGRATION_DIGEST: ${{ steps.images.outputs.migration_digest }}
+        run: |
+          actual_frontend_digest=$(sha256sum frontend-candidate/frontend-release.tar.gz | cut -d ' ' -f 1)
+          test "$actual_frontend_digest" = "$EXPECTED_FRONTEND_DIGEST"
+          jq -n \
+            --arg source_sha "$GITHUB_SHA" \
+            --arg run_id "$GITHUB_RUN_ID" \
+            --arg backend_image "$BACKEND_IMAGE" \
+            --arg backend_image_id "$BACKEND_IMAGE_ID" \
+            --arg backend_digest "$BACKEND_DIGEST" \
+            --arg migration_image "$MIGRATION_IMAGE" \
+            --arg migration_image_id "$MIGRATION_IMAGE_ID" \
+            --arg migration_digest "$MIGRATION_DIGEST" \
+            --arg frontend_artifact "frontend-release-${GITHUB_SHA}" \
+            --arg frontend_digest "$actual_frontend_digest" \
+            '{
+              schema_version: 1,
+              source_sha: $source_sha,
+              source_run_id: $run_id,
+              backend: {
+                image: $backend_image,
+                digest: $backend_digest,
+                tested_image_id: $backend_image_id
+              },
+              migration: {
+                image: $migration_image,
+                digest: $migration_digest,
+                tested_image_id: $migration_image_id
+              },
+              frontend: {artifact: $frontend_artifact, sha256: $frontend_digest}
+            }' > release-manifest.json
+      - name: Upload release manifest
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-candidate-${{ github.sha }}
+          path: release-manifest.json
+          if-no-files-found: error
+          retention-days: ${{ env.CANDIDATE_RETENTION_DAYS }}
+
+  quality-gate:
+    name: Quality gate
+    needs:
+      - changes
+      - backend
+      - production-image
+      - frontend
+      - backend-java
+      - differential-contract
+      - publish-candidate
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every applicable check
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          PRODUCTION_IMAGE_RESULT: ${{ needs.production-image.result }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          BACKEND_JAVA_RESULT: ${{ needs.backend-java.result }}
+          CONTRACT_RESULT: ${{ needs.differential-contract.result }}
+          CANDIDATE_RESULT: ${{ needs.publish-candidate.result }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          test "$CHANGES_RESULT" = success
+          test "$BACKEND_RESULT" = success
+          test "$PRODUCTION_IMAGE_RESULT" = success
+          test "$FRONTEND_RESULT" = success
+          test "$BACKEND_JAVA_RESULT" = success || test "$BACKEND_JAVA_RESULT" = skipped
+          test "$CONTRACT_RESULT" = success || test "$CONTRACT_RESULT" = skipped
+          if [ "$EVENT_NAME" = push ]; then
+            test "$CANDIDATE_RESULT" = success
+          else
+            test "$CANDIDATE_RESULT" = skipped
+          fi
