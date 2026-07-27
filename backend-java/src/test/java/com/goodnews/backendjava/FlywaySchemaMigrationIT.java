@@ -41,6 +41,8 @@ class FlywaySchemaMigrationIT {
             assertFlywayHistory(connection);
             assertTables(connection);
             assertDigestDeliverySlotIndex(connection);
+            assertThat(fetchSingleString(connection, "SELECT version_num FROM alembic_version"))
+                    .isEqualTo(DatabaseMigrationRunner.ALEMBIC_HEAD);
         }
 
         migrationRunner.migrate();
@@ -130,6 +132,14 @@ class FlywaySchemaMigrationIT {
 
     private DatabaseMigrationRunner migrationRunner() {
         return new DatabaseMigrationRunner(POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword());
+    }
+
+    private String fetchSingleString(Connection connection, String sql) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(sql);
+                ResultSet resultSet = statement.executeQuery()) {
+            assertThat(resultSet.next()).isTrue();
+            return resultSet.getString(1);
+        }
     }
 
     private void assertTables(Connection connection) throws SQLException {

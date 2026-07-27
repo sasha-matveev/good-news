@@ -13,9 +13,6 @@ import org.flywaydb.core.Flyway;
 
 final class AlembicHeadSchemaValidator {
 
-    private static final String ALEMBIC_VERSION_TABLE = "alembic_version";
-    private static final String FLYWAY_HISTORY_TABLE = "flyway_schema_history";
-
     private final String url;
     private final String user;
     private final String password;
@@ -42,20 +39,20 @@ final class AlembicHeadSchemaValidator {
                     .migrate();
             this.assertEqual(
                     "tables",
-                    this.tableSnapshot(connection, connection.getSchema(), ALEMBIC_VERSION_TABLE),
-                    this.tableSnapshot(connection, expectedSchema, FLYWAY_HISTORY_TABLE));
+                    this.tableSnapshot(connection, connection.getSchema()),
+                    this.tableSnapshot(connection, expectedSchema));
             this.assertEqual(
                     "columns",
-                    this.columnSnapshot(connection, connection.getSchema(), ALEMBIC_VERSION_TABLE),
-                    this.columnSnapshot(connection, expectedSchema, FLYWAY_HISTORY_TABLE));
+                    this.columnSnapshot(connection, connection.getSchema()),
+                    this.columnSnapshot(connection, expectedSchema));
             this.assertEqual(
                     "constraints",
-                    this.constraintSnapshot(connection, connection.getSchema(), ALEMBIC_VERSION_TABLE),
-                    this.constraintSnapshot(connection, expectedSchema, FLYWAY_HISTORY_TABLE));
+                    this.constraintSnapshot(connection, connection.getSchema()),
+                    this.constraintSnapshot(connection, expectedSchema));
             this.assertEqual(
                     "indexes",
-                    this.indexSnapshot(connection, connection.getSchema(), ALEMBIC_VERSION_TABLE),
-                    this.indexSnapshot(connection, expectedSchema, FLYWAY_HISTORY_TABLE));
+                    this.indexSnapshot(connection, connection.getSchema()),
+                    this.indexSnapshot(connection, expectedSchema));
         } finally {
             this.dropSchema(connection, expectedSchema);
         }
@@ -77,7 +74,7 @@ final class AlembicHeadSchemaValidator {
         }
     }
 
-    private Set<String> tableSnapshot(Connection connection, String schema, String markerTable) throws SQLException {
+    private Set<String> tableSnapshot(Connection connection, String schema) throws SQLException {
         return this.snapshot(
                 connection,
                 """
@@ -85,14 +82,13 @@ final class AlembicHeadSchemaValidator {
                 FROM information_schema.tables
                 WHERE table_schema = ?
                   AND table_type = 'BASE TABLE'
-                  AND table_name <> ?
+                  AND table_name NOT IN ('alembic_version', 'flyway_schema_history')
                 ORDER BY table_name
                 """,
-                schema,
-                markerTable);
+                schema);
     }
 
-    private Set<String> columnSnapshot(Connection connection, String schema, String markerTable) throws SQLException {
+    private Set<String> columnSnapshot(Connection connection, String schema) throws SQLException {
         return this.snapshot(
                 connection,
                 """
@@ -105,15 +101,13 @@ final class AlembicHeadSchemaValidator {
                        END
                 FROM information_schema.columns
                 WHERE table_schema = ?
-                  AND table_name <> ?
+                  AND table_name NOT IN ('alembic_version', 'flyway_schema_history')
                 ORDER BY table_name, ordinal_position
                 """,
-                schema,
-                markerTable);
+                schema);
     }
 
-    private Set<String> constraintSnapshot(Connection connection, String schema, String markerTable)
-            throws SQLException {
+    private Set<String> constraintSnapshot(Connection connection, String schema) throws SQLException {
         return this.snapshot(
                 connection,
                 """
@@ -122,14 +116,13 @@ final class AlembicHeadSchemaValidator {
                 JOIN pg_class c ON c.oid = con.conrelid
                 JOIN pg_namespace n ON n.oid = c.relnamespace
                 WHERE n.nspname = ?
-                  AND c.relname <> ?
+                  AND c.relname NOT IN ('alembic_version', 'flyway_schema_history')
                 ORDER BY c.relname, con.conname
                 """,
-                schema,
-                markerTable);
+                schema);
     }
 
-    private Set<String> indexSnapshot(Connection connection, String schema, String markerTable) throws SQLException {
+    private Set<String> indexSnapshot(Connection connection, String schema) throws SQLException {
         return this.snapshot(
                 connection,
                 """
@@ -139,18 +132,15 @@ final class AlembicHeadSchemaValidator {
                 JOIN pg_class i ON i.oid = ix.indexrelid
                 JOIN pg_namespace n ON n.oid = t.relnamespace
                 WHERE n.nspname = ?
-                  AND t.relname <> ?
+                  AND t.relname NOT IN ('alembic_version', 'flyway_schema_history')
                 ORDER BY t.relname, i.relname
                 """,
-                schema,
-                markerTable);
+                schema);
     }
 
-    private Set<String> snapshot(Connection connection, String sql, String schema, String markerTable)
-            throws SQLException {
+    private Set<String> snapshot(Connection connection, String sql, String schema) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, schema);
-            statement.setString(2, markerTable);
             try (ResultSet resultSet = statement.executeQuery()) {
                 Set<String> snapshot = new LinkedHashSet<>();
                 while (resultSet.next()) {
