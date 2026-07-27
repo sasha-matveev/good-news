@@ -5,7 +5,6 @@ HARNESS_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 REPOSITORY_DIR=$(dirname "$HARNESS_DIR")
 
 export GOOD_NEWS_JAVA_POSTGRES_HOST=postgres-python
-export GOOD_NEWS_JAVA_FLYWAY_ENABLED=false
 docker compose -f "$HARNESS_DIR/compose.yaml" up --build --wait
 
 cleanup() {

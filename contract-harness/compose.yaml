@@ -62,11 +62,10 @@ services:
   migrate-java:
     build:
       context: ..
-      dockerfile: contract-harness/Dockerfile.java
+      dockerfile: backend-java/migration/Dockerfile
     environment:
       <<: *backend-environment
       GOOD_NEWS_POSTGRES_HOST: postgres-java
-    command: ["--good-news.migration.run=true"]
     depends_on:
       postgres-java:
         condition: service_healthy
@@ -106,11 +105,10 @@ services:
   java:
     build:
       context: ..
-      dockerfile: contract-harness/Dockerfile.java
+      dockerfile: backend-java/contract/Dockerfile
     environment:
       <<: *backend-environment
       GOOD_NEWS_POSTGRES_HOST: ${GOOD_NEWS_JAVA_POSTGRES_HOST:-postgres-java}
-      SPRING_FLYWAY_ENABLED: ${GOOD_NEWS_JAVA_FLYWAY_ENABLED:-true}
       SERVER_PORT: "8080"
     ports:
       - "18080:8080"
@@ -127,14 +125,13 @@ services:
   java-auth:
     build:
       context: ..
-      dockerfile: contract-harness/Dockerfile.java
+      dockerfile: backend-java/contract/Dockerfile
     environment:
       <<: *backend-environment
       GOOD_NEWS_POSTGRES_HOST: ${GOOD_NEWS_JAVA_POSTGRES_HOST:-postgres-java}
       GOOD_NEWS_FIREBASE_PROJECT_ID: contract-project
       GOOD_NEWS_ALLOWED_EMAILS: reader@contract.test
       SERVER_PORT: "8080"
-      SPRING_FLYWAY_ENABLED: ${GOOD_NEWS_JAVA_FLYWAY_ENABLED:-true}
     ports:
       - "18081:8080"
     depends_on:

@@ -4,6 +4,23 @@ The module targets Java 21 and Spring Boot 3.5.16. It is the shadow backend for
 the production strangler migration; browser production traffic remains owned by
 Python until a later ownership PR changes the frontend operation map.
 
+## Maven modules
+
+- `backend` is a regular library containing the API, application services, and
+  infrastructure shared by executable applications. It has no `main` class.
+- `application` produces the serving binary whose entry point is
+  `GoodNewsApplication`.
+- `migration` owns Flyway SQL and produces the one-shot migration binary whose
+  entry point is `MigrationApplication`.
+- `contract` produces the deterministic API-parity binary with its test
+  boundary adapters. Contract-only code is not copied into the serving build.
+- `verification` contains the shared unit and integration suites that assemble
+  the serving application with migration test fixtures. It is not executable
+  and is the only module that depends on both binaries.
+
+The serving and migration lifecycles are selected by choosing a binary, not by
+passing a mode flag to a shared application.
+
 ## Production readiness contract
 
 - `GET /api/health` is public and returns `{"status":"ok"}` only when the
@@ -69,12 +86,13 @@ an unhealthy instance.
 
 ## Database migrations
 
-Flyway SQL migrations live in `src/main/resources/db/migration`. Serving Java
-processes never run them automatically. The dedicated migration image is invoked
-with:
+Flyway SQL migrations live in
+`migration/src/main/resources/db/migration`. The serving module has no
+dependency on the migration module and cannot run them. Invoke the dedicated
+migration binary with:
 
 ```shell
-java -jar /app/backend-java.jar --good-news.migration.run=true
+java -jar /app/good-news-migration.jar
 ```
 
 The runner uses the existing `good-news.database.*` properties, takes the same
@@ -114,7 +132,8 @@ backend-java\mvnw.cmd spotless:apply
 Manual endpoint check on the default application port:
 
 ```powershell
-backend-java\mvnw.cmd spring-boot:run
+backend-java\mvnw.cmd -pl application -am package
+java -jar backend-java\application\target\good-news-application-0.0.1-SNAPSHOT-exec.jar
 curl.exe http://127.0.0.1:8080/api/health
 curl.exe http://127.0.0.1:8080/actuator/health
 curl.exe -i http://127.0.0.1:8080/actuator/prometheus

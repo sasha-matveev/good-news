@@ -29,8 +29,7 @@ copy, never first against production:
    ```shell
    docker run --rm \
      --env GOOD_NEWS_DATABASE_URL \
-     MIGRATION_IMAGE \
-     --good-news.migration.run=true
+     MIGRATION_IMAGE
    ```
 
 5. Run the same command a second time. It must succeed without adding another
@@ -47,8 +46,9 @@ copy, never first against production:
 ## Production execution
 
 The deployment workflow publishes both images but deploys only the Python
-serving image. Its `db-migrate` Cloud Run job runs the Java image with
-`--good-news.migration.run=true`. The runner:
+serving image. Its `db-migrate` Cloud Run job runs the dedicated Java
+`MigrationApplication` image. The serving `GoodNewsApplication` artifact does
+not contain migration code or Flyway SQL. The runner:
 
 1. acquires PostgreSQL advisory lock `2042801`;
 2. validates the frozen Alembic revision and schema;

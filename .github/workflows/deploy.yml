@@ -148,7 +148,7 @@ jobs:
         run: |
           gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
           docker build -f backend/Dockerfile -t "$IMAGE" .
-          docker build -f backend-java/Dockerfile -t "$MIGRATION_IMAGE" .
+          docker build -f backend-java/migration/Dockerfile -t "$MIGRATION_IMAGE" .
           docker push "$IMAGE"
           docker push "$MIGRATION_IMAGE"
 
@@ -163,7 +163,7 @@ jobs:
             --memory 512Mi \
             --max-retries 0 \
             --command java \
-            --args="-jar,/app/backend-java.jar,--good-news.migration.run=true"
+            --args="-jar,/app/good-news-migration.jar"
           gcloud run jobs execute db-migrate \
             --region ${{ vars.GCP_REGION }} \
             --project ${{ vars.GCP_PROJECT_ID }} \
