@@ -73,7 +73,7 @@ class AlembicToFlywayMigrationIT {
     }
 
     private void migrateToRealAlembicHead() {
-        Path backend = Path.of(System.getProperty("maven.multiModuleProjectDirectory"), "..", "backend")
+        Path backend = Path.of(System.getProperty("good-news.backend-directory"))
                 .toAbsolutePath()
                 .normalize();
         ImageFromDockerfile image = new ImageFromDockerfile("good-news-alembic-head-test", false)
