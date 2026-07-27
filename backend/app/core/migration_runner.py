@@ -10,7 +10,7 @@ import psycopg
 from app.core.config import Settings
 
 ALEMBIC_LOCK_ID = 2042801
-MIGRATION_RUNNER_INVOCATION = "python -m app.core.migration_runner"
+MIGRATION_RUNNER_INVOCATION = "gcloud run jobs execute db-migrate --wait"
 
 
 def postgres_driver_url(settings: Settings) -> str:

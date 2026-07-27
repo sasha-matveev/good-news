@@ -70,9 +70,10 @@ Google.
 Fixed time, deterministic authentication, source responses, and analysis
 responses are contract-harness adapters, not production features. The Python
 adapter is copied only by `contract-harness/Dockerfile.python`. The Java
-adapter sources are copied into the application source tree only inside the
-build stage of `contract-harness/Dockerfile.java`. The production Dockerfiles
-do not contain either adapter.
+adapters and `ContractApplication` live in the dedicated
+`backend-java/contract` Maven module. Its Docker image depends on the shared
+backend library but is separate from both the serving and migration binaries.
+The production Dockerfiles do not contain either contract adapter.
 
 The boundary service records SMTP envelopes, Gemini requests, and source-fetch
 requests. The runner clears it before each backend observation and includes the

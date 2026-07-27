@@ -15,7 +15,10 @@ def test_content_api_startup_fails_when_schema_not_ready() -> None:
     session_factory = create_session_factory(engine)
     app = create_app(session_factory=session_factory, discovery_responses={})
 
-    with pytest.raises(RuntimeError, match="Database schema is not current; run `python -m app.core.migration_runner`\\."):
+    with pytest.raises(
+        RuntimeError,
+        match="Database schema is not current; run `gcloud run jobs execute db-migrate --wait`\\.",
+    ):
         with TestClient(app):
             pass
 
