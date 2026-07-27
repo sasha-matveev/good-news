@@ -64,7 +64,7 @@ class FlywaySchemaMigrationIT {
         }
 
         DatabaseMigrationRunner migrationRunner = new DatabaseMigrationRunner(
-                POSTGRESQL.getJdbcUrl() + "?currentSchema=" + schema,
+                POSTGRESQL.getJdbcUrl() + "&currentSchema=" + schema,
                 POSTGRESQL.getUsername(),
                 POSTGRESQL.getPassword());
 
