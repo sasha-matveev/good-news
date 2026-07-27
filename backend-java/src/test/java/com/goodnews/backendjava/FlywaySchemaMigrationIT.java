@@ -1,8 +1,9 @@
 package com.goodnews.backendjava;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.goodnews.backendjava.config.ReactiveDatabaseSmokeProbe;
+import com.goodnews.backendjava.config.DatabaseMigrationRunner;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -15,16 +16,10 @@ import java.util.Set;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationVersion;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import reactor.test.StepVerifier;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @Testcontainers(disabledWithoutDocker = true)
 class FlywaySchemaMigrationIT {
 
@@ -36,26 +31,10 @@ class FlywaySchemaMigrationIT {
 
     private static final Map<String, TableSpec> EXPECTED_TABLES = expectedTables();
 
-    @DynamicPropertySource
-    static void configureProperties(DynamicPropertyRegistry registry) {
-        registry.add("good-news.database.postgres-host", POSTGRESQL::getHost);
-        registry.add("good-news.database.postgres-port", POSTGRESQL::getFirstMappedPort);
-        registry.add("good-news.database.postgres-database", POSTGRESQL::getDatabaseName);
-        registry.add("good-news.database.postgres-user", POSTGRESQL::getUsername);
-        registry.add("good-news.database.postgres-password", POSTGRESQL::getPassword);
-    }
-
-    @Autowired
-    private ReactiveDatabaseSmokeProbe smokeProbe;
-
     @Test
     void flywayMigratesEmptyDatabaseAndCreatesExpectedSchema() throws SQLException {
-        StepVerifier.create(smokeProbe.verifyConnectivity())
-                .assertNext(canConnect -> assertThat(canConnect).isTrue())
-                .verifyComplete();
-        StepVerifier.create(smokeProbe.verifyRequiredSchema())
-                .assertNext(schemaReady -> assertThat(schemaReady).isTrue())
-                .verifyComplete();
+        DatabaseMigrationRunner migrationRunner = migrationRunner();
+        migrationRunner.migrate();
 
         try (Connection connection = DriverManager.getConnection(
                 POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword())) {
@@ -63,6 +42,33 @@ class FlywaySchemaMigrationIT {
             assertTables(connection);
             assertDigestDeliverySlotIndex(connection);
         }
+
+        migrationRunner.migrate();
+
+        try (Connection connection = DriverManager.getConnection(
+                POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword())) {
+            assertFlywayHistory(connection);
+        }
+    }
+
+    @Test
+    void refusesToBaselineUnknownNonEmptySchema() throws SQLException {
+        String schema = "unexpected_non_empty";
+        try (Connection connection = DriverManager.getConnection(
+                        POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword());
+                Statement statement = connection.createStatement()) {
+            statement.execute("CREATE SCHEMA " + schema);
+            statement.execute("CREATE TABLE " + schema + ".unexpected_table (id INTEGER PRIMARY KEY)");
+        }
+
+        DatabaseMigrationRunner migrationRunner = new DatabaseMigrationRunner(
+                POSTGRESQL.getJdbcUrl() + "?currentSchema=" + schema,
+                POSTGRESQL.getUsername(),
+                POSTGRESQL.getPassword());
+
+        assertThatThrownBy(migrationRunner::migrate)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("alembic_version is missing or unreadable");
     }
 
     @Test
@@ -120,6 +126,10 @@ class FlywaySchemaMigrationIT {
                                 Map.entry("5", true));
             }
         }
+    }
+
+    private DatabaseMigrationRunner migrationRunner() {
+        return new DatabaseMigrationRunner(POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword());
     }
 
     private void assertTables(Connection connection) throws SQLException {

@@ -40,7 +40,7 @@ Push to `master` triggers `.github/workflows/deploy.yml`:
 
 1. Backend + frontend tests
 2. Docker image → Artifact Registry
-3. Cloud Run Job `db-migrate` (Alembic `upgrade head` under an advisory lock)
+3. Cloud Run Job `db-migrate` (Java Flyway runner under advisory lock `2042801`)
 4. `gcloud run deploy good-news-app` (secrets from Secret Manager)
 5. Vite build → `firebase deploy --only hosting`
 
@@ -68,6 +68,10 @@ gcloud run services update-traffic good-news-app \
 Roll back the frontend to a known-good release from the Firebase Hosting release
 history. Database migrations remain forward-only and are not reverted as part
 of an application rollback.
+
+The Alembic chain is frozen for Python rollback compatibility. Flyway owns all
+new production schema changes; see
+[the production migration runbook](docs/flyway-production-migration-runbook.md).
 
 Cloud Scheduler jobs (`source-sync` every 30 min, `daily-digest` hourly) call the
 `/internal/jobs/*` endpoints with an OIDC token from `scheduler-invoker@…`;

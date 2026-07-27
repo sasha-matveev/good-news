@@ -8,6 +8,14 @@ import pytest
 from app.core.config import Settings
 from app.core.migration_runner import ALEMBIC_LOCK_ID, default_migration_command, postgres_driver_url, run_migrations_with_lock
 
+FROZEN_ALEMBIC_REVISIONS = {
+    "20260425_01_core_schema.py",
+    "20260425_02_posts_and_feedback.py",
+    "20260425_03_digests.py",
+    "20260514_01_read_later.py",
+    "20260725_01_unique_digest_run_slots.py",
+}
+
 
 def test_postgres_driver_url_normalizes_sqlalchemy_scheme(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GOOD_NEWS_POSTGRES_PASSWORD", "phase3-secret")
@@ -64,3 +72,9 @@ def test_default_migration_command_targets_repo_alembic_ini() -> None:
     alembic_ini = Path(__file__).resolve().parents[2] / "alembic.ini"
 
     assert default_migration_command() == ("alembic", "-c", str(alembic_ini), "upgrade", "head")
+
+
+def test_alembic_production_chain_is_frozen() -> None:
+    versions = Path(__file__).resolve().parents[2] / "alembic" / "versions"
+
+    assert {path.name for path in versions.glob("*.py")} == FROZEN_ALEMBIC_REVISIONS

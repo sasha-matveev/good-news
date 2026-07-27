@@ -69,7 +69,25 @@ an unhealthy instance.
 
 ## Database migrations
 
-Flyway SQL migrations live in `src/main/resources/db/migration` and are driven from the existing `good-news.database.*` properties at application startup.
+Flyway SQL migrations live in `src/main/resources/db/migration`. Serving Java
+processes never run them automatically. The dedicated migration image is invoked
+with:
+
+```shell
+java -jar /app/backend-java.jar --good-news.migration.run=true
+```
+
+The runner uses the existing `good-news.database.*` properties, takes the same
+PostgreSQL advisory lock (`2042801`) used by the historical Alembic runner, and
+supports two explicit states:
+
+- an empty database is migrated through V1..latest;
+- the frozen Alembic head is schema-validated, baselined at version 4, and then
+  migrated through V5..latest.
+
+A non-empty mismatch fails before Flyway history is created. Blind
+`baselineOnMigrate` is intentionally not enabled, and `alembic_version` remains
+in place throughout the Python rollback window.
 
 Alembic-to-Flyway translation notes:
 

@@ -27,6 +27,7 @@ jobs:
           filters: |
             backend_java:
               - 'backend-java/**'
+              - 'backend/alembic/**'
             contract_harness:
               - 'contract-harness/**'
               - 'backend/**'
@@ -79,22 +80,32 @@ jobs:
     env:
       GOOD_NEWS_DATABASE_URL: postgresql+psycopg://good_news:good_news@127.0.0.1:5432/good_news
       IMAGE: good-news-backend:ci
+      MIGRATION_IMAGE: good-news-backend-java-migration:ci
     steps:
       - uses: actions/checkout@v7
       - name: Build production image
-        run: docker build -f backend/Dockerfile -t "$IMAGE" .
+        run: |
+          docker build -f backend/Dockerfile -t "$IMAGE" .
+          docker build -f backend-java/Dockerfile -t "$MIGRATION_IMAGE" .
       - name: Verify Python runtime and dependencies
         run: |
           docker run --rm "$IMAGE" python -c 'import sys; assert sys.version_info[:2] == (3, 14), sys.version'
           docker run --rm "$IMAGE" python -c 'from psycopg import pq; assert pq.__impl__ == "binary", pq.__impl__'
           docker run --rm "$IMAGE" python -m pip check
-      - name: Run database migrations
+      - name: Run Flyway database migrations
         run: |
           docker run --rm \
             --network host \
             --env GOOD_NEWS_DATABASE_URL \
-            "$IMAGE" \
-            python -m app.core.migration_runner
+            "$MIGRATION_IMAGE" \
+            --good-news.migration.run=true
+      - name: Confirm repeated Flyway invocation is safe
+        run: |
+          docker run --rm \
+            --network host \
+            --env GOOD_NEWS_DATABASE_URL \
+            "$MIGRATION_IMAGE" \
+            --good-news.migration.run=true
       - name: Start production container
         run: |
           docker run --detach \

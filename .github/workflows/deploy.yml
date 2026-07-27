@@ -25,6 +25,7 @@ concurrency:
 
 env:
   IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/good-news/backend:${{ github.sha }}
+  MIGRATION_IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/good-news/backend-java-migration:${{ github.sha }}
   RUN_URL: https://good-news-app-446870476468.us-central1.run.app
 
 jobs:
@@ -143,28 +144,33 @@ jobs:
           version: ">= 363.0.0"
           cache: false
 
-      - name: Build and push backend image
+      - name: Build and push application and migration images
         run: |
           gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
           docker build -f backend/Dockerfile -t "$IMAGE" .
+          docker build -f backend-java/Dockerfile -t "$MIGRATION_IMAGE" .
           docker push "$IMAGE"
+          docker push "$MIGRATION_IMAGE"
 
-      - name: Run database migrations
+      - name: Run Flyway database migrations
         run: |
           gcloud run jobs deploy db-migrate \
-            --image "$IMAGE" \
+            --image "$MIGRATION_IMAGE" \
             --region ${{ vars.GCP_REGION }} \
             --project ${{ vars.GCP_PROJECT_ID }} \
             --service-account good-news-app@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
             --set-secrets "GOOD_NEWS_DATABASE_URL=good-news-db-url:latest" \
             --memory 512Mi \
             --max-retries 0 \
-            --command python \
-            --args="-m,app.core.migration_runner"
+            --command java \
+            --args="-jar,/app/backend-java.jar,--good-news.migration.run=true"
           gcloud run jobs execute db-migrate \
             --region ${{ vars.GCP_REGION }} \
             --project ${{ vars.GCP_PROJECT_ID }} \
             --wait
+
+      - name: Smoke-test Python after schema migration
+        run: curl --fail --retry 6 --retry-all-errors --retry-delay 2 "$RUN_URL/api/health"
 
       - name: Deploy Cloud Run service
         run: |

@@ -2,6 +2,7 @@ package com.goodnews.backendjava;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.goodnews.backendjava.config.DatabaseMigrationRunner;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.WebApplicationType;
@@ -23,6 +24,7 @@ class BackendJavaApplicationTests {
             assertThat(readNestedValue(properties, "scheduler", "sourceSyncIntervalMinutes"))
                     .isEqualTo(30);
             assertThat(context.getBeansOfType(Flyway.class)).isEmpty();
+            assertThat(context.getBeansOfType(DatabaseMigrationRunner.class)).isEmpty();
         }
     }
 
