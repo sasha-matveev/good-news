@@ -89,7 +89,7 @@ class ReactiveDatabaseConfigTest {
     void preservesQueryParametersDuringJdbcUrlNormalization() {
         assertThat(new DatabaseUrl("postgresql+psycopg://legacy_user:p%40ss@db.example:5544/good_news?sslmode=require")
                         .jdbc())
-                .isEqualTo("jdbc:postgresql://legacy_user:p%40ss@db.example:5544/good_news?sslmode=require");
+                .isEqualTo("jdbc:postgresql://db.example:5544/good_news?sslmode=require");
     }
 
     @Test
@@ -104,8 +104,7 @@ class ReactiveDatabaseConfigTest {
 
         JdbcDatabaseConnection connection = new ConfiguredDatabase(properties).jdbcConnection();
 
-        assertThat(connection.url())
-                .isEqualTo("jdbc:postgresql://legacy_user:legacy-pass@db.example:5544/good_news?sslmode=require");
+        assertThat(connection.url()).isEqualTo("jdbc:postgresql://db.example:5544/good_news?sslmode=require");
         assertThat(connection.user()).isEqualTo("service_user");
         assertThat(connection.password()).isEqualTo("top-secret");
     }

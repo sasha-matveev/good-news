@@ -6,7 +6,6 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
-import org.springframework.context.ConfigurableApplicationContext;
 
 @ConfigurationPropertiesScan
 @SpringBootApplication
@@ -21,10 +20,10 @@ public class BackendJavaApplication {
     }
 
     private static void runDatabaseMigration(String[] args) {
-        try (ConfigurableApplicationContext context = new SpringApplicationBuilder(BackendJavaApplication.class)
+        try (var context = new SpringApplicationBuilder(BackendJavaApplication.class)
                 .properties("spring.main.web-application-type=none")
                 .run(args)) {
-            context.getBean(DatabaseMigrationRunner.class).migrate();
+            context.getBean(DatabaseMigrationRunner.class);
         }
     }
 }

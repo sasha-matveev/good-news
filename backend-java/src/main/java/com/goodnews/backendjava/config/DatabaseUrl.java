@@ -33,16 +33,16 @@ final class DatabaseUrl {
 
     String jdbc() {
         if (this.value.startsWith("jdbc:postgresql://")) {
-            return this.value;
+            return "jdbc:postgresql://" + this.authorityAndPathWithoutUserInfo();
         }
         if (this.value.startsWith("r2dbc:postgresql://")) {
-            return "jdbc:postgresql://" + this.value.substring("r2dbc:postgresql://".length());
+            return "jdbc:postgresql://" + this.authorityAndPathWithoutUserInfo();
         }
         if (this.value.startsWith("postgresql+")) {
-            return "jdbc:postgresql://" + this.authorityAndPath();
+            return "jdbc:postgresql://" + this.authorityAndPathWithoutUserInfo();
         }
         if (this.value.startsWith("postgresql://")) {
-            return "jdbc:postgresql://" + this.value.substring("postgresql://".length());
+            return "jdbc:postgresql://" + this.authorityAndPathWithoutUserInfo();
         }
         throw new IllegalArgumentException("Unsupported GOOD_NEWS_DATABASE_URL scheme: " + this.value);
     }
@@ -94,6 +94,14 @@ final class DatabaseUrl {
             throw new IllegalArgumentException("Invalid GOOD_NEWS_DATABASE_URL value: " + this.value);
         }
         return this.value.substring(schemeSeparatorIndex + 3);
+    }
+
+    private String authorityAndPathWithoutUserInfo() {
+        String authorityAndPath = this.authorityAndPath();
+        int authorityEnd = authorityAndPath.indexOf('/');
+        int searchEnd = authorityEnd < 0 ? authorityAndPath.length() : authorityEnd;
+        int userInfoEnd = authorityAndPath.lastIndexOf('@', searchEnd);
+        return userInfoEnd < 0 ? authorityAndPath : authorityAndPath.substring(userInfoEnd + 1);
     }
 
     private String reactiveQuery(String query) {

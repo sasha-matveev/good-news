@@ -49,6 +49,7 @@ class PreferencesSettingsApiTest {
 
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
+        registry.add("good-news.migration.run", () -> true);
         registry.add("good-news.database.postgres-host", POSTGRESQL::getHost);
         registry.add("good-news.database.postgres-port", POSTGRESQL::getFirstMappedPort);
         registry.add("good-news.database.postgres-database", POSTGRESQL::getDatabaseName);

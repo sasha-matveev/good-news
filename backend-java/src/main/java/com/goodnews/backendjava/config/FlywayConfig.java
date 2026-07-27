@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Configuration;
 @ConditionalOnProperty(name = "good-news.migration.run", havingValue = "true")
 public class FlywayConfig {
 
-    @Bean
+    @Bean(initMethod = "migrate")
     DatabaseMigrationRunner databaseMigrationRunner(GoodNewsProperties properties) {
         JdbcDatabaseConnection connection = new ConfiguredDatabase(properties.database()).jdbcConnection();
         return new DatabaseMigrationRunner(connection.url(), connection.user(), connection.password());
