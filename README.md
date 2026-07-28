@@ -93,7 +93,7 @@ uvicorn app.main:app --reload
 Frontend:
 
 ```powershell
-# Requires Node >=22.12.0.
+# Requires Node >=26.0.0. With nvm, run `nvm use` from the repository root.
 npm ci --prefix frontend
 npm run dev --prefix frontend   # proxies /api to localhost:8000
 ```
