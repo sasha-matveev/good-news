@@ -10,10 +10,17 @@ permissions:
   contents: read
   pull-requests: read
 
+env:
+  CANDIDATE_RETENTION_DAYS: 14
+
 jobs:
-  changes:
+  plan:
+    name: Plan applicable checks
     runs-on: ubuntu-latest
     outputs:
+      backend_python: ${{ steps.filter.outputs.backend_python }}
+      production_image: ${{ steps.filter.outputs.production_image }}
+      frontend: ${{ steps.filter.outputs.frontend }}
       backend_java: ${{ steps.filter.outputs.backend_java }}
       contract_harness: ${{ steps.filter.outputs.contract_harness }}
       shared: ${{ steps.filter.outputs.shared }}
@@ -25,6 +32,14 @@ jobs:
         id: filter
         with:
           filters: |
+            backend_python:
+              - 'backend/**'
+            production_image:
+              - 'backend/**'
+              - 'backend-java/**'
+            frontend:
+              - 'frontend/**'
+              - 'firebase.json'
             backend_java:
               - 'backend-java/**'
               - 'backend/alembic/**'
@@ -35,33 +50,37 @@ jobs:
             shared:
               - '.github/workflows/ci.yml'
 
-  backend-python:
+  backend:
+    needs: plan
+    if: >-
+      github.event_name == 'push' ||
+      needs.plan.outputs.backend_python == 'true' ||
+      needs.plan.outputs.shared == 'true'
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.14"]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.14"
       - name: Install backend dependencies
         run: python -m pip install --upgrade pip && python -m pip install -e './backend[dev]'
       - name: Run backend tests
-        run: pytest backend/tests/unit backend/tests/api -q
-
-  backend:
-    needs: backend-python
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Require backend test matrix
-        env:
-          BACKEND_RESULT: ${{ needs.backend-python.result }}
-        run: test "$BACKEND_RESULT" = success
+        run: |
+          mkdir -p artifacts
+          pytest backend/tests/unit backend/tests/api -q \
+            --junitxml=artifacts/backend-tests.xml
+      - name: Backend test summary
+        if: always()
+        uses: test-summary/action@v2
+        with:
+          paths: artifacts/backend-tests.xml
 
   production-image:
+    needs: plan
+    if: >-
+      github.event_name == 'push' ||
+      needs.plan.outputs.production_image == 'true' ||
+      needs.plan.outputs.shared == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -83,7 +102,7 @@ jobs:
       MIGRATION_IMAGE: good-news-backend-java-migration:ci
     steps:
       - uses: actions/checkout@v7
-      - name: Build production image
+      - name: Build production images once
         run: |
           docker build -f backend/Dockerfile -t "$IMAGE" .
           docker build -f backend-java/migration/Dockerfile -t "$MIGRATION_IMAGE" .
@@ -119,8 +138,33 @@ jobs:
       - name: Stop production container
         if: always()
         run: docker rm --force good-news-backend || true
+      - name: Package tested images for trusted publication
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: |
+          jq -n \
+            --arg backend_image_id "$(docker image inspect --format '{{.Id}}' "$IMAGE")" \
+            --arg migration_image_id "$(docker image inspect --format '{{.Id}}' "$MIGRATION_IMAGE")" \
+            '{backend_image_id: $backend_image_id, migration_image_id: $migration_image_id}' \
+            > release-image-identities.json
+          docker save "$IMAGE" "$MIGRATION_IMAGE" | gzip -1 > release-images.tar.gz
+      - name: Upload tested image candidate
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-images-${{ github.sha }}
+          path: |
+            release-images.tar.gz
+            release-image-identities.json
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: ${{ env.CANDIDATE_RETENTION_DAYS }}
 
   frontend:
+    needs: plan
+    if: >-
+      github.event_name == 'push' ||
+      needs.plan.outputs.frontend == 'true' ||
+      needs.plan.outputs.shared == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -133,12 +177,29 @@ jobs:
         run: npm run test --prefix frontend
       - name: Typecheck frontend
         run: npm run typecheck --prefix frontend
-      - name: Build frontend
+      - name: Build production frontend once
+        env:
+          VITE_CONTENT_API_ORIGIN: https://good-news-app-446870476468.us-central1.run.app
+          VITE_DEPLOY_ENV: production
         run: npm run build --prefix frontend
+      - name: Package production frontend
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: tar -czf frontend-release.tar.gz firebase.json frontend/dist
+      - name: Upload production frontend candidate
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-release-${{ github.sha }}
+          path: frontend-release.tar.gz
+          if-no-files-found: error
+          retention-days: ${{ env.CANDIDATE_RETENTION_DAYS }}
 
   backend-java:
-    needs: changes
-    if: needs.changes.outputs.backend_java == 'true' || needs.changes.outputs.shared == 'true'
+    needs: plan
+    if: >-
+      github.event_name == 'push' ||
+      needs.plan.outputs.backend_java == 'true' ||
+      needs.plan.outputs.shared == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -153,10 +214,20 @@ jobs:
           cache-dependency-path: backend-java/**/pom.xml
       - name: Run backend-java tests
         run: ./mvnw -B verify
+      - name: Backend Java test summary
+        if: always()
+        uses: test-summary/action@v2
+        with:
+          paths: |
+            backend-java/**/target/surefire-reports/TEST-*.xml
+            backend-java/**/target/failsafe-reports/TEST-*.xml
 
   differential-contract:
-    needs: changes
-    if: needs.changes.outputs.contract_harness == 'true' || needs.changes.outputs.shared == 'true'
+    needs: plan
+    if: >-
+      github.event_name == 'push' ||
+      needs.plan.outputs.contract_harness == 'true' ||
+      needs.plan.outputs.shared == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -180,3 +251,145 @@ jobs:
           name: backend-parity-reports
           path: artifacts/backend-parity*.md
           if-no-files-found: warn
+
+  quality-gate:
+    name: Quality gate
+    needs:
+      - plan
+      - backend
+      - production-image
+      - frontend
+      - backend-java
+      - differential-contract
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every applicable check
+        env:
+          PLAN_RESULT: ${{ needs.plan.result }}
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          PRODUCTION_IMAGE_RESULT: ${{ needs.production-image.result }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          BACKEND_JAVA_RESULT: ${{ needs.backend-java.result }}
+          CONTRACT_RESULT: ${{ needs.differential-contract.result }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          test "$PLAN_RESULT" = success
+          if [ "$EVENT_NAME" = push ]; then
+            test "$BACKEND_RESULT" = success
+            test "$PRODUCTION_IMAGE_RESULT" = success
+            test "$FRONTEND_RESULT" = success
+            test "$BACKEND_JAVA_RESULT" = success
+            test "$CONTRACT_RESULT" = success
+          else
+            test "$BACKEND_RESULT" = success || test "$BACKEND_RESULT" = skipped
+            test "$PRODUCTION_IMAGE_RESULT" = success || test "$PRODUCTION_IMAGE_RESULT" = skipped
+            test "$FRONTEND_RESULT" = success || test "$FRONTEND_RESULT" = skipped
+            test "$BACKEND_JAVA_RESULT" = success || test "$BACKEND_JAVA_RESULT" = skipped
+            test "$CONTRACT_RESULT" = success || test "$CONTRACT_RESULT" = skipped
+          fi
+
+  publish-candidate:
+    needs: quality-gate
+    if: >-
+      needs.quality-gate.result == 'success' &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    env:
+      REGISTRY: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/good-news
+      BACKEND_TAG: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/good-news/backend:${{ github.sha }}
+      MIGRATION_TAG: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/good-news/backend-java-migration:${{ github.sha }}
+    steps:
+      - name: Download tested images
+        uses: actions/download-artifact@v8
+        with:
+          name: release-images-${{ github.sha }}
+      - name: Download production frontend
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-release-${{ github.sha }}
+          path: frontend-candidate
+      - name: Authenticate to Google Cloud with Workload Identity Federation
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+      - name: Install gcloud
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          version: ">= 363.0.0"
+          cache: false
+      - name: Publish tested images
+        id: images
+        run: |
+          gzip -dc release-images.tar.gz | docker load
+          backend_image_id=$(docker image inspect --format '{{.Id}}' good-news-backend:ci)
+          migration_image_id=$(docker image inspect --format '{{.Id}}' good-news-backend-java-migration:ci)
+          test "$backend_image_id" = "$(jq -r '.backend_image_id' release-image-identities.json)"
+          test "$migration_image_id" = "$(jq -r '.migration_image_id' release-image-identities.json)"
+
+          gcloud auth configure-docker "${{ vars.GCP_REGION }}-docker.pkg.dev" --quiet
+          docker tag good-news-backend:ci "$BACKEND_TAG"
+          docker tag good-news-backend-java-migration:ci "$MIGRATION_TAG"
+          docker push "$BACKEND_TAG"
+          docker push "$MIGRATION_TAG"
+
+          backend_digest=$(gcloud artifacts docker images describe "$BACKEND_TAG" --format='value(image_summary.digest)')
+          migration_digest=$(gcloud artifacts docker images describe "$MIGRATION_TAG" --format='value(image_summary.digest)')
+          test -n "$backend_digest"
+          test -n "$migration_digest"
+          echo "backend_image_id=$backend_image_id" >> "$GITHUB_OUTPUT"
+          echo "migration_image_id=$migration_image_id" >> "$GITHUB_OUTPUT"
+          echo "backend_digest=$backend_digest" >> "$GITHUB_OUTPUT"
+          echo "migration_digest=$migration_digest" >> "$GITHUB_OUTPUT"
+          echo "backend_image=${REGISTRY}/backend@${backend_digest}" >> "$GITHUB_OUTPUT"
+          echo "migration_image=${REGISTRY}/backend-java-migration@${migration_digest}" >> "$GITHUB_OUTPUT"
+      - name: Verify and write release manifest
+        env:
+          BACKEND_IMAGE: ${{ steps.images.outputs.backend_image }}
+          BACKEND_IMAGE_ID: ${{ steps.images.outputs.backend_image_id }}
+          BACKEND_DIGEST: ${{ steps.images.outputs.backend_digest }}
+          MIGRATION_IMAGE: ${{ steps.images.outputs.migration_image }}
+          MIGRATION_IMAGE_ID: ${{ steps.images.outputs.migration_image_id }}
+          MIGRATION_DIGEST: ${{ steps.images.outputs.migration_digest }}
+        run: |
+          actual_frontend_digest=$(sha256sum frontend-candidate/frontend-release.tar.gz | cut -d ' ' -f 1)
+          jq -n \
+            --arg source_sha "$GITHUB_SHA" \
+            --arg run_id "$GITHUB_RUN_ID" \
+            --arg backend_image "$BACKEND_IMAGE" \
+            --arg backend_image_id "$BACKEND_IMAGE_ID" \
+            --arg backend_digest "$BACKEND_DIGEST" \
+            --arg migration_image "$MIGRATION_IMAGE" \
+            --arg migration_image_id "$MIGRATION_IMAGE_ID" \
+            --arg migration_digest "$MIGRATION_DIGEST" \
+            --arg frontend_artifact "frontend-release-${GITHUB_SHA}" \
+            --arg frontend_digest "$actual_frontend_digest" \
+            '{
+              schema_version: 1,
+              source_sha: $source_sha,
+              source_run_id: $run_id,
+              backend: {
+                image: $backend_image,
+                digest: $backend_digest,
+                tested_image_id: $backend_image_id
+              },
+              migration: {
+                image: $migration_image,
+                digest: $migration_digest,
+                tested_image_id: $migration_image_id
+              },
+              frontend: {artifact: $frontend_artifact, sha256: $frontend_digest}
+            }' > release-manifest.json
+      - name: Upload release manifest
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-candidate-${{ github.sha }}
+          path: release-manifest.json
+          if-no-files-found: error
+          retention-days: ${{ env.CANDIDATE_RETENTION_DAYS }}
