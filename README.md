@@ -38,14 +38,14 @@ strangler cutovers. Firebase Hosting rewrites `/api/**` remain a fallback.
 
 Push to `master` triggers the build-once/promote release pipeline:
 
-1. `.github/workflows/ci.yml` runs Python, frontend, production-image, Java,
-   and differential-contract checks as applicable.
-2. CI builds and tests the backend and migration images once, builds the
-   production frontend once, and publishes a release manifest only after every
-   applicable check succeeds.
-3. The `Quality gate` job is the single stable required status. Failed or
+1. The `changes` job fans out into one parallel validation layer: Python,
+   frontend, production-image, Java, and differential-contract checks as
+   applicable.
+2. The `Quality gate` job is the single stable required status. Failed or
    cancelled checks fail the gate; path-filtered Java and contract jobs may be
    skipped.
+3. After the gate, a trusted `master` run publishes the tested backend and
+   migration images, the production frontend, and their release manifest.
 4. A successful trusted CI run on `master` triggers
    `.github/workflows/deploy.yml`, which validates the manifest, promotes both
    images by digest, runs the Flyway Cloud Run job, deploys and health-checks a

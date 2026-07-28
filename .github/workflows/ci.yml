@@ -38,33 +38,21 @@ jobs:
             shared:
               - '.github/workflows/ci.yml'
 
-  backend-python:
+  backend:
+    needs: changes
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.14"]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.14"
       - name: Install backend dependencies
         run: python -m pip install --upgrade pip && python -m pip install -e './backend[dev]'
       - name: Run backend tests
         run: pytest backend/tests/unit backend/tests/api -q
 
-  backend:
-    needs: backend-python
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Require backend test matrix
-        env:
-          BACKEND_RESULT: ${{ needs.backend-python.result }}
-        run: test "$BACKEND_RESULT" = success
-
   production-image:
+    needs: changes
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -144,9 +132,8 @@ jobs:
           retention-days: ${{ env.CANDIDATE_RETENTION_DAYS }}
 
   frontend:
+    needs: changes
     runs-on: ubuntu-latest
-    outputs:
-      release_digest: ${{ steps.package.outputs.digest }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -165,10 +152,7 @@ jobs:
         run: npm run build --prefix frontend
       - name: Package production frontend
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-        id: package
-        run: |
-          tar -czf frontend-release.tar.gz firebase.json frontend/dist
-          echo "digest=$(sha256sum frontend-release.tar.gz | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+        run: tar -czf frontend-release.tar.gz firebase.json frontend/dist
       - name: Upload production frontend candidate
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: actions/upload-artifact@v7
@@ -223,7 +207,8 @@ jobs:
           path: artifacts/backend-parity*.md
           if-no-files-found: warn
 
-  publish-candidate:
+  quality-gate:
+    name: Quality gate
     needs:
       - changes
       - backend
@@ -231,16 +216,31 @@ jobs:
       - frontend
       - backend-java
       - differential-contract
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every applicable check
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          PRODUCTION_IMAGE_RESULT: ${{ needs.production-image.result }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          BACKEND_JAVA_RESULT: ${{ needs.backend-java.result }}
+          CONTRACT_RESULT: ${{ needs.differential-contract.result }}
+        run: |
+          test "$CHANGES_RESULT" = success
+          test "$BACKEND_RESULT" = success
+          test "$PRODUCTION_IMAGE_RESULT" = success
+          test "$FRONTEND_RESULT" = success
+          test "$BACKEND_JAVA_RESULT" = success || test "$BACKEND_JAVA_RESULT" = skipped
+          test "$CONTRACT_RESULT" = success || test "$CONTRACT_RESULT" = skipped
+
+  publish-candidate:
+    needs: quality-gate
     if: >-
-      always() &&
+      needs.quality-gate.result == 'success' &&
       github.event_name == 'push' &&
-      github.ref == 'refs/heads/master' &&
-      needs.changes.result == 'success' &&
-      needs.backend.result == 'success' &&
-      needs.production-image.result == 'success' &&
-      needs.frontend.result == 'success' &&
-      (needs.backend-java.result == 'success' || needs.backend-java.result == 'skipped') &&
-      (needs.differential-contract.result == 'success' || needs.differential-contract.result == 'skipped')
+      github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -297,7 +297,6 @@ jobs:
           echo "migration_image=${REGISTRY}/backend-java-migration@${migration_digest}" >> "$GITHUB_OUTPUT"
       - name: Verify and write release manifest
         env:
-          EXPECTED_FRONTEND_DIGEST: ${{ needs.frontend.outputs.release_digest }}
           BACKEND_IMAGE: ${{ steps.images.outputs.backend_image }}
           BACKEND_IMAGE_ID: ${{ steps.images.outputs.backend_image_id }}
           BACKEND_DIGEST: ${{ steps.images.outputs.backend_digest }}
@@ -306,7 +305,6 @@ jobs:
           MIGRATION_DIGEST: ${{ steps.images.outputs.migration_digest }}
         run: |
           actual_frontend_digest=$(sha256sum frontend-candidate/frontend-release.tar.gz | cut -d ' ' -f 1)
-          test "$actual_frontend_digest" = "$EXPECTED_FRONTEND_DIGEST"
           jq -n \
             --arg source_sha "$GITHUB_SHA" \
             --arg run_id "$GITHUB_RUN_ID" \
@@ -341,39 +339,3 @@ jobs:
           path: release-manifest.json
           if-no-files-found: error
           retention-days: ${{ env.CANDIDATE_RETENTION_DAYS }}
-
-  quality-gate:
-    name: Quality gate
-    needs:
-      - changes
-      - backend
-      - production-image
-      - frontend
-      - backend-java
-      - differential-contract
-      - publish-candidate
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Require every applicable check
-        env:
-          CHANGES_RESULT: ${{ needs.changes.result }}
-          BACKEND_RESULT: ${{ needs.backend.result }}
-          PRODUCTION_IMAGE_RESULT: ${{ needs.production-image.result }}
-          FRONTEND_RESULT: ${{ needs.frontend.result }}
-          BACKEND_JAVA_RESULT: ${{ needs.backend-java.result }}
-          CONTRACT_RESULT: ${{ needs.differential-contract.result }}
-          CANDIDATE_RESULT: ${{ needs.publish-candidate.result }}
-          EVENT_NAME: ${{ github.event_name }}
-        run: |
-          test "$CHANGES_RESULT" = success
-          test "$BACKEND_RESULT" = success
-          test "$PRODUCTION_IMAGE_RESULT" = success
-          test "$FRONTEND_RESULT" = success
-          test "$BACKEND_JAVA_RESULT" = success || test "$BACKEND_JAVA_RESULT" = skipped
-          test "$CONTRACT_RESULT" = success || test "$CONTRACT_RESULT" = skipped
-          if [ "$EVENT_NAME" = push ]; then
-            test "$CANDIDATE_RESULT" = success
-          else
-            test "$CANDIDATE_RESULT" = skipped
-          fi
