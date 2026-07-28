@@ -14,9 +14,13 @@ env:
   CANDIDATE_RETENTION_DAYS: 14
 
 jobs:
-  changes:
+  plan:
+    name: Plan applicable checks
     runs-on: ubuntu-latest
     outputs:
+      backend_python: ${{ steps.filter.outputs.backend_python }}
+      production_image: ${{ steps.filter.outputs.production_image }}
+      frontend: ${{ steps.filter.outputs.frontend }}
       backend_java: ${{ steps.filter.outputs.backend_java }}
       contract_harness: ${{ steps.filter.outputs.contract_harness }}
       shared: ${{ steps.filter.outputs.shared }}
@@ -28,6 +32,14 @@ jobs:
         id: filter
         with:
           filters: |
+            backend_python:
+              - 'backend/**'
+            production_image:
+              - 'backend/**'
+              - 'backend-java/**'
+            frontend:
+              - 'frontend/**'
+              - 'firebase.json'
             backend_java:
               - 'backend-java/**'
               - 'backend/alembic/**'
@@ -39,7 +51,11 @@ jobs:
               - '.github/workflows/ci.yml'
 
   backend:
-    needs: changes
+    needs: plan
+    if: >-
+      github.event_name == 'push' ||
+      needs.plan.outputs.backend_python == 'true' ||
+      needs.plan.outputs.shared == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -49,10 +65,22 @@ jobs:
       - name: Install backend dependencies
         run: python -m pip install --upgrade pip && python -m pip install -e './backend[dev]'
       - name: Run backend tests
-        run: pytest backend/tests/unit backend/tests/api -q
+        run: |
+          mkdir -p artifacts
+          pytest backend/tests/unit backend/tests/api -q \
+            --junitxml=artifacts/backend-tests.xml
+      - name: Backend test summary
+        if: always()
+        uses: test-summary/action@v2
+        with:
+          paths: artifacts/backend-tests.xml
 
   production-image:
-    needs: changes
+    needs: plan
+    if: >-
+      github.event_name == 'push' ||
+      needs.plan.outputs.production_image == 'true' ||
+      needs.plan.outputs.shared == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -132,7 +160,11 @@ jobs:
           retention-days: ${{ env.CANDIDATE_RETENTION_DAYS }}
 
   frontend:
-    needs: changes
+    needs: plan
+    if: >-
+      github.event_name == 'push' ||
+      needs.plan.outputs.frontend == 'true' ||
+      needs.plan.outputs.shared == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -163,8 +195,11 @@ jobs:
           retention-days: ${{ env.CANDIDATE_RETENTION_DAYS }}
 
   backend-java:
-    needs: changes
-    if: needs.changes.outputs.backend_java == 'true' || needs.changes.outputs.shared == 'true'
+    needs: plan
+    if: >-
+      github.event_name == 'push' ||
+      needs.plan.outputs.backend_java == 'true' ||
+      needs.plan.outputs.shared == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -179,10 +214,20 @@ jobs:
           cache-dependency-path: backend-java/**/pom.xml
       - name: Run backend-java tests
         run: ./mvnw -B verify
+      - name: Backend Java test summary
+        if: always()
+        uses: test-summary/action@v2
+        with:
+          paths: |
+            backend-java/**/target/surefire-reports/TEST-*.xml
+            backend-java/**/target/failsafe-reports/TEST-*.xml
 
   differential-contract:
-    needs: changes
-    if: needs.changes.outputs.contract_harness == 'true' || needs.changes.outputs.shared == 'true'
+    needs: plan
+    if: >-
+      github.event_name == 'push' ||
+      needs.plan.outputs.contract_harness == 'true' ||
+      needs.plan.outputs.shared == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -210,7 +255,7 @@ jobs:
   quality-gate:
     name: Quality gate
     needs:
-      - changes
+      - plan
       - backend
       - production-image
       - frontend
@@ -221,19 +266,28 @@ jobs:
     steps:
       - name: Require every applicable check
         env:
-          CHANGES_RESULT: ${{ needs.changes.result }}
+          PLAN_RESULT: ${{ needs.plan.result }}
           BACKEND_RESULT: ${{ needs.backend.result }}
           PRODUCTION_IMAGE_RESULT: ${{ needs.production-image.result }}
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           BACKEND_JAVA_RESULT: ${{ needs.backend-java.result }}
           CONTRACT_RESULT: ${{ needs.differential-contract.result }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          test "$CHANGES_RESULT" = success
-          test "$BACKEND_RESULT" = success
-          test "$PRODUCTION_IMAGE_RESULT" = success
-          test "$FRONTEND_RESULT" = success
-          test "$BACKEND_JAVA_RESULT" = success || test "$BACKEND_JAVA_RESULT" = skipped
-          test "$CONTRACT_RESULT" = success || test "$CONTRACT_RESULT" = skipped
+          test "$PLAN_RESULT" = success
+          if [ "$EVENT_NAME" = push ]; then
+            test "$BACKEND_RESULT" = success
+            test "$PRODUCTION_IMAGE_RESULT" = success
+            test "$FRONTEND_RESULT" = success
+            test "$BACKEND_JAVA_RESULT" = success
+            test "$CONTRACT_RESULT" = success
+          else
+            test "$BACKEND_RESULT" = success || test "$BACKEND_RESULT" = skipped
+            test "$PRODUCTION_IMAGE_RESULT" = success || test "$PRODUCTION_IMAGE_RESULT" = skipped
+            test "$FRONTEND_RESULT" = success || test "$FRONTEND_RESULT" = skipped
+            test "$BACKEND_JAVA_RESULT" = success || test "$BACKEND_JAVA_RESULT" = skipped
+            test "$CONTRACT_RESULT" = success || test "$CONTRACT_RESULT" = skipped
+          fi
 
   publish-candidate:
     needs: quality-gate

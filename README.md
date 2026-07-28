@@ -38,9 +38,10 @@ strangler cutovers. Firebase Hosting rewrites `/api/**` remain a fallback.
 
 Push to `master` triggers the build-once/promote release pipeline:
 
-1. The `changes` job fans out into one parallel validation layer: Python,
-   frontend, production-image, Java, and differential-contract checks as
-   applicable.
+1. The `Plan applicable checks` job maps changed paths to one parallel
+   validation layer: Python, frontend, production-image, Java, and
+   differential-contract checks. Pull requests skip unaffected checks; trusted
+   `master` pushes run all five to produce a complete release candidate.
 2. The `Quality gate` job is the single stable required status. Failed or
    cancelled checks fail the gate; path-filtered Java and contract jobs may be
    skipped.
