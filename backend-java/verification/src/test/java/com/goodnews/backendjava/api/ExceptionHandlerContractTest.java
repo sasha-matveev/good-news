@@ -9,13 +9,9 @@ import jakarta.validation.Valid;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
-import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.security.config.web.server.ServerHttpSecurity;
-import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -27,7 +23,6 @@ import org.springframework.web.bind.annotation.RestController;
         classes = {
             com.goodnews.backendjava.GoodNewsApplication.class,
             ExceptionHandlerContractTest.ContractController.class,
-            ExceptionHandlerContractTest.TestSecurityConfiguration.class,
             ApiErrorHandler.class
         })
 @AutoConfigureWebTestClient
@@ -195,19 +190,6 @@ class ExceptionHandlerContractTest {
         @PostMapping("/contract/source-not-found")
         void sourceNotFound() {
             throw new SourceNotFoundException(17L);
-        }
-    }
-
-    @TestConfiguration
-    static class TestSecurityConfiguration {
-
-        @Bean
-        SecurityWebFilterChain testSecurityWebFilterChain(ServerHttpSecurity http) {
-            return http.csrf(ServerHttpSecurity.CsrfSpec::disable)
-                    .authorizeExchange(exchanges -> exchanges.anyExchange().permitAll())
-                    .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
-                    .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
-                    .build();
         }
     }
 }

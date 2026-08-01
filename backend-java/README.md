@@ -37,6 +37,35 @@ passing a mode flag to a shared application.
   Vite origins. Authorization, content type, and correlation headers are
   accepted in browser preflight requests.
 
+## Authentication and CSRF threat model
+
+The service uses request-scoped bearer authentication and does not persist a
+Spring Security context in a browser session:
+
+- `/api/**`, except the public `/api/health`, requires a Firebase ID token in
+  the `Authorization: Bearer` header when Firebase authentication is configured.
+  An unconfigured local-development instance treats these routes as anonymous
+  and grants no user identity.
+- `/internal/jobs/**` requires a Google OIDC token in the `Authorization: Bearer`
+  header and verifies the configured scheduler service-account email.
+- `/actuator/health` is intentionally public. Other Actuator endpoints require
+  authentication.
+- HTTP Basic and form login are disabled. Cookies are never read as credentials,
+  the security context is not stored in a web session, and request caching is
+  disabled.
+
+CSRF protection is required for every unsafe request that carries browser
+cookies without an explicit bearer token. This makes a cross-origin cookie-only
+mutation fail before application code runs while preserving the stateless
+Firebase and scheduler bearer flows. New state-changing endpoints must live
+under an authenticated route above or be explicitly reviewed and documented as
+public.
+
+Adding cookie-backed or session-backed authentication changes this threat
+model. Such a change must replace the current matcher with CSRF protection
+appropriate to that browser flow and add tests covering token issuance,
+submission, and rejection.
+
 ## Database connection budget and timeouts
 
 The Java service uses an explicit R2DBC pool. Defaults are deliberately small
