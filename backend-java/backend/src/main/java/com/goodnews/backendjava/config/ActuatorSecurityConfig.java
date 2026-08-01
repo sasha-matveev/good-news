@@ -1,5 +1,6 @@
 package com.goodnews.backendjava.config;
 
+import com.goodnews.backendjava.security.CookieCsrfProtectionMatcher;
 import com.goodnews.backendjava.security.SchedulerAuthenticationWebFilter;
 import com.goodnews.backendjava.security.UserAuthenticationWebFilter;
 import org.springframework.context.annotation.Bean;
@@ -8,6 +9,8 @@ import org.springframework.security.config.annotation.web.reactive.EnableWebFlux
 import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.web.server.SecurityWebFilterChain;
+import org.springframework.security.web.server.context.NoOpServerSecurityContextRepository;
+import org.springframework.security.web.server.savedrequest.NoOpServerRequestCache;
 
 @Configuration
 @EnableWebFluxSecurity
@@ -29,7 +32,9 @@ public class ActuatorSecurityConfig {
                         .permitAll())
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
                 .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
-                .csrf(ServerHttpSecurity.CsrfSpec::disable)
+                .securityContextRepository(NoOpServerSecurityContextRepository.getInstance())
+                .requestCache(cache -> cache.requestCache(NoOpServerRequestCache.getInstance()))
+                .csrf(csrf -> csrf.requireCsrfProtectionMatcher(new CookieCsrfProtectionMatcher()))
                 .cors(ServerHttpSecurity.CorsSpec::disable)
                 .addFilterAt(schedulerAuthenticationWebFilter, SecurityWebFiltersOrder.AUTHENTICATION)
                 .addFilterAfter(userAuthenticationWebFilter, SecurityWebFiltersOrder.AUTHENTICATION)

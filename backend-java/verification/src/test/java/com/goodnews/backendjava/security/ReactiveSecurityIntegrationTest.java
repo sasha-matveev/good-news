@@ -1,6 +1,8 @@
 package com.goodnews.backendjava.security;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.goodnews.backendjava.api.dto.InternalJobDtos;
 import com.goodnews.backendjava.config.ReactiveDatabaseSmokeProbe;
@@ -8,8 +10,10 @@ import com.goodnews.backendjava.jobs.ScheduledDigestJobs;
 import com.goodnews.backendjava.jobs.SourceSyncJob;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
@@ -18,7 +22,10 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.reactive.result.method.annotation.RequestMappingHandlerMapping;
+import org.springframework.web.util.pattern.PathPattern;
 import reactor.core.publisher.Mono;
 
 @SpringBootTest(
@@ -37,6 +44,9 @@ import reactor.core.publisher.Mono;
             "good-news.email.public-frontend-origin=https://good-news.example"
         })
 class ReactiveSecurityIntegrationTest {
+
+    private static final Set<RequestMethod> SAFE_METHODS =
+            Set.of(RequestMethod.GET, RequestMethod.HEAD, RequestMethod.OPTIONS, RequestMethod.TRACE);
 
     @Autowired
     private WebTestClient webTestClient;
@@ -58,6 +68,27 @@ class ReactiveSecurityIntegrationTest {
 
     @MockitoBean
     private ReactiveDatabaseSmokeProbe databaseSmokeProbe;
+
+    @Autowired
+    @Qualifier("requestMappingHandlerMapping")
+    private RequestMappingHandlerMapping requestMappings;
+
+    @Test
+    void stateChangingControllersUseBearerProtectedNamespaces() {
+        Set<String> unprotected = requestMappings.getHandlerMethods().entrySet().stream()
+                .filter(entry ->
+                        entry.getValue().getBeanType().getPackageName().startsWith("com.goodnews.backendjava.api"))
+                .filter(entry ->
+                        entry.getKey().getMethodsCondition().getMethods().isEmpty()
+                                || entry.getKey().getMethodsCondition().getMethods().stream()
+                                        .anyMatch(method -> !SAFE_METHODS.contains(method)))
+                .flatMap(entry -> entry.getKey().getPatternsCondition().getPatterns().stream())
+                .map(PathPattern::getPatternString)
+                .filter(path -> !path.startsWith("/api/") && !path.startsWith("/internal/jobs/"))
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+
+        assertThat(unprotected).isEmpty();
+    }
 
     @Test
     void apiRequiresBearerTokenWhenFirebaseAuthConfigured() {
@@ -126,6 +157,39 @@ class ReactiveSecurityIntegrationTest {
     }
 
     @Test
+    void apiCookieOnlyMutationCannotAuthenticate() {
+        webTestClient
+                .post()
+                .uri("/api/test/posts")
+                .cookie("SESSION", "browser-ambient-credential")
+                .header("Origin", "https://good-news.example")
+                .exchange()
+                .expectStatus()
+                .isForbidden();
+
+        verifyNoInteractions(firebaseTokenVerifier);
+    }
+
+    @Test
+    void apiBearerMutationRemainsStatelessWithBrowserCookies() {
+        given(firebaseTokenVerifier.verify("owner")).willReturn(Mono.just(new TokenClaims("owner@example.com", true)));
+
+        webTestClient
+                .post()
+                .uri("/api/test/posts")
+                .header("Authorization", "Bearer owner")
+                .cookie("SESSION", "unrelated-browser-cookie")
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectHeader()
+                .doesNotExist("Set-Cookie")
+                .expectBody()
+                .jsonPath("$.status")
+                .isEqualTo("ok");
+    }
+
+    @Test
     void internalJobRequiresOidcToken() {
         webTestClient
                 .post()
@@ -136,6 +200,20 @@ class ReactiveSecurityIntegrationTest {
                 .expectBody()
                 .jsonPath("$.detail")
                 .isEqualTo("Missing bearer token.");
+    }
+
+    @Test
+    void internalJobCookieOnlyMutationCannotAuthenticate() {
+        webTestClient
+                .post()
+                .uri("/internal/jobs/test")
+                .cookie("SESSION", "browser-ambient-credential")
+                .header("Origin", "https://good-news.example")
+                .exchange()
+                .expectStatus()
+                .isForbidden();
+
+        verifyNoInteractions(googleOidcTokenVerifier);
     }
 
     @Test
@@ -241,6 +319,11 @@ class ReactiveSecurityIntegrationTest {
 
         @GetMapping("/api/test/posts")
         Mono<StatusResponse> posts() {
+            return Mono.just(new StatusResponse("ok"));
+        }
+
+        @PostMapping("/api/test/posts")
+        Mono<StatusResponse> updatePosts() {
             return Mono.just(new StatusResponse("ok"));
         }
 
