@@ -1,8 +1,8 @@
 # Good News reactive Java backend
 
-The module targets Java 21 and Spring Boot 3.5.16. It is the shadow backend for
-the production strangler migration; browser production traffic remains owned by
-Python until a later ownership PR changes the frontend operation map.
+The module targets Java 21 and Spring Boot 3.5.16. It is deployed as a regular
+production backend; browser operation ownership is controlled independently by
+the frontend operation map during the strangler migration.
 
 ## Maven modules
 
@@ -61,7 +61,7 @@ submission, and rejection.
 ## Database connection budget and timeouts
 
 The Java service uses an explicit R2DBC pool. Defaults are deliberately small
-for the first shadow deployment:
+for the parallel deployment period:
 
 | Setting | Default |
 | --- | --- |
@@ -158,6 +158,5 @@ java -jar backend-java\application\target\good-news-application-0.0.1-SNAPSHOT-e
 curl.exe http://127.0.0.1:8080/api/health
 ```
 
-Production shadow image publication, staging acceptance, zero-traffic Cloud Run
-deployment, and rollback are documented in
-[`docs/java-production-shadow.md`](../docs/java-production-shadow.md).
+Java image publication, staging and production rollout, and rollback are
+documented in [`docs/java-deployment.md`](../docs/java-deployment.md).

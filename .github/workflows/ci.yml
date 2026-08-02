@@ -329,6 +329,7 @@ jobs:
   publish-candidate:
     needs: quality-gate
     if: >-
+      always() &&
       needs.quality-gate.result == 'success' &&
       github.event_name == 'push' &&
       github.ref == 'refs/heads/master'
