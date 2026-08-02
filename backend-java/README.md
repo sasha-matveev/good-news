@@ -157,3 +157,7 @@ backend-java\mvnw.cmd -pl application -am package
 java -jar backend-java\application\target\good-news-application-0.0.1-SNAPSHOT-exec.jar
 curl.exe http://127.0.0.1:8080/api/health
 ```
+
+Production shadow image publication, staging acceptance, zero-traffic Cloud Run
+deployment, and rollback are documented in
+[`docs/java-production-shadow.md`](../docs/java-production-shadow.md).

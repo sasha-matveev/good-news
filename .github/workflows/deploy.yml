@@ -202,14 +202,17 @@ jobs:
           jq -e \
             --arg sha "$CANDIDATE_SHA" \
             --arg run_id "$CANDIDATE_RUN_ID" \
-            '.schema_version == 1 and
+            '.schema_version == 2 and
              .source_sha == $sha and
              .source_run_id == $run_id and
              .backend.image == (.backend.image | sub("@.*$"; "")) + "@" + .backend.digest and
+             .java.image == (.java.image | sub("@.*$"; "")) + "@" + .java.digest and
              .migration.image == (.migration.image | sub("@.*$"; "")) + "@" + .migration.digest and
              (.backend.digest | test("^sha256:[0-9a-f]{64}$")) and
+             (.java.digest | test("^sha256:[0-9a-f]{64}$")) and
              (.migration.digest | test("^sha256:[0-9a-f]{64}$")) and
              (.backend.tested_image_id | test("^sha256:[0-9a-f]{64}$")) and
+             (.java.tested_image_id | test("^sha256:[0-9a-f]{64}$")) and
              (.migration.tested_image_id | test("^sha256:[0-9a-f]{64}$")) and
              .frontend.artifact == ("frontend-release-" + $sha) and
              (.frontend.sha256 | test("^[0-9a-f]{64}$"))' \
