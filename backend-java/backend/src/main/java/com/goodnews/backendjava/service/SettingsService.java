@@ -176,20 +176,12 @@ public class SettingsService {
         return upsertSetting("last_weekly_digest_sent_at", sentAt.toString());
     }
 
-    public Mono<Void> setLastObservabilityReportSentAt(Instant sentAt) {
-        return upsertSetting("last_observability_report_sent_at", sentAt.toString());
-    }
-
     public Mono<Instant> getLastDailyDigestSentAt() {
         return getInstantSetting("last_daily_digest_sent_at");
     }
 
     public Mono<Instant> getLastWeeklyDigestSentAt() {
         return getInstantSetting("last_weekly_digest_sent_at");
-    }
-
-    public Mono<Instant> getLastObservabilityReportSentAt() {
-        return getInstantSetting("last_observability_report_sent_at");
     }
 
     static String encryptSecret(String plaintext, String masterKey) {

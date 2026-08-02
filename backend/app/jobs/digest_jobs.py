@@ -12,14 +12,11 @@ from app.core.observability import record_delivery_run
 from app.models.digest import Digest
 from app.services.digest_service import generate_daily_digest, generate_weekly_digest
 from app.services.email_service import EmailMessage, EmailSendError, EmailTransport, SmtpTransport, send_email
-from app.services.observability_report_service import generate_daily_observability_report
 from app.services.settings_service import (
-    get_last_observability_report_sent_at,
     get_last_daily_digest_sent_at,
     get_last_weekly_digest_sent_at,
     get_smtp_password,
     load_settings,
-    set_last_observability_report_sent_at,
     set_last_daily_digest_sent_at,
     set_last_weekly_digest_sent_at,
 )
@@ -56,14 +53,6 @@ def _last_due_time(*, now: datetime, daily_digest_time: str) -> datetime:
     if now >= due_today:
         return due_today - timedelta(days=1)
     return due_today - timedelta(days=2)
-
-
-def _latest_due_time_including_today(*, now: datetime, scheduled_time: str) -> datetime:
-    hour, minute = _parse_daily_time(scheduled_time)
-    due_today = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-    if now >= due_today:
-        return due_today
-    return due_today - timedelta(days=1)
 
 
 def _last_weekly_due_time(*, now: datetime, weekly_digest_day_of_week: str, weekly_digest_time: str) -> datetime:
@@ -200,29 +189,6 @@ def run_weekly_digest(
     )
 
 
-def run_daily_observability_report(
-    *,
-    session_factory: sessionmaker[Session],
-    now: datetime,
-    runtime_settings: Settings | None = None,
-    email_transport: EmailTransport | None = None,
-) -> DeliveryRunResult:
-    resolved_runtime_settings = runtime_settings or Settings.from_env()
-    return _deliver_generated_digest(
-        session_factory=session_factory,
-        now=now,
-        runtime_settings=resolved_runtime_settings,
-        email_transport=email_transport,
-        digest_type="observability_daily",
-        generate_digest=lambda session: generate_daily_observability_report(
-            session=session,
-            now=now,
-            grafana_base_url=resolved_runtime_settings.observability_grafana_base_url(),
-        ),
-        set_last_sent_at=set_last_observability_report_sent_at,
-    )
-
-
 def catch_up_daily_digest_if_needed(
     *,
     session_factory: sessionmaker[Session],
@@ -262,27 +228,6 @@ def catch_up_weekly_digest_if_needed(
             return None
         run_digest(last_due)
         set_last_weekly_digest_sent_at(session, last_due.astimezone(UTC).isoformat())
-        return last_due
-
-
-def catch_up_daily_observability_report_if_needed(
-    *,
-    session_factory: sessionmaker[Session],
-    now: datetime,
-    runtime_settings: Settings | None = None,
-    run_report: Callable[[datetime], object],
-) -> datetime | None:
-    resolved_runtime_settings = runtime_settings or Settings.from_env()
-    with session_scope(session_factory) as session:
-        last_due = _latest_due_time_including_today(
-            now=now,
-            scheduled_time=resolved_runtime_settings.observability_daily_report_time,
-        )
-        last_sent = get_last_observability_report_sent_at(session)
-        if last_sent is not None and datetime.fromisoformat(last_sent) >= last_due:
-            return None
-        run_report(last_due)
-        set_last_observability_report_sent_at(session, last_due.astimezone(UTC).isoformat())
         return last_due
 
 
@@ -333,29 +278,6 @@ def register_weekly_digest_job(
         trigger="cron",
         id="weekly-digest",
         day_of_week=settings.weekly_digest_day_of_week,
-        hour=hour,
-        minute=minute,
-        replace_existing=True,
-    )
-
-
-def register_daily_observability_report_job(
-    *,
-    scheduler: object,
-    session_factory: sessionmaker[Session],
-    now_provider: Callable[[], datetime],
-    runtime_settings: Settings | None = None,
-) -> None:
-    resolved_runtime_settings = runtime_settings or Settings.from_env()
-    hour, minute = _parse_daily_time(resolved_runtime_settings.observability_daily_report_time)
-    scheduler.add_job(
-        lambda: run_daily_observability_report(
-            session_factory=session_factory,
-            now=now_provider(),
-            runtime_settings=resolved_runtime_settings,
-        ),
-        trigger="cron",
-        id="observability-daily-report",
         hour=hour,
         minute=minute,
         replace_existing=True,

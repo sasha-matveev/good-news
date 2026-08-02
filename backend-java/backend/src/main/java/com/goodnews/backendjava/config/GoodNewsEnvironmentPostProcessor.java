@@ -56,8 +56,7 @@ public class GoodNewsEnvironmentPostProcessor implements EnvironmentPostProcesso
             Map.entry("GOOD_NEWS_SMTP_WRITE_TIMEOUT", "good-news.email.smtp-write-timeout"),
             Map.entry("GOOD_NEWS_OBSERVABILITY_GRAFANA_ORIGIN", "good-news.observability.grafana-origin"),
             Map.entry("GOOD_NEWS_OBSERVABILITY_GRAFANA_HOST", "good-news.observability.grafana-host"),
-            Map.entry("GOOD_NEWS_OBSERVABILITY_GRAFANA_HOST_PORT", "good-news.observability.grafana-host-port"),
-            Map.entry("GOOD_NEWS_OBSERVABILITY_DAILY_REPORT_TIME", "good-news.observability.daily-report-time"));
+            Map.entry("GOOD_NEWS_OBSERVABILITY_GRAFANA_HOST_PORT", "good-news.observability.grafana-host-port"));
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {

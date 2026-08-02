@@ -62,7 +62,6 @@ class Settings:
     observability_grafana_origin: str | None = None
     observability_grafana_host: str = "127.0.0.1"
     observability_grafana_host_port: int = 3000
-    observability_daily_report_time: str = "18:00"
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -99,7 +98,6 @@ class Settings:
             observability_grafana_origin=os.getenv("GOOD_NEWS_OBSERVABILITY_GRAFANA_ORIGIN"),
             observability_grafana_host=os.getenv("GOOD_NEWS_OBSERVABILITY_GRAFANA_HOST", "127.0.0.1"),
             observability_grafana_host_port=_read_int_env("GOOD_NEWS_OBSERVABILITY_GRAFANA_HOST_PORT", 3000),
-            observability_daily_report_time=os.getenv("GOOD_NEWS_OBSERVABILITY_DAILY_REPORT_TIME", "18:00"),
         )
 
     def _resolve_secret(

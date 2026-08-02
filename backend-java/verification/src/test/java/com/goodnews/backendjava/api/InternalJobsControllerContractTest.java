@@ -24,10 +24,7 @@ class InternalJobsControllerContractTest {
         when(sourceSync.run()).thenReturn(Mono.just(new InternalJobDtos.SourceSyncJobResponse(List.of(3L, 7L), true)));
         when(digests.runDue(NOW))
                 .thenReturn(Mono.just(new ScheduledDigestJobs.RunResult(
-                        Instant.parse("2026-07-18T12:00:00Z"),
-                        null,
-                        Instant.parse("2026-07-17T18:00:00Z"),
-                        List.of("weekly: SMTP down"))));
+                        Instant.parse("2026-07-18T12:00:00Z"), null, List.of("weekly: SMTP down"))));
         WebTestClient client = WebTestClient.bindToController(
                         new InternalJobsController(sourceSync, digests, Clock.fixed(NOW, ZoneOffset.UTC)))
                 .build();
@@ -48,7 +45,7 @@ class InternalJobsControllerContractTest {
                 .json(
                         """
                         {"daily_ran_for":"2026-07-18T12:00:00Z","weekly_ran_for":null,
-                         "observability_ran_for":"2026-07-17T18:00:00Z","errors":["weekly: SMTP down"]}
+                         "errors":["weekly: SMTP down"]}
                         """);
     }
 }

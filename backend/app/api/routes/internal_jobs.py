@@ -9,10 +9,8 @@ from app.core.config import MissingPublicOriginError
 from app.core.request_auth import _bearer_token, google_oidc_token_verifier
 from app.jobs.digest_jobs import (
     catch_up_daily_digest_if_needed,
-    catch_up_daily_observability_report_if_needed,
     catch_up_weekly_digest_if_needed,
     run_daily_digest,
-    run_daily_observability_report,
     run_weekly_digest,
 )
 from app.services.email_service import EmailSendError
@@ -29,7 +27,6 @@ class SourceSyncJobResponse(BaseModel):
 class DigestJobResponse(BaseModel):
     daily_ran_for: str | None
     weekly_ran_for: str | None
-    observability_ran_for: str | None
     errors: list[str]
 
 
@@ -106,7 +103,6 @@ def run_digest_jobs(request: Request) -> DigestJobResponse:
     errors: list[str] = []
     daily_ran_for: str | None = None
     weekly_ran_for: str | None = None
-    observability_ran_for: str | None = None
 
     try:
         ran = catch_up_daily_digest_if_needed(
@@ -138,25 +134,8 @@ def run_digest_jobs(request: Request) -> DigestJobResponse:
         logger.warning("digests job: weekly digest failed: %s", exc)
         errors.append(f"weekly: {exc}")
 
-    try:
-        ran = catch_up_daily_observability_report_if_needed(
-            session_factory=state.session_factory,
-            now=now,
-            runtime_settings=settings,
-            run_report=lambda scheduled_for: run_daily_observability_report(
-                session_factory=state.session_factory,
-                now=scheduled_for,
-                runtime_settings=settings,
-            ),
-        )
-        observability_ran_for = ran.isoformat() if ran else None
-    except EmailSendError as exc:
-        logger.warning("digests job: observability report failed: %s", exc)
-        errors.append(f"observability: {exc}")
-
     return DigestJobResponse(
         daily_ran_for=daily_ran_for,
         weekly_ran_for=weekly_ran_for,
-        observability_ran_for=observability_ran_for,
         errors=errors,
     )

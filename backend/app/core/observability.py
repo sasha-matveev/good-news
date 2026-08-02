@@ -50,7 +50,7 @@ ANALYSIS_FAILURES_TOTAL = Counter(
 )
 DELIVERY_RUNS_TOTAL = Counter(
     "good_news_delivery_runs_total",
-    "Digest and observability-report delivery runs by type and outcome.",
+    "Digest delivery runs by type and outcome.",
     ["digest_type", "status"],
 )
 SERVICE_UP = Gauge(

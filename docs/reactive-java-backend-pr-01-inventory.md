@@ -17,7 +17,7 @@ This document freezes the current Python backend scope and contracts for PR-01 o
 | `api/routes` | `health.py`, `posts.py`, `feedback.py`, `preferences.py`, `settings.py`, `sources.py`, `want_to_read.py`, `digests.py`, `monitoring.py`, `internal_jobs.py` | Public `/api/*` HTTP routes plus scheduler-triggered `/internal/jobs/*` routes mounted by `backend/app/main.py` | `web.api`, `web.internaljobs` |
 | `schemas` | `post.py`, `feedback.py`, `preference.py`, `setting.py`, `source.py`, `want_to_read.py`, `digest.py` | Request and response DTOs for the current HTTP surface | `web.dto` |
 | `models` | `source.py`, `post.py`, `post_analysis.py`, `feedback.py`, `read_later.py`, `digest.py`, `digest_item.py`, `preference_profile.py`, `setting.py`, `base.py` | SQLAlchemy persistence model for content, ranking feedback, settings, digests, and observability events | `persistence.model` |
-| `services` | Listing, preferences, settings, digests, source onboarding/sync/readaptation, analysis, email, observability reporting, plus `*_service_client.py` and `*_boundary.py` adapters | Domain logic plus legacy HTTP client and boundary adapters | `application.posts`, `application.preferences`, `application.settings`, `application.sources`, `application.analysis`, `application.digests`, `application.delivery`, `integration.internal` |
+| `services` | Listing, preferences, settings, digests, source onboarding/sync/readaptation, analysis, email, plus `*_service_client.py` and `*_boundary.py` adapters | Domain logic plus legacy HTTP client and boundary adapters | `application.posts`, `application.preferences`, `application.settings`, `application.sources`, `application.analysis`, `application.digests`, `application.delivery`, `integration.internal` |
 | `jobs` | `analysis_jobs.py`, `digest_jobs.py`, `source_jobs.py` | Scheduled and batch orchestration for analysis, source sync, and digest/report dispatch | `jobs` |
 | `core` | `config.py`, `db.py`, `migration_runner.py`, `observability.py`, `request_auth.py`, `schema_guard.py`, `secrets.py` | Runtime config, DB bootstrap, migration runner, auth, observability, and secret handling | `platform.config`, `platform.db`, `platform.auth`, `platform.observability`, `platform.secrets` |
 | `ai` | `gemini_client.py` | Gemini API integration used by the active monolith and the legacy analysis runtime | `integration.gemini` |
@@ -70,7 +70,6 @@ Planned Java package areas are a migration-planning grouping adopted by this doc
 
 - Daily digest catch-up and send logic.
 - Weekly digest catch-up and send logic.
-- Daily observability report catch-up and send logic.
 
 ## Legacy internal service contracts to freeze before migration
 

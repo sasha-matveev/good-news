@@ -61,8 +61,7 @@ class GoodNewsPropertiesBindingTest {
                         "GOOD_NEWS_SMTP_WRITE_TIMEOUT=15s",
                         "GOOD_NEWS_OBSERVABILITY_GRAFANA_ORIGIN=https://grafana.good-news.example.com",
                         "GOOD_NEWS_OBSERVABILITY_GRAFANA_HOST=grafana.internal",
-                        "GOOD_NEWS_OBSERVABILITY_GRAFANA_HOST_PORT=3300",
-                        "GOOD_NEWS_OBSERVABILITY_DAILY_REPORT_TIME=19:15")
+                        "GOOD_NEWS_OBSERVABILITY_GRAFANA_HOST_PORT=3300")
                 .run()) {
             GoodNewsProperties properties = context.getBean(GoodNewsProperties.class);
 
@@ -116,7 +115,6 @@ class GoodNewsPropertiesBindingTest {
             assertThat(properties.observability().grafanaOrigin()).isEqualTo("https://grafana.good-news.example.com");
             assertThat(properties.observability().grafanaHost()).isEqualTo("grafana.internal");
             assertThat(properties.observability().grafanaHostPort()).isEqualTo(3300);
-            assertThat(properties.observability().dailyReportTime()).isEqualTo("19:15");
         }
     }
 

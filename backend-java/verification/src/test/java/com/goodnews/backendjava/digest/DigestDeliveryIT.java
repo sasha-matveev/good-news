@@ -87,12 +87,9 @@ class DigestDeliveryIT {
     @MockitoSpyBean
     DigestGenerationService generator;
 
-    @MockitoSpyBean
-    ObservabilityReportGenerator observabilityReports;
-
     @BeforeEach
     void clean() {
-        reset(smtp, digests, generator, observabilityReports);
+        reset(smtp, digests, generator);
         database.sql(
                         "TRUNCATE TABLE digest_items, digests, read_later, post_analysis, feedback, technical_events, posts, sources, secret_settings, settings RESTART IDENTITY CASCADE")
                 .then()
@@ -160,36 +157,6 @@ class DigestDeliveryIT {
         assertThat(server.message()).contains("Subject: Good News weekly digest for 2026-07-17", "Post 1");
         server.close();
         assertThat(deliveryRuns("weekly", "sent")).isEqualTo(sentBefore + 1);
-    }
-
-    @Test
-    void observabilityReportPersistsRendersAndSendsCurrentOperationalState() {
-        MockSmtpServer server = new MockSmtpServer();
-        smtpSettings(server.port());
-        sql("UPDATE sources SET status='ready' WHERE id=1");
-        sql(
-                "INSERT INTO sources(id,original_url,display_name,status,consecutive_failures,needs_readaptation,last_failure_at) VALUES (2,'https://failing.test','Failing <Source>','failed',3,true,'2026-07-17T11:00:00Z')");
-        sql(
-                "INSERT INTO technical_events(severity,subsystem,event_code,summary,details,source_id,created_at) VALUES ('error','source-sync','fetch_failed','Unsafe <summary>','Timeout & retry',2,'2026-07-17T12:30:00Z')");
-
-        DeliveryRunResult result = delivery.deliverObservabilityReport(NOW).block();
-
-        assertThat(result).isEqualTo(new DeliveryRunResult(1, "sent", true, 1));
-        assertThat(digest(1).type()).isEqualTo("observability_daily");
-        assertThat(setting("last_observability_report_sent_at")).isEqualTo(NOW.toString());
-        assertThat(value("SELECT subject FROM digests WHERE id=1"))
-                .isEqualTo("Good News observability report for 2026-07-17");
-        assertThat(value("SELECT html_body FROM digests WHERE id=1"))
-                .contains(
-                        "1 technical events in the last 24 hours",
-                        "Unsafe &lt;summary&gt;",
-                        "Failing &lt;Source&gt;",
-                        "Open Grafana dashboard",
-                        "/render/d-solo/good-news-overview/good-news-observability-overview");
-        assertThat(value("SELECT metadata_json FROM digests WHERE id=1"))
-                .contains("\"event_count\":1", "\"failing_source_count\":1");
-        assertThat(server.message()).contains("Subject: Good News observability report for 2026-07-17");
-        server.close();
     }
 
     @Test
@@ -431,13 +398,6 @@ class DigestDeliveryIT {
     private long count(String statement) {
         return database.sql(statement)
                 .map((row, metadata) -> row.get("value", Long.class))
-                .one()
-                .block();
-    }
-
-    private String value(String statement) {
-        return database.sql(statement)
-                .map((row, metadata) -> row.get(0, String.class))
                 .one()
                 .block();
     }

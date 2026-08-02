@@ -55,6 +55,6 @@ class AppMasterKeyResolverTest {
                 new SchedulerProperties(30, 3, null),
                 new GeminiProperties(null, "gemini-3.1-flash-lite", 10, 8, 4),
                 new EmailProperties(appMasterKey, null, null),
-                new ObservabilityProperties(null, "127.0.0.1", 3000, "18:00"));
+                new ObservabilityProperties(null, "127.0.0.1", 3000));
     }
 }

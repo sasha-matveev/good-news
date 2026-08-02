@@ -270,7 +270,7 @@ class ReactiveSecurityIntegrationTest {
         given(googleOidcTokenVerifier.verify("scheduler"))
                 .willReturn(Mono.just(new TokenClaims("scheduler@test.iam.gserviceaccount.com", true)));
         given(scheduledDigestJobs.runDue(org.mockito.ArgumentMatchers.any(Instant.class)))
-                .willReturn(Mono.just(new ScheduledDigestJobs.RunResult(null, null, null, List.of())));
+                .willReturn(Mono.just(new ScheduledDigestJobs.RunResult(null, null, List.of())));
 
         webTestClient
                 .post()
@@ -280,7 +280,7 @@ class ReactiveSecurityIntegrationTest {
                 .expectStatus()
                 .isOk()
                 .expectBody()
-                .json("{\"daily_ran_for\":null,\"weekly_ran_for\":null,\"observability_ran_for\":null,\"errors\":[]}");
+                .json("{\"daily_ran_for\":null,\"weekly_ran_for\":null,\"errors\":[]}");
     }
 
     @Test
