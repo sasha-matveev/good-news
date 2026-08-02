@@ -78,15 +78,6 @@ def test_correlation_id_is_preserved_on_response() -> None:
     assert response.headers["X-Correlation-ID"] == "frontend-request-42"
 
 
-def test_prometheus_metrics_are_not_publicly_exposed() -> None:
-    app = _build_app(Settings())
-    with TestClient(app) as client:
-        response = client.get("/metrics")
-
-    assert response.status_code == 404
-    assert response.headers["X-Good-News-Backend"] == "python"
-
-
 def test_api_rejects_non_allowlisted_email() -> None:
     app = _build_app(AUTH_SETTINGS)
     app.state.user_token_verifier = lambda token: {

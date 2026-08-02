@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.ai.gemini_client import GeminiClient
 from app.core.config import Settings
 from app.core.db import create_engine_from_settings, create_session_factory, session_scope
-from app.core.observability import instrument_app
+from app.core.backend_identity import install_backend_identity
 from app.core.schema_guard import assert_database_schema_is_current
 from app.models.post import Post
 from app.services.analysis import AnalysisRequest, AnalysisResult, analyze_request, persist_analysis_result
@@ -59,7 +59,7 @@ def create_app(
     app.state.session_factory = session_factory
     app.state.analysis_stub_result = _stub_result_from_settings(resolved_settings)
     app.state.analysis_client_factory = analysis_client_factory or (lambda: GeminiClient(settings=resolved_settings))
-    instrument_app(app=app, service_name="analysis-llm-service")
+    install_backend_identity(app)
 
     @app.on_event("startup")
     def ensure_session_factory() -> None:

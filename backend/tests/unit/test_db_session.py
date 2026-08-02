@@ -10,7 +10,7 @@ from app.core.db import (
     wait_for_database,
 )
 from app.models.base import Base
-from app.models.setting import Setting, TechnicalEvent
+from app.models.setting import Setting
 from app.models.source import Source
 
 
@@ -127,18 +127,3 @@ def test_wait_for_database_gives_up_after_timeout() -> None:
 
     # Retried within the window, then failed once past the deadline.
     assert sleeps == [1.0, 1.0]
-
-
-def test_engine_supports_all_core_task_two_tables() -> None:
-    engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
-    Base.metadata.create_all(engine)
-    session_factory = create_session_factory(engine)
-
-    with session_scope(session_factory) as session:
-        session.add(TechnicalEvent(subsystem="source-sync", event_code="boot", summary="ok"))
-
-    with session_scope(session_factory) as session:
-        event = session.scalar(select(TechnicalEvent))
-
-    assert event is not None
-    assert event.event_code == "boot"

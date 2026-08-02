@@ -26,13 +26,7 @@ passing a mode flag to a shared application.
 - `GET /api/health` is public and returns `{"status":"ok"}` only when the
   database has the required schema. Database or schema failure
   returns `503` with `{"status":"error","reason":"database or required schema is not ready"}`.
-- `GET /actuator/health` is public. Other `/actuator/**` routes require
-  authentication. Prometheus is neither exposed nor included as a runtime
-  dependency; Cloud Logging structured request events and Micrometer's in-process
-  registry are the current Cloud Monitoring integration seam.
 - Every response carries `X-Good-News-Backend: java` and `X-Correlation-ID`.
-  Request logs and HTTP counters/timers include backend, method, route, and
-  status dimensions.
 - CORS permits the configured `GOOD_NEWS_PUBLIC_FRONTEND_ORIGIN` plus the local
   Vite origins. Authorization, content type, and correlation headers are
   accepted in browser preflight requests.
@@ -48,8 +42,6 @@ Spring Security context in a browser session:
   and grants no user identity.
 - `/internal/jobs/**` requires a Google OIDC token in the `Authorization: Bearer`
   header and verifies the configured scheduler service-account email.
-- `/actuator/health` is intentionally public. Other Actuator endpoints require
-  authentication.
 - HTTP Basic and form login are disabled. Cookies are never read as credentials,
   the security context is not stored in a web session, and request caching is
   disabled.
@@ -164,8 +156,4 @@ Manual endpoint check on the default application port:
 backend-java\mvnw.cmd -pl application -am package
 java -jar backend-java\application\target\good-news-application-0.0.1-SNAPSHOT-exec.jar
 curl.exe http://127.0.0.1:8080/api/health
-curl.exe http://127.0.0.1:8080/actuator/health
-curl.exe -i http://127.0.0.1:8080/actuator/prometheus
 ```
-
-The final command must not return an unauthenticated metrics payload.

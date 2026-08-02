@@ -21,7 +21,6 @@ from app.models.feedback import Feedback
 from app.models.post import Post
 from app.models.post_analysis import PostAnalysis
 from app.models.read_later import ReadLater
-from app.models.setting import TechnicalEvent
 from app.models.source import Source
 from app.parsing.discovery import normalize_source_url
 from app.schemas.source import SourceCreateRequest, SourceResponse, SourceUpdateRequest
@@ -282,7 +281,6 @@ def delete_source(
         session.execute(sa_delete(Feedback).where(Feedback.post_id.in_(post_ids)))
         session.execute(sa_delete(Post).where(Post.source_id == source_id))
 
-    session.execute(sa_delete(TechnicalEvent).where(TechnicalEvent.source_id == source_id))
     session.delete(source)
 
 

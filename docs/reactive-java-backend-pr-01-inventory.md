@@ -16,10 +16,10 @@ This document freezes the current Python backend scope and contracts for PR-01 o
 | --- | --- | --- | --- |
 | `api/routes` | `health.py`, `posts.py`, `feedback.py`, `preferences.py`, `settings.py`, `sources.py`, `want_to_read.py`, `digests.py`, `monitoring.py`, `internal_jobs.py` | Public `/api/*` HTTP routes plus scheduler-triggered `/internal/jobs/*` routes mounted by `backend/app/main.py` | `web.api`, `web.internaljobs` |
 | `schemas` | `post.py`, `feedback.py`, `preference.py`, `setting.py`, `source.py`, `want_to_read.py`, `digest.py` | Request and response DTOs for the current HTTP surface | `web.dto` |
-| `models` | `source.py`, `post.py`, `post_analysis.py`, `feedback.py`, `read_later.py`, `digest.py`, `digest_item.py`, `preference_profile.py`, `setting.py`, `base.py` | SQLAlchemy persistence model for content, ranking feedback, settings, digests, and observability events | `persistence.model` |
+| `models` | `source.py`, `post.py`, `post_analysis.py`, `feedback.py`, `read_later.py`, `digest.py`, `digest_item.py`, `preference_profile.py`, `setting.py`, `base.py` | SQLAlchemy persistence model for content, ranking feedback, settings, and digests | `persistence.model` |
 | `services` | Listing, preferences, settings, digests, source onboarding/sync/readaptation, analysis, email, plus `*_service_client.py` and `*_boundary.py` adapters | Domain logic plus legacy HTTP client and boundary adapters | `application.posts`, `application.preferences`, `application.settings`, `application.sources`, `application.analysis`, `application.digests`, `application.delivery`, `integration.internal` |
 | `jobs` | `analysis_jobs.py`, `digest_jobs.py`, `source_jobs.py` | Scheduled and batch orchestration for analysis, source sync, and digest/report dispatch | `jobs` |
-| `core` | `config.py`, `db.py`, `migration_runner.py`, `observability.py`, `request_auth.py`, `schema_guard.py`, `secrets.py` | Runtime config, DB bootstrap, migration runner, auth, observability, and secret handling | `platform.config`, `platform.db`, `platform.auth`, `platform.observability`, `platform.secrets` |
+| `core` | `backend_identity.py`, `config.py`, `db.py`, `migration_runner.py`, `request_auth.py`, `schema_guard.py`, `secrets.py` | Runtime config, DB bootstrap, migration runner, auth, response identity, and secret handling | `platform.config`, `platform.db`, `platform.auth`, `platform.secrets` |
 | `ai` | `gemini_client.py` | Gemini API integration used by the active monolith and the legacy analysis runtime | `integration.gemini` |
 | `parsing` | `discovery.py`, `html_strategy.py`, `known_sites.py`, `uber_engineering.py` | Source discovery, document loading, URL normalization, and site-specific parsing behavior used by ingestion flows | `application.sources.parsing` |
 
@@ -41,14 +41,14 @@ Planned Java package areas are a migration-planning grouping adopted by this doc
 | `GET` | `/api/feedback/{post_id}/{state}` | Saves feedback from email links and redirects to frontend routes; `want_to_read` also persists a read-later row. |
 | `GET` | `/api/preferences` | Recomputes the preference profile from current data and returns it. |
 | `POST` | `/api/preferences/recompute` | Recomputes and persists the preference profile, then returns it. |
-| `GET` | `/api/settings` | Returns current app settings plus the observability dashboard URL. |
+| `GET` | `/api/settings` | Returns current app settings. |
 | `PUT` | `/api/settings` | Persists settings and re-registers digest scheduler jobs when an in-process scheduler exists. |
 | `POST` | `/api/settings/test-email` | Sends a test email through the in-process delivery boundary in monolith mode; otherwise calls the legacy delivery HTTP service client. |
 | `POST` | `/api/sources` | Creates a source and starts onboarding in monolith mode; otherwise delegates to the legacy ingestion HTTP service. |
 | `GET` | `/api/sources/{source_id}/log` | Returns in-memory onboarding log lines plus completion status. |
 | `GET` | `/api/sources` | Lists sources with post counts. |
 | `PATCH` | `/api/sources/{source_id}` | Updates source active state. |
-| `DELETE` | `/api/sources/{source_id}` | Deletes a source and cascades related content and technical events in application code. |
+| `DELETE` | `/api/sources/{source_id}` | Deletes a source and cascades related content in application code. |
 | `POST` | `/api/sources/{source_id}/sync` | Syncs one source in monolith mode only; legacy path returns HTTP 501. |
 | `POST` | `/api/sources/{source_id}/reload-posts` | Deletes and reloads recent posts for one source in monolith mode only. |
 | `POST` | `/api/sources/sync` | Runs one sync pass for all active sources, directly in monolith mode or via the legacy ingestion HTTP client. |

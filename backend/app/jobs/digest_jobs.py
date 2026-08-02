@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Settings
 from app.core.db import session_scope
-from app.core.observability import record_delivery_run
 from app.models.digest import Digest
 from app.services.digest_service import generate_daily_digest, generate_weekly_digest
 from app.services.email_service import EmailMessage, EmailSendError, EmailTransport, SmtpTransport, send_email
@@ -81,7 +80,6 @@ def _deliver_generated_digest(
         try:
             digest = generate_digest(session)
         except Exception:
-            record_delivery_run(digest_type=digest_type, status="failed")
             raise
         item_count = _generated_item_count(digest)
         stored_digest = session.get(Digest, digest.digest_id)
@@ -90,7 +88,6 @@ def _deliver_generated_digest(
         if not app_settings.recipient_email or not app_settings.sender_identity:
             stored_digest.status = "skipped"
             set_last_sent_at(session, now.astimezone(UTC).isoformat())
-            record_delivery_run(digest_type=digest_type, status="skipped")
             return DeliveryRunResult(
                 digest_id=digest.digest_id,
                 status="skipped",
@@ -116,13 +113,11 @@ def _deliver_generated_digest(
             )
         except EmailSendError:
             stored_digest.status = "failed"
-            record_delivery_run(digest_type=digest_type, status="failed")
             raise
         stored_digest.status = "sent"
         stored_digest.recipient_email = app_settings.recipient_email
         stored_digest.sent_at = now
         set_last_sent_at(session, now.astimezone(UTC).isoformat())
-        record_delivery_run(digest_type=digest_type, status="sent")
         return DeliveryRunResult(
             digest_id=digest.digest_id,
             status="sent",

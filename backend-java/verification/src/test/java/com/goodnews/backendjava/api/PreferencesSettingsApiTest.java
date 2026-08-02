@@ -207,8 +207,6 @@ class PreferencesSettingsApiTest {
                 .isEqualTo("sat")
                 .jsonPath("$.weekly_digest_time")
                 .isEqualTo("23:30")
-                .jsonPath("$.observability_dashboard_url")
-                .isEqualTo("http://127.0.0.1:3000/d/good-news-overview/good-news-observability-overview")
                 .jsonPath("$.smtp_port")
                 .isEqualTo(587)
                 .jsonPath("$.smtp_security_mode")

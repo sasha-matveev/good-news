@@ -155,6 +155,11 @@ class FlywaySchemaMigrationIT {
             assertThat(fetchSingleLong(
                             connection, "SELECT COUNT(*) FROM settings WHERE key='last_observability_report_sent_at'"))
                     .isZero();
+            assertThat(
+                            fetchSingleLong(
+                                    connection,
+                                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=current_schema() AND table_name='technical_events'"))
+                    .isZero();
         }
     }
 
@@ -384,23 +389,6 @@ class FlywaySchemaMigrationIT {
                                         new ColumnSpec("timestamp with time zone", false, "CURRENT_TIMESTAMP", false))),
                         Set.of("uq_secret_settings_key"),
                         Set.of()));
-
-        tables.put(
-                "technical_events",
-                new TableSpec(
-                        Map.ofEntries(
-                                Map.entry("id", identityColumn("integer")),
-                                Map.entry("severity", new ColumnSpec("character varying", false, "'info'", false)),
-                                Map.entry("subsystem", requiredColumn("character varying")),
-                                Map.entry("event_code", requiredColumn("character varying")),
-                                Map.entry("summary", requiredColumn("text")),
-                                Map.entry("details", nullableColumn("text")),
-                                Map.entry("source_id", nullableColumn("integer")),
-                                Map.entry(
-                                        "created_at",
-                                        new ColumnSpec("timestamp with time zone", false, "CURRENT_TIMESTAMP", false))),
-                        Set.of(),
-                        Set.of(new ForeignKeySpec("fk_technical_events_source_id", "source_id", "sources", "id"))));
 
         tables.put(
                 "posts",

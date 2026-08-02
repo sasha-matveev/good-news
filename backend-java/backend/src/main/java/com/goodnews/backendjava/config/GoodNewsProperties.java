@@ -14,8 +14,7 @@ public record GoodNewsProperties(
         @Valid @DefaultValue AuthProperties auth,
         @Valid @DefaultValue SchedulerProperties scheduler,
         @Valid @DefaultValue GeminiProperties gemini,
-        @Valid @DefaultValue EmailProperties email,
-        @Valid @DefaultValue ObservabilityProperties observability) {
+        @Valid @DefaultValue EmailProperties email) {
 
     @AssertTrue(message = "When GOOD_NEWS_FIREBASE_PROJECT_ID is set, GOOD_NEWS_ALLOWED_EMAILS must also be set.")
     public boolean isFirebaseAuthConfigured() {

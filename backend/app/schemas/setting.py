@@ -7,7 +7,6 @@ class SettingsResponse(BaseModel):
     daily_digest_time: str
     weekly_digest_day_of_week: str
     weekly_digest_time: str
-    observability_dashboard_url: str
     recipient_email: str | None
     sender_identity: str | None
     smtp_host: str | None

@@ -105,10 +105,6 @@ public class SourceManagementService {
                 .then(databaseClient
                         .sql("DELETE FROM posts WHERE source_id=:id")
                         .bind("id", id)
-                        .then())
-                .then(databaseClient
-                        .sql("DELETE FROM technical_events WHERE source_id=:id")
-                        .bind("id", id)
                         .then());
         return exists(id)
                 .flatMap(exists -> exists

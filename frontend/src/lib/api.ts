@@ -57,7 +57,6 @@ export type SettingsRecord = {
   daily_digest_time: string;
   weekly_digest_day_of_week: WeeklyDigestDayOfWeek;
   weekly_digest_time: string;
-  observability_dashboard_url?: string | null;
   recipient_email: string | null;
   sender_identity: string | null;
   smtp_host: string | null;

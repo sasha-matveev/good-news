@@ -19,9 +19,6 @@ all production calls to `VITE_CONTENT_API_ORIGIN`.
   and preflight headers.
 - Java `/api/health` checks database connectivity and the minimum shared schema,
   returning the same healthy body as Python and a bounded `503` failure body.
-- Java management metrics are not anonymously downloadable.
-- HTTP structured logs and metrics carry backend, route, method, status, latency,
-  and correlation context.
 - PostgreSQL pool acquisition, connection creation, statements, idle lifetime,
   and maximum lifetime are bounded; SMTP connect/read/write calls are bounded.
 - With current single-instance caps, Python's maximum pool allocation (`15`) and

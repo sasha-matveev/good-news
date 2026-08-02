@@ -59,9 +59,6 @@ class Settings:
     allowed_emails: str = ""
     scheduler_invoker: str | None = None
     oidc_audience: str | None = None
-    observability_grafana_origin: str | None = None
-    observability_grafana_host: str = "127.0.0.1"
-    observability_grafana_host_port: int = 3000
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -95,9 +92,6 @@ class Settings:
             allowed_emails=os.getenv("GOOD_NEWS_ALLOWED_EMAILS", ""),
             scheduler_invoker=os.getenv("GOOD_NEWS_SCHEDULER_INVOKER"),
             oidc_audience=os.getenv("GOOD_NEWS_OIDC_AUDIENCE"),
-            observability_grafana_origin=os.getenv("GOOD_NEWS_OBSERVABILITY_GRAFANA_ORIGIN"),
-            observability_grafana_host=os.getenv("GOOD_NEWS_OBSERVABILITY_GRAFANA_HOST", "127.0.0.1"),
-            observability_grafana_host_port=_read_int_env("GOOD_NEWS_OBSERVABILITY_GRAFANA_HOST_PORT", 3000),
         )
 
     def _resolve_secret(
@@ -189,15 +183,3 @@ class Settings:
 
     def delivery_service_base_url(self) -> str:
         return f"http://{self.delivery_service_host}:{self.delivery_service_port}"
-
-    def observability_grafana_base_url(self) -> str:
-        normalized = (self.observability_grafana_origin or "").strip().rstrip("/")
-        if normalized:
-            return normalized
-        return f"http://{self.observability_grafana_host}:{self.observability_grafana_host_port}"
-
-    def observability_dashboard_url(self) -> str:
-        return (
-            f"{self.observability_grafana_base_url()}"
-            "/d/good-news-overview/good-news-observability-overview"
-        )

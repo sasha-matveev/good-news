@@ -8,3 +8,5 @@ WHERE digest_type = 'observability_daily';
 
 DELETE FROM settings
 WHERE key = 'last_observability_report_sent_at';
+
+DROP TABLE technical_events;

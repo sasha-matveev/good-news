@@ -16,7 +16,6 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import com.goodnews.backendjava.service.JakartaMailSmtpEmailAdapter;
 import com.goodnews.backendjava.service.SmtpEmailAdapter;
 import com.goodnews.migration.MigrationConfiguration;
-import io.micrometer.core.instrument.MeterRegistry;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -75,9 +74,6 @@ class DigestDeliveryIT {
     @Autowired
     DatabaseClient database;
 
-    @Autowired
-    MeterRegistry meters;
-
     @MockitoSpyBean
     JakartaMailSmtpEmailAdapter smtp;
 
@@ -91,7 +87,7 @@ class DigestDeliveryIT {
     void clean() {
         reset(smtp, digests, generator);
         database.sql(
-                        "TRUNCATE TABLE digest_items, digests, read_later, post_analysis, feedback, technical_events, posts, sources, secret_settings, settings RESTART IDENTITY CASCADE")
+                        "TRUNCATE TABLE digest_items, digests, read_later, post_analysis, feedback, posts, sources, secret_settings, settings RESTART IDENTITY CASCADE")
                 .then()
                 .block();
         sql("INSERT INTO sources(id,original_url,display_name) VALUES (1,'https://source.test','Source')");
@@ -99,7 +95,6 @@ class DigestDeliveryIT {
 
     @Test
     void dailyGenerationRanksPersistsRendersAndSendsOnBoundedElastic() {
-        double sentBefore = deliveryRuns("daily", "sent");
         MockSmtpServer server = new MockSmtpServer();
         smtpSettings(server.port());
         for (int id = 1; id <= 7; id++) {
@@ -138,12 +133,10 @@ class DigestDeliveryIT {
         assertThat(digest.metadata()).isEqualTo("{\"frontend_base_url\":\"https://good-news.example\"}");
         assertThat(itemPostIds(1)).containsExactly(7L, 6L, 5L, 4L, 3L);
         assertThat(setting("last_daily_digest_sent_at")).isEqualTo(NOW.toString());
-        assertThat(deliveryRuns("daily", "sent")).isEqualTo(sentBefore + 1);
     }
 
     @Test
     void weeklyIncludesOlderPostsAndUsesWeeklyHistoryKey() {
-        double sentBefore = deliveryRuns("weekly", "sent");
         MockSmtpServer server = new MockSmtpServer();
         smtpSettings(server.port());
         post(1, NOW.minusSeconds(3 * 24 * 3600), 8);
@@ -156,12 +149,10 @@ class DigestDeliveryIT {
         assertThat(setting("last_weekly_digest_sent_at")).isEqualTo(NOW.toString());
         assertThat(server.message()).contains("Subject: Good News weekly digest for 2026-07-17", "Post 1");
         server.close();
-        assertThat(deliveryRuns("weekly", "sent")).isEqualTo(sentBefore + 1);
     }
 
     @Test
     void missingRecipientSkipsDeliveryButAdvancesHistory() {
-        double skippedBefore = deliveryRuns("daily", "skipped");
         setting("sender_identity", "sender@example.com");
         post(1, NOW.minusSeconds(3600), 5);
 
@@ -172,12 +163,10 @@ class DigestDeliveryIT {
         assertThat(digest(1).status()).isEqualTo("skipped");
         assertThat(setting("last_daily_digest_sent_at")).isEqualTo(NOW.toString());
         verifyNoInteractions(smtp);
-        assertThat(deliveryRuns("daily", "skipped")).isEqualTo(skippedBefore + 1);
     }
 
     @Test
     void smtpFailureMarksPersistedDigestIndeterminateAndDoesNotAdvanceHistory() {
-        double indeterminateBefore = deliveryRuns("daily", "indeterminate");
         smtpSettings(2525);
         post(1, NOW.minusSeconds(3600), 5);
         doThrow(new IllegalStateException("SMTP unavailable")).when(smtp).send(any(), any());
@@ -188,12 +177,10 @@ class DigestDeliveryIT {
 
         assertThat(digest(1).status()).isEqualTo("indeterminate");
         assertThat(setting("last_daily_digest_sent_at")).isNull();
-        assertThat(deliveryRuns("daily", "indeterminate")).isEqualTo(indeterminateBefore + 1);
     }
 
     @Test
-    void indeterminateMetricSurvivesFailureToPersistSmtpOutcome() {
-        double indeterminateBefore = deliveryRuns("daily", "indeterminate");
+    void indeterminateStateSurvivesFailureToPersistSmtpOutcome() {
         smtpSettings(2525);
         post(1, NOW.minusSeconds(3600), 5);
         doThrow(new IllegalStateException("SMTP unavailable")).when(smtp).send(any(), any());
@@ -206,12 +193,10 @@ class DigestDeliveryIT {
                 .hasRootCauseMessage("SMTP unavailable");
 
         assertThat(digest(1).status()).isEqualTo("generated");
-        assertThat(deliveryRuns("daily", "indeterminate")).isEqualTo(indeterminateBefore + 1);
     }
 
     @Test
     void existingScheduledRunPreventsDuplicateSmtpDelivery() {
-        double blockedBefore = deliveryRuns("daily", "duplicate_blocked");
         MockSmtpServer server = new MockSmtpServer();
         smtpSettings(server.port());
         post(1, NOW.minusSeconds(3600), 5);
@@ -225,12 +210,10 @@ class DigestDeliveryIT {
                 .hasMessageContaining("status sent");
         verify(smtp, times(1)).send(any(), any());
         assertThat(count("SELECT COUNT(*) AS value FROM digests")).isEqualTo(1L);
-        assertThat(deliveryRuns("daily", "duplicate_blocked")).isEqualTo(blockedBefore + 1);
     }
 
     @Test
     void indeterminateScheduledRunRequiresOperatorResolutionInsteadOfResending() {
-        double indeterminateBefore = deliveryRuns("daily", "indeterminate");
         sql(
                 "INSERT INTO digests(digest_type,scheduled_for,status) VALUES ('daily','2026-07-17T12:00:00Z','indeterminate')");
 
@@ -240,12 +223,10 @@ class DigestDeliveryIT {
 
         verifyNoInteractions(smtp);
         assertThat(count("SELECT COUNT(*) AS value FROM digests")).isEqualTo(1L);
-        assertThat(deliveryRuns("daily", "indeterminate")).isEqualTo(indeterminateBefore + 1);
     }
 
     @Test
     void legacySentRunIsNotHiddenByNewerFailedDuplicate() {
-        double blockedBefore = deliveryRuns("daily", "duplicate_blocked");
         sql(
                 "INSERT INTO digests(digest_type,scheduled_for,status) VALUES ('daily','2026-07-17T12:00:00Z','sent'),('daily','2026-07-17T12:00:00Z','failed')");
 
@@ -253,12 +234,10 @@ class DigestDeliveryIT {
 
         verifyNoInteractions(smtp);
         assertThat(count("SELECT COUNT(*) AS value FROM digests")).isEqualTo(2L);
-        assertThat(deliveryRuns("daily", "duplicate_blocked")).isEqualTo(blockedBefore + 1);
     }
 
     @Test
     void postSmtpPersistenceFailureBecomesIndeterminateAndCannotResend() {
-        double indeterminateBefore = deliveryRuns("daily", "indeterminate");
         MockSmtpServer server = new MockSmtpServer();
         smtpSettings(server.port());
         post(1, NOW.minusSeconds(3600), 5);
@@ -275,12 +254,10 @@ class DigestDeliveryIT {
         reset(digests);
         assertThatThrownBy(() -> delivery.deliverDaily(NOW).block()).hasMessageContaining("status indeterminate");
         verify(smtp, times(1)).send(any(), any());
-        assertThat(deliveryRuns("daily", "indeterminate")).isEqualTo(indeterminateBefore + 2);
     }
 
     @Test
     void generationFailureIsRecordedByDeliveryWorkflow() {
-        double failedBefore = deliveryRuns("daily", "failed");
         doReturn(Mono.error(new IllegalStateException("generation failed")))
                 .when(generator)
                 .generateDaily(NOW);
@@ -289,12 +266,10 @@ class DigestDeliveryIT {
 
         verifyNoInteractions(smtp);
         assertThat(count("SELECT COUNT(*) AS value FROM digests")).isZero();
-        assertThat(deliveryRuns("daily", "failed")).isEqualTo(failedBefore + 1);
     }
 
     @Test
     void concurrentRunsClaimOneDatabaseSlotAndSendOnlyOnce() {
-        double blockedBefore = deliveryRuns("daily", "duplicate_blocked");
         MockSmtpServer server = new MockSmtpServer();
         smtpSettings(server.port());
         post(1, NOW.minusSeconds(3600), 5);
@@ -314,7 +289,6 @@ class DigestDeliveryIT {
         server.close();
         verify(smtp, times(1)).send(any(), any());
         assertThat(count("SELECT COUNT(*) AS value FROM digests")).isEqualTo(1L);
-        assertThat(deliveryRuns("daily", "duplicate_blocked")).isEqualTo(blockedBefore + 1);
     }
 
     private void smtpSettings(int port) {
@@ -400,13 +374,6 @@ class DigestDeliveryIT {
                 .map((row, metadata) -> row.get("value", Long.class))
                 .one()
                 .block();
-    }
-
-    private double deliveryRuns(String type, String status) {
-        var counter = meters.find("good.news.delivery.runs")
-                .tags("digest_type", type, "status", status)
-                .counter();
-        return counter == null ? 0 : counter.count();
     }
 
     private record DigestRow(String type, String status, String recipient, OffsetDateTime sentAt, String metadata) {}

@@ -11,7 +11,6 @@ from sqlalchemy import select, text
 from app.core.config import Settings
 from app.core.db import create_engine_from_settings, create_session_factory, session_scope
 from app.models.post import Post
-from app.models.setting import TechnicalEvent
 from app.models.source import Source
 from app.source_ingestion_service.main import create_app
 from app.testing.schema import stamp_schema_head
@@ -28,7 +27,6 @@ def _reset_runtime_state(session_factory) -> None:
     with session_scope(session_factory) as session:
         session.execute(text("DELETE FROM post_analysis"))
         session.execute(text("DELETE FROM posts"))
-        session.execute(text("DELETE FROM technical_events"))
         session.execute(text("DELETE FROM sources"))
 
 
@@ -219,7 +217,6 @@ def test_source_ingestion_service_runtime_reconciles_failed_source_after_readapt
 
     with session_scope(session_factory) as session:
         source = session.scalar(select(Source).where(Source.original_url == unique_url))
-        events = session.scalars(select(TechnicalEvent).order_by(TechnicalEvent.id)).all()
 
     assert source is not None
     assert source.feed_url == reconciled_feed_url
@@ -227,10 +224,6 @@ def test_source_ingestion_service_runtime_reconciles_failed_source_after_readapt
     assert source.needs_readaptation is False
     assert source.readaptation_reason is None
     assert source.consecutive_failures == 0
-    assert [event.event_code for event in events] == [
-        "source.repeated_failure",
-        "source.readaptation_needed",
-    ]
 
     third_sync_response = client.post("/internal/ingestion/sync/run-once")
     assert third_sync_response.status_code == 200

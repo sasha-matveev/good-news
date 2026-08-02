@@ -8,7 +8,6 @@ from app.core.db import create_engine_from_url, create_session_factory, session_
 from app.models.base import Base
 from app.models.post import Post
 from app.models.post_analysis import PostAnalysis
-from app.models.setting import TechnicalEvent
 from app.models.source import Source
 from app.services.analysis import AnalysisResult
 from app.services.source_sync import _parse_datetime, sync_active_sources
@@ -646,7 +645,6 @@ def test_sync_active_sources_triggers_readaptation_after_repeated_failures_and_k
 
     with session_scope(session_factory) as session:
         source = session.get(Source, 1)
-        events = session.scalars(select(TechnicalEvent).order_by(TechnicalEvent.id)).all()
 
     assert source is not None
     assert source.feed_url == "https://fallback.example/feed.xml"
@@ -656,11 +654,6 @@ def test_sync_active_sources_triggers_readaptation_after_repeated_failures_and_k
     assert source.readaptation_reason == "sync failed 2 times consecutively"
     assert source.consecutive_failures == 2
     assert source.last_failure_at == datetime(2026, 4, 26, 12, 0)
-    assert [event.event_code for event in events] == [
-        "source.repeated_failure",
-        "source.readaptation_needed",
-        "source.readaptation_failed",
-    ]
 
 
 def test_sync_active_sources_persists_updated_strategy_when_readaptation_succeeds() -> None:
@@ -706,7 +699,6 @@ def test_sync_active_sources_persists_updated_strategy_when_readaptation_succeed
 
     with session_scope(session_factory) as session:
         source = session.get(Source, 1)
-        events = session.scalars(select(TechnicalEvent).order_by(TechnicalEvent.id)).all()
 
     assert source is not None
     assert source.feed_url == "https://example.com/feed.xml"
@@ -715,10 +707,6 @@ def test_sync_active_sources_persists_updated_strategy_when_readaptation_succeed
     assert source.needs_readaptation is False
     assert source.readaptation_reason is None
     assert source.consecutive_failures == 0
-    assert [event.event_code for event in events] == [
-        "source.repeated_failure",
-        "source.readaptation_needed",
-    ]
 
 
 def test_sync_active_sources_writes_post_analysis_through_analysis_flow() -> None:

@@ -14,7 +14,7 @@ import org.springframework.security.web.server.savedrequest.NoOpServerRequestCac
 
 @Configuration
 @EnableWebFluxSecurity
-public class ActuatorSecurityConfig {
+public class WebSecurityConfig {
 
     @Bean
     SecurityWebFilterChain securityWebFilterChain(
@@ -22,12 +22,8 @@ public class ActuatorSecurityConfig {
             UserAuthenticationWebFilter userAuthenticationWebFilter,
             SchedulerAuthenticationWebFilter schedulerAuthenticationWebFilter) {
         return http.authorizeExchange(exchanges -> exchanges
-                        .pathMatchers("/actuator/health")
-                        .permitAll()
                         .pathMatchers("/api/health")
                         .permitAll()
-                        .pathMatchers("/actuator/**")
-                        .authenticated()
                         .anyExchange()
                         .permitAll())
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)

@@ -67,7 +67,6 @@ export function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testingEmail, setTestingEmail] = useState(false);
-  const [observabilityDashboardUrl, setObservabilityDashboardUrl] = useState<string | null>(null);
   const [passwordConfigured, setPasswordConfigured] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -80,7 +79,6 @@ export function SettingsPage() {
         const settings = await getSettings();
         if (!cancelled) {
           setForm(buildFormState(settings));
-          setObservabilityDashboardUrl(settings.observability_dashboard_url ?? null);
           setPasswordConfigured(settings.smtp_password_configured);
           setError(null);
         }
@@ -130,7 +128,6 @@ export function SettingsPage() {
         ...(form.replace_password ? { smtp_password: form.smtp_password } : {})
       });
       setForm(buildFormState(updated));
-      setObservabilityDashboardUrl(updated.observability_dashboard_url ?? null);
       setPasswordConfigured(updated.smtp_password_configured);
       setSuccessMessage("Settings saved.");
       setError(null);

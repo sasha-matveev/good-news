@@ -34,7 +34,6 @@ def _reset_runtime_state(session_factory) -> None:
         session.execute(text("DELETE FROM feedback"))
         session.execute(text("DELETE FROM post_analysis"))
         session.execute(text("DELETE FROM posts"))
-        session.execute(text("DELETE FROM technical_events"))
         session.execute(text("DELETE FROM sources"))
         session.execute(
             text(
