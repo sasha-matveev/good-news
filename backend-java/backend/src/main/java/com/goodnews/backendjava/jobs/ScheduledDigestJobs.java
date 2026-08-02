@@ -24,15 +24,10 @@ public final class ScheduledDigestJobs {
 
     private final SettingsService settings;
     private final DigestDeliveryService delivery;
-    private final String observabilityReportTime;
 
-    public ScheduledDigestJobs(
-            SettingsService settings,
-            DigestDeliveryService delivery,
-            com.goodnews.backendjava.config.GoodNewsProperties properties) {
+    public ScheduledDigestJobs(SettingsService settings, DigestDeliveryService delivery) {
         this.settings = settings;
         this.delivery = delivery;
-        this.observabilityReportTime = properties.observability().dailyReportTime();
     }
 
     public Mono<RunResult> runDue(Instant now) {
@@ -47,11 +42,6 @@ public final class ScheduledDigestJobs {
                             "weekly",
                             () -> runWeeklyIfDue(now, appSettings),
                             value -> result.weeklyRanFor = value,
-                            result.errors))
-                    .then(runBranch(
-                            "observability",
-                            () -> runObservabilityIfDue(now),
-                            value -> result.observabilityRanFor = value,
                             result.errors))
                     .then(Mono.fromSupplier(result::immutable));
         }));
@@ -71,11 +61,6 @@ public final class ScheduledDigestJobs {
         }
         Instant due = latestWeeklyDue(now, appSettings.weeklyDigestDayOfWeek(), appSettings.weeklyDigestTime());
         return runIfNewer(due, settings::getLastWeeklyDigestSentAt, delivery::deliverWeekly);
-    }
-
-    private Mono<Instant> runObservabilityIfDue(Instant now) {
-        Instant due = latestDailyDue(now, observabilityReportTime);
-        return runIfNewer(due, settings::getLastObservabilityReportSentAt, delivery::deliverObservabilityReport);
     }
 
     private Mono<Instant> runIfNewer(Instant due, Supplier<Mono<Instant>> lastSent, Function<Instant, Mono<?>> action) {
@@ -130,17 +115,15 @@ public final class ScheduledDigestJobs {
         });
     }
 
-    public record RunResult(
-            Instant dailyRanFor, Instant weeklyRanFor, Instant observabilityRanFor, List<String> errors) {}
+    public record RunResult(Instant dailyRanFor, Instant weeklyRanFor, List<String> errors) {}
 
     private static final class MutableResult {
         private Instant dailyRanFor;
         private Instant weeklyRanFor;
-        private Instant observabilityRanFor;
         private final List<String> errors = new ArrayList<>();
 
         private RunResult immutable() {
-            return new RunResult(dailyRanFor, weeklyRanFor, observabilityRanFor, List.copyOf(errors));
+            return new RunResult(dailyRanFor, weeklyRanFor, List.copyOf(errors));
         }
     }
 }

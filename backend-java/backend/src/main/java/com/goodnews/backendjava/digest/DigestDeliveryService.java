@@ -11,28 +11,22 @@ import reactor.core.scheduler.Schedulers;
 @Service
 public final class DigestDeliveryService {
     private final DigestGenerationService generator;
-    private final ObservabilityReportGenerator observabilityReports;
     private final DigestRepository digests;
     private final SettingsService settings;
     private final SmtpEmailAdapter smtp;
     private final TransactionalOperator transactions;
-    private final DeliveryObservability observability;
 
     public DigestDeliveryService(
             DigestGenerationService generator,
-            ObservabilityReportGenerator observabilityReports,
             DigestRepository digests,
             SettingsService settings,
             SmtpEmailAdapter smtp,
-            TransactionalOperator transactions,
-            DeliveryObservability observability) {
+            TransactionalOperator transactions) {
         this.generator = generator;
-        this.observabilityReports = observabilityReports;
         this.digests = digests;
         this.settings = settings;
         this.smtp = smtp;
         this.transactions = transactions;
-        this.observability = observability;
     }
 
     public Mono<DeliveryRunResult> deliverDaily(Instant now) {
@@ -43,25 +37,17 @@ public final class DigestDeliveryService {
         return deliver(DigestType.WEEKLY, now);
     }
 
-    public Mono<DeliveryRunResult> deliverObservabilityReport(Instant now) {
-        return deliver(DigestType.OBSERVABILITY_DAILY, now);
-    }
-
     private Mono<DeliveryRunResult> deliver(DigestType type, Instant now) {
         Mono<GeneratedDigest> generated =
                 switch (type) {
                     case DAILY -> generator.generateDaily(now);
                     case WEEKLY -> generator.generateWeekly(now);
-                    case OBSERVABILITY_DAILY -> observabilityReports.generate(now);
                 };
-        return guardNoPriorRun(type, now)
-                .then(generated)
-                .flatMap(digest -> deliveryDecision(digest)
-                        .onErrorResume(error -> error instanceof SmtpDeliveryException
-                                ? markIndeterminateThenError(digest.digestId(), (SmtpDeliveryException) error)
-                                : digests.markFailed(digest.digestId()).then(Mono.error(error)))
-                        .flatMap(decision -> finalizeDelivery(digest, decision, now)))
-                .doOnError(error -> observability.record(type, outcomeStatus(error)));
+        return guardNoPriorRun(type, now).then(generated).flatMap(digest -> deliveryDecision(digest)
+                .onErrorResume(error -> error instanceof SmtpDeliveryException
+                        ? markIndeterminateThenError(digest.digestId(), (SmtpDeliveryException) error)
+                        : digests.markFailed(digest.digestId()).then(Mono.error(error)))
+                .flatMap(decision -> finalizeDelivery(digest, decision, now)));
     }
 
     private Mono<Void> guardNoPriorRun(DigestType type, Instant now) {
@@ -89,13 +75,11 @@ public final class DigestDeliveryService {
         if (decision.skipped()) {
             Mono<Void> skipped = digests.markSkipped(digest.digestId()).then(setLastSentAt(digest.type(), now));
             return skipped.as(transactions::transactional)
-                    .doOnSuccess(ignored -> observability.record(digest.type(), "skipped"))
                     .thenReturn(new DeliveryRunResult(digest.digestId(), "skipped", false, digest.itemCount()));
         }
         return markSent(digest, decision.recipient(), now)
                 .onErrorResume(
                         error -> markIndeterminateThenError(digest.digestId(), new PostSendPersistenceException(error)))
-                .doOnSuccess(ignored -> observability.record(digest.type(), "sent"))
                 .thenReturn(new DeliveryRunResult(digest.digestId(), "sent", true, digest.itemCount()));
     }
 
@@ -104,21 +88,6 @@ public final class DigestDeliveryService {
                 .subscribeOn(Schedulers.boundedElastic())
                 .onErrorMap(SmtpDeliveryException::new)
                 .then();
-    }
-
-    private String outcomeStatus(Throwable error) {
-        if (error instanceof PostSendPersistenceException
-                || error instanceof SmtpDeliveryException
-                || error instanceof IndeterminateStatePersistenceException) {
-            return "indeterminate";
-        }
-        if (error instanceof ExistingDigestRunException existing) {
-            return existing.isUncertain() ? "indeterminate" : "duplicate_blocked";
-        }
-        if (error instanceof DigestRepository.DigestRunConflictException) {
-            return "duplicate_blocked";
-        }
-        return "failed";
     }
 
     private Mono<Void> markSent(GeneratedDigest digest, String recipient, Instant now) {
@@ -137,7 +106,6 @@ public final class DigestDeliveryService {
         return switch (type) {
             case DAILY -> settings.setLastDailyDigestSentAt(now);
             case WEEKLY -> settings.setLastWeeklyDigestSentAt(now);
-            case OBSERVABILITY_DAILY -> settings.setLastObservabilityReportSentAt(now);
         };
     }
 
@@ -195,10 +163,6 @@ public final class DigestDeliveryService {
             super("Digest run already exists for " + type.databaseValue() + " at " + scheduledFor + " with status "
                     + status);
             this.status = status;
-        }
-
-        private boolean isUncertain() {
-            return "generated".equals(status) || "indeterminate".equals(status);
         }
     }
 }

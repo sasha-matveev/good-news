@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Settings
 from app.core.db import create_engine_from_settings, create_session_factory, session_scope
-from app.core.observability import instrument_app
+from app.core.backend_identity import install_backend_identity
 from app.core.schema_guard import assert_database_schema_is_current
 from app.schemas.source import SourceResponse
 from app.parsing.discovery import DocumentLoader
@@ -146,7 +146,7 @@ def create_app(
     app.state.enable_scheduler = enable_scheduler
     app.state.now_provider = resolved_now_provider
     app.state.scheduler = None
-    instrument_app(app=app, service_name="source-ingestion-service")
+    install_backend_identity(app)
 
     @app.on_event("startup")
     def ensure_runtime() -> None:

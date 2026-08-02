@@ -46,7 +46,7 @@ class AlembicToFlywayMigrationIT {
             assertThat(singleString(connection, "SELECT version_num FROM alembic_version"))
                     .isEqualTo(DatabaseMigrationRunner.ALEMBIC_HEAD);
             assertThat(singleLong(connection, "SELECT COUNT(*) FROM flyway_schema_history"))
-                    .isEqualTo(2L);
+                    .isEqualTo(3L);
             assertThat(singleString(
                             connection,
                             "SELECT type || ':' || version FROM flyway_schema_history ORDER BY installed_rank LIMIT 1"))
@@ -67,7 +67,7 @@ class AlembicToFlywayMigrationIT {
 
         try (Connection connection = connection()) {
             assertThat(singleLong(connection, "SELECT COUNT(*) FROM flyway_schema_history"))
-                    .isEqualTo(2L);
+                    .isEqualTo(3L);
             assertThat(singleLong(connection, "SELECT COUNT(*) FROM posts")).isEqualTo(1L);
         }
     }

@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-from sqlalchemy import select
-
 from app.core.db import create_engine_from_url, create_session_factory, session_scope
 from app.models.base import Base
-from app.models.setting import TechnicalEvent
 from app.models.source import Source
 from app.services.source_readaptation import readapt_source
 
@@ -53,7 +50,7 @@ def test_readaptation_replaces_strategy_only_after_success() -> None:
     assert refreshed.readaptation_reason is None
 
 
-def test_readaptation_keeps_existing_strategy_and_emits_event_on_failure() -> None:
+def test_readaptation_keeps_existing_strategy_on_failure() -> None:
     engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
     Base.metadata.create_all(engine)
     session_factory = create_session_factory(engine)
@@ -81,7 +78,6 @@ def test_readaptation_keeps_existing_strategy_and_emits_event_on_failure() -> No
 
     with session_scope(session_factory) as session:
         source = session.get(Source, 1)
-        events = session.scalars(select(TechnicalEvent)).all()
 
     assert source is not None
     assert source.feed_url == "https://fallback.example/feed.xml"
@@ -89,9 +85,6 @@ def test_readaptation_keeps_existing_strategy_and_emits_event_on_failure() -> No
     assert source.needs_readaptation is True
     assert source.readaptation_reason == "feed returned errors"
     assert source.status == "needs_readaptation"
-    assert len(events) == 1
-    assert events[0].event_code == "source.readaptation_failed"
-    assert events[0].source_id == 1
 
 
 def test_readaptation_uses_medium_feed_override_for_netflix_tech_blog_custom_domain() -> None:

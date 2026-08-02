@@ -33,10 +33,7 @@ public final class InternalJobsController {
 
     private InternalJobDtos.DigestJobResponse response(ScheduledDigestJobs.RunResult result) {
         return new InternalJobDtos.DigestJobResponse(
-                iso(result.dailyRanFor()),
-                iso(result.weeklyRanFor()),
-                iso(result.observabilityRanFor()),
-                result.errors());
+                iso(result.dailyRanFor()), iso(result.weeklyRanFor()), result.errors());
     }
 
     private String iso(Instant value) {

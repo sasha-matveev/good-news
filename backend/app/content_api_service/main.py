@@ -16,7 +16,7 @@ from app.api.routes.sources import router as sources_router
 from app.api.routes.want_to_read import router as want_to_read_router
 from app.core.config import Settings
 from app.core.db import create_engine_from_settings, create_session_factory
-from app.core.observability import instrument_app
+from app.core.backend_identity import install_backend_identity
 from app.core.schema_guard import assert_database_schema_is_current
 
 
@@ -36,7 +36,7 @@ def create_app(
     app.state.settings = resolved_settings
     app.state.source_ingestion_client_factory = source_ingestion_client_factory
     app.state.delivery_service_client_factory = delivery_service_client_factory
-    instrument_app(app=app, service_name="content-api-service")
+    install_backend_identity(app)
 
     app.include_router(feedback_router, prefix="/api")
     app.include_router(digests_router, prefix="/api")

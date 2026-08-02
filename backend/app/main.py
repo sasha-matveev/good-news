@@ -23,7 +23,7 @@ from app.api.routes.sources import router as sources_router
 from app.api.routes.want_to_read import router as want_to_read_router
 from app.core.config import Settings
 from app.core.db import create_engine_from_settings, create_session_factory, wait_for_database
-from app.core.observability import instrument_app
+from app.core.backend_identity import install_backend_identity
 from app.core.request_auth import install_user_auth_middleware
 from app.core.schema_guard import assert_database_schema_is_current
 from app.parsing.discovery import DocumentLoader
@@ -129,9 +129,7 @@ def create_app(
         expose_headers=["X-Good-News-Backend", "X-Correlation-ID"],
     )
     install_user_auth_middleware(app, resolved_settings)
-    # Install this last so identity/correlation headers and request telemetry
-    # also cover CORS preflight and authentication failures.
-    instrument_app(app=app, service_name="good-news")
+    install_backend_identity(app)
 
     app.include_router(feedback_router, prefix="/api")
     app.include_router(digests_router, prefix="/api")

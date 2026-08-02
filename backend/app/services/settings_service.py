@@ -227,12 +227,3 @@ def set_last_weekly_digest_sent_at(session: Session, scheduled_for_iso: str) -> 
 def get_last_weekly_digest_sent_at(session: Session) -> str | None:
     row = session.scalar(select(Setting).where(Setting.key == "last_weekly_digest_sent_at"))
     return row.value if row is not None else None
-
-
-def set_last_observability_report_sent_at(session: Session, scheduled_for_iso: str) -> None:
-    _upsert_setting(session, "last_observability_report_sent_at", scheduled_for_iso)
-
-
-def get_last_observability_report_sent_at(session: Session) -> str | None:
-    row = session.scalar(select(Setting).where(Setting.key == "last_observability_report_sent_at"))
-    return row.value if row is not None else None

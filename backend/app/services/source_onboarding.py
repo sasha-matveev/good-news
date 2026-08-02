@@ -6,7 +6,6 @@ from app.parsing.discovery import DocumentLoader
 
 from sqlalchemy.orm import Session
 
-from app.models.setting import TechnicalEvent
 from app.models.source import Source
 from app.parsing.discovery import DiscoveryError, DiscoveredSource, discover_source_strategy
 
@@ -37,16 +36,6 @@ def onboard_source(
         source.status = "failed"
         source.needs_readaptation = True
         source.readaptation_reason = str(exc)
-        session.add(
-            TechnicalEvent(
-                severity="warning",
-                subsystem="source-onboarding",
-                event_code="source.onboarding_failed",
-                summary="Source onboarding failed.",
-                details=str(exc),
-                source_id=source.id,
-            )
-        )
         return source
 
     apply_discovery_result(source, discovered)
@@ -55,16 +44,6 @@ def onboard_source(
         source.status = "needs_readaptation"
         source.needs_readaptation = True
         source.readaptation_reason = "No usable feed discovered; HTML fallback requires monitoring."
-        session.add(
-            TechnicalEvent(
-                severity="warning",
-                subsystem="source-onboarding",
-                event_code="source.readaptation_needed",
-                summary="Source onboarded with HTML fallback only.",
-                details=source.readaptation_reason,
-                source_id=source.id,
-            )
-        )
     else:
         if discovered.strategy_kind == "known_site":
             log(f"Strategy: known_site — parser: {discovered.strategy_config.get('parser_id')}")

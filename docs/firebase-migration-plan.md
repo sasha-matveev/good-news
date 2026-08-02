@@ -14,7 +14,6 @@ Ollama и APScheduler удаляются, флагов совместимост�
 | LLM-анализ | Gemini API (вместо Ollama) | free tier AI Studio |
 | Планировщик (sync + digest) | Cloud Scheduler → HTTP (вместо APScheduler) | 3 задания бесплатно |
 | Email-дайджесты | Gmail SMTP (app password) или Brevo | бесплатно |
-| Наблюдаемость | Cloud Logging / Monitoring | вместо Prometheus/Grafana |
 
 Что сознательно теряем: local-first приватность (статьи уходят в Gemini, данные в Neon),
 Grafana-стек, мгновенный отклик (cold start ~2–4 с), локальный docker-режим целиком.
@@ -155,7 +154,6 @@ Grafana-стек, мгновенный отклик (cold start ~2–4 с), ло
 - [ ] 6.2. Smoke: `GET https://<project>.web.app/` (логин), `GET /api/health`,
       добавить источник, дождаться sync от Scheduler, проверить посты и ранжирование
       (Gemini), форсировать дайджест, проверить письмо.
-- [ ] 6.3. Проверить логи Cloud Run (Cloud Logging), время cold start.
 - [ ] 6.4. Проверить, что неавторизованный запрос к `/api/posts` получает 401,
       а `/internal/jobs/*` без OIDC — 401/403.
 - [ ] 6.5. Неделю понаблюдать billing-отчёт: всё в пределах free tier, счёт $0.

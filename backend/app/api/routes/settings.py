@@ -36,10 +36,7 @@ def _is_monolith(request: Request) -> bool:
 @router.get("/settings", response_model=SettingsResponse)
 def get_settings(request: Request, session: Session = Depends(get_session)) -> SettingsResponse:
     settings = load_settings(session)
-    return SettingsResponse(
-        **settings.__dict__,
-        observability_dashboard_url=request.app.state.settings.observability_dashboard_url(),
-    )
+    return SettingsResponse(**settings.__dict__)
 
 
 @router.put("/settings", response_model=SettingsResponse)
@@ -97,10 +94,7 @@ def update_settings(
                 runtime_settings=runtime_settings,
             )
 
-    return SettingsResponse(
-        **settings.__dict__,
-        observability_dashboard_url=request.app.state.settings.observability_dashboard_url(),
-    )
+    return SettingsResponse(**settings.__dict__)
 
 
 @router.post("/settings/test-email")

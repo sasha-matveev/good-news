@@ -138,7 +138,7 @@ npm run build --prefix frontend
 
 ## Operations
 
-- Logs and metrics: Cloud Logging / Cloud Monitoring for `good-news-app`
+- Runtime status: the in-app Monitoring page backed by `/api/monitoring/summary`
 - Health: `GET https://good-news-app-446870476468.us-central1.run.app/api/health` (public)
 - Budget alert on the billing account guards the free tier (expected spend: $0/month)
 - Migration plan history: [docs/firebase-migration-plan.md](docs/firebase-migration-plan.md)

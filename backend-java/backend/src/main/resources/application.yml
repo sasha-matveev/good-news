@@ -5,15 +5,3 @@ spring:
 good-news:
   ingestion:
     bulk-concurrency: ${GOOD_NEWS_INGESTION_BULK_CONCURRENCY:4}
-
-management:
-  health:
-    r2dbc:
-      enabled: false
-  endpoints:
-    web:
-      exposure:
-        include: health
-  endpoint:
-    health:
-      show-details: never

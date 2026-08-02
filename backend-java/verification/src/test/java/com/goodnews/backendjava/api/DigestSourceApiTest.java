@@ -45,7 +45,7 @@ class DigestSourceApiTest {
     @BeforeEach
     void clean() {
         database.sql(
-                        "TRUNCATE TABLE digest_items, digests, read_later, post_analysis, feedback, technical_events, posts, sources RESTART IDENTITY CASCADE")
+                        "TRUNCATE TABLE digest_items, digests, read_later, post_analysis, feedback, posts, sources RESTART IDENTITY CASCADE")
                 .then()
                 .block();
     }
@@ -217,7 +217,6 @@ class DigestSourceApiTest {
         sql("INSERT INTO read_later(post_id) VALUES (1)");
         sql("INSERT INTO digests(id,digest_type,scheduled_for) VALUES (1,'daily',NOW())");
         sql("INSERT INTO digest_items(digest_id,post_id,rank_position) VALUES (1,1,1)");
-        sql("INSERT INTO technical_events(subsystem,event_code,summary,source_id) VALUES ('source','test','event',1)");
         client.delete()
                 .uri("/api/sources/1")
                 .exchange()
@@ -225,9 +224,8 @@ class DigestSourceApiTest {
                 .isNoContent()
                 .expectBody()
                 .isEmpty();
-        for (String table : new String[] {
-            "sources", "posts", "feedback", "post_analysis", "read_later", "digest_items", "technical_events"
-        }) {
+        for (String table :
+                new String[] {"sources", "posts", "feedback", "post_analysis", "read_later", "digest_items"}) {
             Long count = database.sql("SELECT COUNT(*) AS count FROM " + table)
                     .map((row, metadata) -> row.get("count", Long.class))
                     .one()

@@ -16,7 +16,6 @@ public final class SettingsDtos {
             String daily_digest_time,
             String weekly_digest_day_of_week,
             String weekly_digest_time,
-            String observability_dashboard_url,
             String recipient_email,
             String sender_identity,
             String smtp_host,

@@ -3,7 +3,6 @@ from __future__ import annotations
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.db import session_scope
-from app.models.setting import TechnicalEvent
 from app.models.source import Source
 from app.parsing.discovery import DiscoveryError, DocumentLoader, discover_source_strategy
 from app.services.source_onboarding import apply_discovery_result
@@ -26,17 +25,7 @@ def readapt_source_model(
             responses,
             document_loader=document_loader,
         )
-    except DiscoveryError as exc:
-        session.add(
-            TechnicalEvent(
-                severity="warning",
-                subsystem="source-readaptation",
-                event_code="source.readaptation_failed",
-                summary="Source readaptation failed.",
-                details=str(exc),
-                source_id=source.id,
-            )
-        )
+    except DiscoveryError:
         return source
 
     apply_discovery_result(source, discovered)

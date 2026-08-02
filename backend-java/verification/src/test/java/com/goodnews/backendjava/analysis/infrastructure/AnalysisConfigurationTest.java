@@ -17,7 +17,6 @@ import com.goodnews.backendjava.config.DatabaseProperties;
 import com.goodnews.backendjava.config.EmailProperties;
 import com.goodnews.backendjava.config.GeminiProperties;
 import com.goodnews.backendjava.config.GoodNewsProperties;
-import com.goodnews.backendjava.config.ObservabilityProperties;
 import com.goodnews.backendjava.config.SchedulerProperties;
 import com.goodnews.backendjava.monitoring.application.MonitoringService;
 import com.goodnews.backendjava.monitoring.application.port.MonitoringQuery;
@@ -108,7 +107,6 @@ class AnalysisConfigurationTest {
                 new AuthProperties(null, "", null),
                 new SchedulerProperties(30, 3, null),
                 new GeminiProperties(key, "configured-model", 4, 13, 6),
-                new EmailProperties(null, null, null),
-                new ObservabilityProperties(null, "127.0.0.1", 3000, "18:00"));
+                new EmailProperties(null, null, null));
     }
 }

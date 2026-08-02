@@ -9,7 +9,6 @@ import com.goodnews.backendjava.config.DatabaseProperties;
 import com.goodnews.backendjava.config.EmailProperties;
 import com.goodnews.backendjava.config.GeminiProperties;
 import com.goodnews.backendjava.config.GoodNewsProperties;
-import com.goodnews.backendjava.config.ObservabilityProperties;
 import com.goodnews.backendjava.config.SchedulerProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
@@ -54,7 +53,6 @@ class AppMasterKeyResolverTest {
                 new AuthProperties(null, "", null),
                 new SchedulerProperties(30, 3, null),
                 new GeminiProperties(null, "gemini-3.1-flash-lite", 10, 8, 4),
-                new EmailProperties(appMasterKey, null, null),
-                new ObservabilityProperties(null, "127.0.0.1", 3000, "18:00"));
+                new EmailProperties(appMasterKey, null, null));
     }
 }

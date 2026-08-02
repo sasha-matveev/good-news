@@ -1,7 +1,6 @@
 package com.goodnews.backendjava.service;
 
 import com.goodnews.backendjava.api.dto.SettingsDtos;
-import com.goodnews.backendjava.config.GoodNewsProperties;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -45,13 +44,10 @@ public class SettingsService {
             Map.entry("analysis_verdict_reason_prompt", DEFAULT_VERDICT_REASON_INSTRUCTIONS));
 
     private final DatabaseClient databaseClient;
-    private final GoodNewsProperties properties;
     private final AppMasterKeyResolver appMasterKeyResolver;
 
-    public SettingsService(
-            DatabaseClient databaseClient, GoodNewsProperties properties, AppMasterKeyResolver appMasterKeyResolver) {
+    public SettingsService(DatabaseClient databaseClient, AppMasterKeyResolver appMasterKeyResolver) {
         this.databaseClient = databaseClient;
-        this.properties = properties;
         this.appMasterKeyResolver = appMasterKeyResolver;
     }
 
@@ -176,20 +172,12 @@ public class SettingsService {
         return upsertSetting("last_weekly_digest_sent_at", sentAt.toString());
     }
 
-    public Mono<Void> setLastObservabilityReportSentAt(Instant sentAt) {
-        return upsertSetting("last_observability_report_sent_at", sentAt.toString());
-    }
-
     public Mono<Instant> getLastDailyDigestSentAt() {
         return getInstantSetting("last_daily_digest_sent_at");
     }
 
     public Mono<Instant> getLastWeeklyDigestSentAt() {
         return getInstantSetting("last_weekly_digest_sent_at");
-    }
-
-    public Mono<Instant> getLastObservabilityReportSentAt() {
-        return getInstantSetting("last_observability_report_sent_at");
     }
 
     static String encryptSecret(String plaintext, String masterKey) {
@@ -276,7 +264,6 @@ public class SettingsService {
                 settings.dailyDigestTime(),
                 settings.weeklyDigestDayOfWeek(),
                 settings.weeklyDigestTime(),
-                properties.observability().dashboardUrl(),
                 settings.recipientEmail(),
                 settings.senderIdentity(),
                 settings.smtpHost(),

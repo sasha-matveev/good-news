@@ -12,16 +12,13 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Settings
 from app.core.db import create_engine_from_settings, create_session_factory, session_scope
-from app.core.observability import instrument_app
+from app.core.backend_identity import install_backend_identity
 from app.core.schema_guard import assert_database_schema_is_current
 from app.jobs.digest_jobs import (
-    catch_up_daily_observability_report_if_needed,
     catch_up_daily_digest_if_needed,
     catch_up_weekly_digest_if_needed,
-    register_daily_observability_report_job,
     register_daily_digest_job,
     register_weekly_digest_job,
-    run_daily_observability_report,
     run_daily_digest,
     run_weekly_digest,
 )
@@ -78,7 +75,7 @@ def create_app(
     app.state.now_provider = resolved_now_provider
     app.state.scheduler = None
     app.state.email_transport_factory = email_transport_factory
-    instrument_app(app=app, service_name="delivery-service")
+    install_backend_identity(app)
 
     @app.on_event("startup")
     def ensure_runtime() -> None:
@@ -100,12 +97,6 @@ def create_app(
                 now_provider=app.state.now_provider,
                 runtime_settings=resolved_settings,
             )
-            register_daily_observability_report_job(
-                scheduler=scheduler,
-                session_factory=app.state.session_factory,
-                now_provider=app.state.now_provider,
-                runtime_settings=resolved_settings,
-            )
             try:
                 catch_up_daily_digest_if_needed(
                     session_factory=app.state.session_factory,
@@ -118,19 +109,6 @@ def create_app(
                 )
             except EmailSendError as exc:
                 logger.warning("Startup daily digest catch-up failed (will retry on next schedule): %s", exc)
-            try:
-                catch_up_daily_observability_report_if_needed(
-                    session_factory=app.state.session_factory,
-                    now=app.state.now_provider(),
-                    runtime_settings=resolved_settings,
-                    run_report=lambda scheduled_for: run_daily_observability_report(
-                        session_factory=app.state.session_factory,
-                        now=scheduled_for,
-                        runtime_settings=resolved_settings,
-                    ),
-                )
-            except EmailSendError as exc:
-                logger.warning("Startup observability report catch-up failed (will retry on next schedule): %s", exc)
             try:
                 catch_up_weekly_digest_if_needed(
                     session_factory=app.state.session_factory,

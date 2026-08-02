@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 from sqlalchemy import select, text
@@ -325,7 +325,6 @@ def test_content_api_service_returns_404_for_missing_daily_digest_detail() -> No
     assert response.status_code == 404
     assert response.json() == {"detail": "Digest not found"}
 
-
 def test_content_api_service_returns_404_for_non_sent_daily_digest_detail() -> None:
     client, session_factory = build_client()
 
@@ -347,8 +346,6 @@ def test_content_api_service_returns_404_for_non_sent_daily_digest_detail() -> N
 
     assert response.status_code == 404
     assert response.json() == {"detail": "Digest not found"}
-
-
 def test_content_api_service_returns_404_for_non_product_digest_detail() -> None:
     client, session_factory = build_client()
 
@@ -370,29 +367,3 @@ def test_content_api_service_returns_404_for_non_product_digest_detail() -> None
 
     assert response.status_code == 404
     assert response.json() == {"detail": "Digest not found"}
-
-
-def test_content_api_service_excludes_observability_daily_digests_from_product_history() -> None:
-    client, session_factory = build_client()
-
-    with session_scope(session_factory) as session:
-        session.add(
-            Digest(
-                id=51,
-                digest_type="observability_daily",
-                scheduled_for=datetime(2026, 4, 28, 18, 0, tzinfo=timezone.utc),
-                status="sent",
-                recipient_email="ops@example.com",
-                subject="Good News observability report for 2026-04-28",
-                html_body="<html><body>ops</body></html>",
-                sent_at=datetime(2026, 4, 28, 18, 0, tzinfo=timezone.utc),
-            )
-        )
-
-    list_response = client.get("/api/digests")
-    detail_response = client.get("/api/digests/51")
-
-    assert list_response.status_code == 200
-    assert list_response.json() == []
-    assert detail_response.status_code == 404
-    assert detail_response.json() == {"detail": "Digest not found"}

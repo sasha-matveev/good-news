@@ -17,11 +17,9 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.db import session_scope
 from app.models.feedback import Feedback
-from app.core.observability import record_analysis_failure, record_source_sync_failure
 from app.models.post import Post
 from app.models.post_analysis import PostAnalysis
 from app.models.read_later import ReadLater
-from app.models.setting import TechnicalEvent
 from app.models.source import Source
 from app.parsing.discovery import DocumentLoader
 from app.parsing.known_sites import KnownSiteListingItem, known_site_for_parser_id, parse_known_site_listing
@@ -416,20 +414,6 @@ def _persist_posts(
     return new_posts
 
 
-def _record_analysis_failure_event(session: Session, post: Post, details: str) -> None:
-    record_analysis_failure(reason="write_failed")
-    session.add(
-        TechnicalEvent(
-            severity="warning",
-            subsystem="analysis",
-            event_code="analysis.write_failed",
-            summary="Post analysis write failed.",
-            details=details,
-            source_id=post.source_id,
-        )
-    )
-
-
 def _persist_post_analysis(
     *,
     session: Session,
@@ -448,14 +432,9 @@ def _persist_post_analysis(
             for post in posts
         ]
         try:
-            failed_ids = set(batch(requests))
-        except Exception as exc:
-            for post in posts:
-                _record_analysis_failure_event(session, post, str(exc))
+            batch(requests)
+        except Exception:
             return
-        for post in posts:
-            if post.id in failed_ids:
-                _record_analysis_failure_event(session, post, "Post left pending by batch analysis.")
         return
 
     for post in posts:
@@ -463,8 +442,8 @@ def _persist_post_analysis(
             analysis_service_client.analyze_and_persist(
                 AnalysisRequest(post_id=post.id, title=post.title, content=post.raw_content),
             )
-        except Exception as exc:
-            _record_analysis_failure_event(session, post, str(exc))
+        except Exception:
+            continue
 
 
 def _record_sync_failure(
@@ -484,28 +463,6 @@ def _record_sync_failure(
         return
 
     readaptation_reason = f"sync failed {source.consecutive_failures} times consecutively"
-    session.add(
-        TechnicalEvent(
-            severity="warning",
-            subsystem="source-sync",
-            event_code="source.repeated_failure",
-            summary="Source sync hit the repeated-failure threshold.",
-            details=reason,
-            source_id=source.id,
-        )
-    )
-    record_source_sync_failure(event_code="source.repeated_failure")
-    session.add(
-        TechnicalEvent(
-            severity="warning",
-            subsystem="source-sync",
-            event_code="source.readaptation_needed",
-            summary="Source sync requested readaptation.",
-            details=readaptation_reason,
-            source_id=source.id,
-        )
-    )
-    record_source_sync_failure(event_code="source.readaptation_needed")
     readapt_source_model(
         source=source,
         reason=readaptation_reason,

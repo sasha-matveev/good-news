@@ -110,6 +110,59 @@ class FlywaySchemaMigrationIT {
         }
     }
 
+    @Test
+    void migrationSixRemovesLegacyReportDataAndKeepsProductDigests() throws SQLException {
+        String schema = "legacy_observability_report_cleanup";
+        Flyway.configure()
+                .dataSource(POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword())
+                .schemas(schema)
+                .defaultSchema(schema)
+                .target(MigrationVersion.fromVersion("5"))
+                .load()
+                .migrate();
+
+        try (Connection connection = DriverManager.getConnection(
+                        POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword());
+                Statement statement = connection.createStatement()) {
+            connection.setSchema(schema);
+            statement.executeUpdate("INSERT INTO sources(id,original_url) VALUES (1,'https://source.test')");
+            statement.executeUpdate(
+                    "INSERT INTO posts(id,source_id,canonical_url,title,raw_content,content_hash,ingest_metadata) VALUES (1,1,'https://source.test/post','Post','Body','hash','{}')");
+            statement.executeUpdate(
+                    "INSERT INTO digests(id,digest_type,scheduled_for,status) VALUES (1,'daily','2026-07-17T12:00:00Z','sent'),(2,'observability_daily','2026-07-17T18:00:00Z','sent')");
+            statement.executeUpdate("INSERT INTO digest_items(digest_id,post_id,rank_position) VALUES (2,1,1)");
+            statement.executeUpdate(
+                    "INSERT INTO settings(key,value) VALUES ('last_observability_report_sent_at','2026-07-17T18:00:00Z')");
+        }
+
+        Flyway.configure()
+                .dataSource(POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword())
+                .schemas(schema)
+                .defaultSchema(schema)
+                .load()
+                .migrate();
+
+        try (Connection connection = DriverManager.getConnection(
+                POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword())) {
+            connection.setSchema(schema);
+            assertThat(fetchSingleLong(connection, "SELECT COUNT(*) FROM digests WHERE digest_type='daily'"))
+                    .isEqualTo(1L);
+            assertThat(fetchSingleLong(
+                            connection, "SELECT COUNT(*) FROM digests WHERE digest_type='observability_daily'"))
+                    .isZero();
+            assertThat(fetchSingleLong(connection, "SELECT COUNT(*) FROM digest_items"))
+                    .isZero();
+            assertThat(fetchSingleLong(
+                            connection, "SELECT COUNT(*) FROM settings WHERE key='last_observability_report_sent_at'"))
+                    .isZero();
+            assertThat(
+                            fetchSingleLong(
+                                    connection,
+                                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=current_schema() AND table_name='technical_events'"))
+                    .isZero();
+        }
+    }
+
     private void assertFlywayHistory(Connection connection) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(
                 "SELECT version, success FROM flyway_schema_history ORDER BY installed_rank")) {
@@ -125,7 +178,8 @@ class FlywaySchemaMigrationIT {
                                 Map.entry("2", true),
                                 Map.entry("3", true),
                                 Map.entry("4", true),
-                                Map.entry("5", true));
+                                Map.entry("5", true),
+                                Map.entry("6", true));
             }
         }
     }
@@ -139,6 +193,14 @@ class FlywaySchemaMigrationIT {
                 ResultSet resultSet = statement.executeQuery()) {
             assertThat(resultSet.next()).isTrue();
             return resultSet.getString(1);
+        }
+    }
+
+    private long fetchSingleLong(Connection connection, String sql) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(sql);
+                ResultSet resultSet = statement.executeQuery()) {
+            assertThat(resultSet.next()).isTrue();
+            return resultSet.getLong(1);
         }
     }
 
@@ -327,23 +389,6 @@ class FlywaySchemaMigrationIT {
                                         new ColumnSpec("timestamp with time zone", false, "CURRENT_TIMESTAMP", false))),
                         Set.of("uq_secret_settings_key"),
                         Set.of()));
-
-        tables.put(
-                "technical_events",
-                new TableSpec(
-                        Map.ofEntries(
-                                Map.entry("id", identityColumn("integer")),
-                                Map.entry("severity", new ColumnSpec("character varying", false, "'info'", false)),
-                                Map.entry("subsystem", requiredColumn("character varying")),
-                                Map.entry("event_code", requiredColumn("character varying")),
-                                Map.entry("summary", requiredColumn("text")),
-                                Map.entry("details", nullableColumn("text")),
-                                Map.entry("source_id", nullableColumn("integer")),
-                                Map.entry(
-                                        "created_at",
-                                        new ColumnSpec("timestamp with time zone", false, "CURRENT_TIMESTAMP", false))),
-                        Set.of(),
-                        Set.of(new ForeignKeySpec("fk_technical_events_source_id", "source_id", "sources", "id"))));
 
         tables.put(
                 "posts",
