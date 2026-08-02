@@ -161,6 +161,189 @@ jobs:
           echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
           echo "sha=$candidate_sha" >> "$GITHUB_OUTPUT"
 
+  deploy-java-staging:
+    needs: resolve-candidate
+    if: needs.resolve-candidate.result == 'success'
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: java-staging-deploy
+      cancel-in-progress: false
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    env:
+      CANDIDATE_RUN_ID: ${{ needs.resolve-candidate.outputs.run_id }}
+      CANDIDATE_SHA: ${{ needs.resolve-candidate.outputs.sha }}
+    outputs:
+      image: ${{ steps.manifest.outputs.image }}
+      revision_url: ${{ steps.deploy.outputs.revision_url }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.CANDIDATE_SHA }}
+
+      - name: Download release manifest
+        uses: actions/download-artifact@v8
+        with:
+          name: release-candidate-${{ env.CANDIDATE_SHA }}
+          path: candidate
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.CANDIDATE_RUN_ID }}
+
+      - name: Validate Java image manifest
+        id: manifest
+        run: |
+          manifest=candidate/release-manifest.json
+          jq -e \
+            --arg sha "$CANDIDATE_SHA" \
+            --arg run_id "$CANDIDATE_RUN_ID" \
+            '.schema_version == 2 and
+             .source_sha == $sha and
+             .source_run_id == $run_id and
+             .java.image == (.java.image | sub("@.*$"; "")) + "@" + .java.digest and
+             (.java.digest | test("^sha256:[0-9a-f]{64}$")) and
+             (.java.tested_image_id | test("^sha256:[0-9a-f]{64}$"))' \
+            "$manifest"
+          echo "image=$(jq -r '.java.image' "$manifest")" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to Google Cloud with Workload Identity Federation
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Install gcloud
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          version: ">= 363.0.0"
+          cache: false
+
+      - name: Verify published Java image digest
+        env:
+          IMAGE: ${{ steps.manifest.outputs.image }}
+        run: test "$(gcloud artifacts docker images describe "$IMAGE" --format='value(image_summary.digest)')" = "${IMAGE##*@}"
+
+      - name: Deploy Java staging service
+        id: deploy
+        env:
+          IMAGE: ${{ steps.manifest.outputs.image }}
+          SERVICE: good-news-java-staging
+          PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          REGION: ${{ vars.GCP_REGION }}
+          DEPLOY_ENVIRONMENT: staging
+          ALLOWED_EMAILS: ${{ vars.ALLOWED_EMAILS }}
+          DATABASE_SECRET: ${{ vars.JAVA_STAGING_DATABASE_URL_SECRET || vars.JAVA_DATABASE_URL_SECRET }}
+          APP_MASTER_KEY_SECRET: ${{ vars.JAVA_STAGING_APP_MASTER_KEY_SECRET || vars.JAVA_APP_MASTER_KEY_SECRET }}
+          GEMINI_API_KEY_SECRET: ${{ vars.JAVA_STAGING_GEMINI_API_KEY_SECRET || vars.JAVA_GEMINI_API_KEY_SECRET }}
+          FIREBASE_PROJECT_ID: ${{ vars.JAVA_STAGING_FIREBASE_PROJECT_ID || vars.JAVA_FIREBASE_PROJECT_ID }}
+          RUNTIME_SERVICE_ACCOUNT: ${{ vars.JAVA_STAGING_RUNTIME_SERVICE_ACCOUNT || vars.JAVA_RUNTIME_SERVICE_ACCOUNT }}
+          SCHEDULER_INVOKER: ${{ vars.JAVA_STAGING_SCHEDULER_INVOKER || vars.JAVA_SCHEDULER_INVOKER }}
+          OIDC_AUDIENCE: ${{ vars.JAVA_STAGING_OIDC_AUDIENCE || vars.JAVA_OIDC_AUDIENCE }}
+          PUBLIC_CONTENT_API_ORIGIN: ${{ vars.JAVA_STAGING_PUBLIC_CONTENT_API_ORIGIN || vars.JAVA_PUBLIC_CONTENT_API_ORIGIN || env.RUN_URL }}
+          PUBLIC_FRONTEND_ORIGIN: ${{ vars.JAVA_STAGING_PUBLIC_FRONTEND_ORIGIN || vars.JAVA_PUBLIC_FRONTEND_ORIGIN || format('https://{0}.web.app', vars.GCP_PROJECT_ID) }}
+        run: bash .github/scripts/deploy-java.sh
+
+      - name: Health-check Java staging revision
+        env:
+          REVISION_URL: ${{ steps.deploy.outputs.revision_url }}
+        run: curl --fail --retry 24 --retry-all-errors --retry-delay 2 "$REVISION_URL/api/health"
+
+      - name: Promote healthy Java staging revision
+        env:
+          REVISION: ${{ steps.deploy.outputs.revision }}
+        run: |
+          gcloud run services update-traffic good-news-java-staging \
+            --to-revisions "${REVISION}=100" \
+            --region "${{ vars.GCP_REGION }}" \
+            --project "${{ vars.GCP_PROJECT_ID }}"
+
+  deploy-java-production:
+    needs:
+      - resolve-candidate
+      - deploy-java-staging
+    if: >-
+      needs.resolve-candidate.result == 'success' &&
+      needs.deploy-java-staging.result == 'success'
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: java-production-deploy
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      CANDIDATE_SHA: ${{ needs.resolve-candidate.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.CANDIDATE_SHA }}
+
+      - name: Authenticate to Google Cloud with Workload Identity Federation
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Install gcloud
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          version: ">= 363.0.0"
+          cache: false
+
+      - name: Deploy Java production service
+        id: deploy
+        env:
+          IMAGE: ${{ needs.deploy-java-staging.outputs.image }}
+          SERVICE: good-news-java
+          PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          REGION: ${{ vars.GCP_REGION }}
+          DEPLOY_ENVIRONMENT: prod
+          ALLOWED_EMAILS: ${{ vars.ALLOWED_EMAILS }}
+          DATABASE_SECRET: ${{ vars.JAVA_DATABASE_URL_SECRET }}
+          APP_MASTER_KEY_SECRET: ${{ vars.JAVA_APP_MASTER_KEY_SECRET }}
+          GEMINI_API_KEY_SECRET: ${{ vars.JAVA_GEMINI_API_KEY_SECRET }}
+          FIREBASE_PROJECT_ID: ${{ vars.JAVA_FIREBASE_PROJECT_ID }}
+          RUNTIME_SERVICE_ACCOUNT: ${{ vars.JAVA_RUNTIME_SERVICE_ACCOUNT }}
+          SCHEDULER_INVOKER: ${{ vars.JAVA_SCHEDULER_INVOKER }}
+          OIDC_AUDIENCE: ${{ vars.JAVA_OIDC_AUDIENCE }}
+          PUBLIC_CONTENT_API_ORIGIN: ${{ vars.JAVA_PUBLIC_CONTENT_API_ORIGIN || env.RUN_URL }}
+          PUBLIC_FRONTEND_ORIGIN: ${{ vars.JAVA_PUBLIC_FRONTEND_ORIGIN || format('https://{0}.web.app', vars.GCP_PROJECT_ID) }}
+        run: bash .github/scripts/deploy-java.sh
+
+      - name: Health-check Java production revision
+        env:
+          REVISION_URL: ${{ steps.deploy.outputs.revision_url }}
+        run: curl --fail --retry 24 --retry-all-errors --retry-delay 2 "$REVISION_URL/api/health"
+
+      - name: Promote healthy Java production revision
+        env:
+          REVISION: ${{ steps.deploy.outputs.revision }}
+        run: |
+          gcloud run services update-traffic good-news-java \
+            --to-revisions "${REVISION}=100" \
+            --region "${{ vars.GCP_REGION }}" \
+            --project "${{ vars.GCP_PROJECT_ID }}"
+
+      - name: Record Java deployment
+        env:
+          IMAGE: ${{ needs.deploy-java-staging.outputs.image }}
+          STAGING_URL: ${{ needs.deploy-java-staging.outputs.revision_url }}
+          PRODUCTION_URL: ${{ steps.deploy.outputs.revision_url }}
+        run: |
+          {
+            echo "## Java deployment"
+            echo
+            echo "- Commit: \`$CANDIDATE_SHA\`"
+            echo "- Image: \`$IMAGE\`"
+            echo "- Staging revision URL: $STAGING_URL"
+            echo "- Production revision URL: $PRODUCTION_URL"
+            echo "- Browser operation routing is controlled independently by frontend/src/lib/api.ts"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   deploy:
     needs: resolve-candidate
     if: needs.resolve-candidate.result == 'success'
