@@ -118,7 +118,7 @@
       "name": "scheduler-oidc-valid-invoker",
       "route_group": "internal-jobs",
       "mode": "differential",
-      "tables": ["sources", "posts", "post_analysis", "technical_events"],
+      "tables": ["sources", "posts", "post_analysis"],
       "steps": [{
         "method": "POST",
         "path": "/internal/jobs/source-sync",

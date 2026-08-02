@@ -127,7 +127,7 @@ class FlywaySchemaMigrationIT {
             connection.setSchema(schema);
             statement.executeUpdate("INSERT INTO sources(id,original_url) VALUES (1,'https://source.test')");
             statement.executeUpdate(
-                    "INSERT INTO posts(id,source_id,canonical_url,content_hash) VALUES (1,1,'https://source.test/post','hash')");
+                    "INSERT INTO posts(id,source_id,canonical_url,title,raw_content,content_hash,ingest_metadata) VALUES (1,1,'https://source.test/post','Post','Body','hash','{}')");
             statement.executeUpdate(
                     "INSERT INTO digests(id,digest_type,scheduled_for,status) VALUES (1,'daily','2026-07-17T12:00:00Z','sent'),(2,'observability_daily','2026-07-17T18:00:00Z','sent')");
             statement.executeUpdate("INSERT INTO digest_items(digest_id,post_id,rank_position) VALUES (2,1,1)");

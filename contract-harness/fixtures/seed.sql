@@ -5,7 +5,6 @@ TRUNCATE TABLE
     post_analysis,
     feedback,
     posts,
-    technical_events,
     secret_settings,
     settings,
     sources
