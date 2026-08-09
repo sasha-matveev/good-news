@@ -80,7 +80,7 @@ Grafana-стек, мгновенный отклик (cold start ~2–4 с), ло
       разрешить только репо `sasha-matveev/good-news`, ветку `master`.
 - [ ] 3.3. GitHub repo variables/secrets: `GCP_PROJECT_ID`, `GCP_REGION`,
       `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_SERVICE_ACCOUNT`.
-- [ ] 3.4. Новый workflow `.github/workflows/deploy.yml` (trigger: push в `master`,
+- [ ] 3.4. Workflow `.github/workflows/ci.yml` (deploy job on push в `master`,
       после успешных тестов):
       1. `google-github-actions/auth` (WIF)
       2. build backend image → push в Artifact Registry
