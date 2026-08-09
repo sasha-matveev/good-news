@@ -36,49 +36,24 @@ strangler cutovers. Firebase Hosting rewrites `/api/**` remain a fallback.
 
 ## Deployment
 
-Push to `master` triggers the build-once/promote release pipeline:
+The repository has one workflow: `.github/workflows/ci.yml`.
 
-1. The `Plan applicable checks` job maps changed paths to one parallel
-   validation layer: Python, frontend, production-image, Java, and
-   differential-contract checks. Pull requests skip unaffected checks; trusted
-   `master` pushes run all five to produce a complete release candidate.
-2. The `Quality gate` job is the single stable required status. Failed or
-   cancelled checks fail the gate; path-filtered Java and contract jobs may be
-   skipped.
-3. After the gate, a trusted `master` run publishes the tested backend and
-   migration images, the production frontend, and their release manifest.
-4. A successful trusted CI run on `master` triggers
-   `.github/workflows/deploy.yml`, which validates the manifest, promotes both
-   images by digest, runs the Flyway Cloud Run job, deploys and health-checks a
-   tagged Cloud Run revision before sending it production traffic, and deploys
-   the exact archived frontend.
+1. On pull requests, `Detect changes` selects the affected Python, Java,
+   frontend, and backend-contract jobs. Unaffected jobs are skipped.
+2. On every push to `master`, all tests and all three application builds run.
+3. After `Quality gate` succeeds on `master`, the `Deploy` job publishes the
+   tested images, runs Flyway, deploys the Python and Java Cloud Run services,
+   health-checks them, and deploys the tested frontend to Firebase Hosting.
 
-Deploy does not rebuild artifacts or rerun a reduced test suite. Release
-manifests and frontend candidates are retained in GitHub Actions for 14 days.
-The tested image archives have the same retention; published SHA tags and
-digest-addressed images are governed by the Artifact Registry cleanup policy.
-That policy must retain deployed digests and may remove untagged or undeployed
-candidates after the 14-day manual-promotion window.
+The deploy job never runs for a pull request or another branch. It consumes the
+artifacts built earlier in the same workflow run instead of rebuilding them.
+Container images are tagged with the source commit SHA.
 
 GitHub authenticates to GCP via Workload Identity Federation — no key files.
-All changes land on `master` through pull requests. Both privileged Deploy jobs
-use the GitHub `production` environment; configure that environment and the
+All changes land on `master` through pull requests. The privileged `Deploy` job
+uses the GitHub `production` environment; configure that environment and the
 Workload Identity Provider to allow only `master`, with optional required
 reviewers for production promotion.
-
-Run the `Deploy` workflow manually with its default `validate` operation to
-verify Workload Identity Federation, the installed gcloud version, and
-authenticated access to Artifact Registry, the `db-migrate` Cloud Run job, the
-`good-news-app` Cloud Run service, and Firebase Hosting. The validation performs
-read-only cloud queries; its only local mutation is configuring Docker
-authentication on the ephemeral runner.
-
-A manual production deployment requires selecting `deploy` and supplying both
-the successful CI run ID and its full commit SHA while dispatching the workflow
-from `master`. The workflow rejects runs that did not complete the full quality
-gate, non-`master` or non-push runs, missing or expired artifacts, mismatched
-manifests or digests, and candidates that are no longer the tip of `master`. It
-never rebuilds a missing candidate.
 
 To roll back the backend, shift Cloud Run traffic to a known-good retained
 revision. Rollback intentionally uses the cloud provider's retained release

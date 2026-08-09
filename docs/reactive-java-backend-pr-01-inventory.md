@@ -5,7 +5,7 @@ This document freezes the current Python backend scope and contracts for PR-01 o
 ## Scope guard
 
 - Active backend entrypoint: `backend/app/main.py`.
-- Active production backend topology: one FastAPI Cloud Run service, `good-news-app`, deployed by `.github/workflows/deploy.yml`.
+- Active production backend topology: one FastAPI Cloud Run service, `good-news-app`, deployed by `.github/workflows/ci.yml`.
 - Database migrations remain Alembic-based today under `backend/alembic/` and are executed through the Cloud Run job `db-migrate`.
 - Legacy split-service runtimes still exist in the repo under `backend/app/content_api_service/`, `backend/app/source_ingestion_service/`, `backend/app/analysis_llm_service/`, and `backend/app/delivery_service/`.
 - This document does not define Java implementation details. It only freezes current scope, contracts, and migration classifications.
@@ -88,17 +88,17 @@ These contracts still exist in the repo even though the active production topolo
 
 | Dependency | Current repo fact |
 | --- | --- |
-| FastAPI on Cloud Run | `README.md` and `.github/workflows/deploy.yml` describe and deploy one FastAPI monolith to Cloud Run service `good-news-app`. |
-| Alembic migrations | `.github/workflows/deploy.yml` deploys and executes Cloud Run job `db-migrate`; `backend/alembic/` and `backend/alembic.ini` are present. |
+| FastAPI on Cloud Run | `README.md` and `.github/workflows/ci.yml` describe and deploy one FastAPI monolith to Cloud Run service `good-news-app`. |
+| Alembic migrations | `.github/workflows/ci.yml` deploys and executes Cloud Run job `db-migrate`; `backend/alembic/` and `backend/alembic.ini` are present. |
 | Firebase Auth plus backend email allowlist | `backend/app/core/request_auth.py` enforces Firebase ID token validation and allowlisted verified emails on `/api/*`, exempting `/api/health` and `/internal/*`. |
 | Gemini integration | `backend/app/ai/gemini_client.py` is used by `backend/app/main.py` and `backend/app/analysis_llm_service/main.py`; `backend/app/core/config.py` requires `GOOD_NEWS_GEMINI_API_KEY`. |
 | Gmail SMTP digest delivery | `README.md` describes Gmail SMTP delivery; `backend/app/services/email_service.py` and digest jobs implement SMTP-based email sending from settings stored in the app DB. |
-| Secret Manager secrets | `.github/workflows/deploy.yml` injects `good-news-db-url`, `good-news-app-master-key`, and `good-news-gemini-api-key` into Cloud Run. |
-| Cloud Scheduler OIDC calls | `README.md`, `.github/workflows/deploy.yml`, and `backend/app/api/routes/internal_jobs.py` show Scheduler invoking `/internal/jobs/*` with Google OIDC tokens verified against the configured scheduler service account and audience. |
+| Secret Manager secrets | `.github/workflows/ci.yml` injects `good-news-db-url`, `good-news-app-master-key`, and `good-news-gemini-api-key` into Cloud Run. |
+| Cloud Scheduler OIDC calls | `README.md`, `.github/workflows/ci.yml`, and `backend/app/api/routes/internal_jobs.py` show Scheduler invoking `/internal/jobs/*` with Google OIDC tokens verified against the configured scheduler service account and audience. |
 
 ## Legacy split-service runtimes: collapse or preserve
 
-Repo fact: these runtime directories still exist in the repo. Repo fact: `.github/workflows/deploy.yml` deploys `backend/app/main.py` as the active production backend and does not deploy these runtimes separately. PR-01 should therefore distinguish "present in repo" from "used in the current active production path" and should not automatically include a legacy runtime in Java migration scope just because the directory exists.
+Repo fact: these runtime directories still exist in the repo. Repo fact: `.github/workflows/ci.yml` deploys `backend/app/main.py` as the active production backend and does not deploy these runtimes separately. PR-01 should therefore distinguish "present in repo" from "used in the current active production path" and should not automatically include a legacy runtime in Java migration scope just because the directory exists.
 
 | Runtime directory | Current status in repo | PR-01 scope classification | Grounding |
 | --- | --- | --- | --- |
@@ -117,4 +117,4 @@ This is the narrowest repo-grounded conclusion available today: the split runtim
 - Domain and adapter services: `backend/app/services/*.py`
 - Job orchestration: `backend/app/jobs/*.py`
 - Runtime infrastructure: `backend/app/core/*.py`
-- Deployment and operations: `README.md`, `.github/workflows/deploy.yml`
+- Deployment and operations: `README.md`, `.github/workflows/ci.yml`
